@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Stats Cards Row -->
+<div class="row">
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="stats-label">Total Customers</div>
+                        <div class="stats-value">{{ stats.total_customers }}</div>
+                        <small class="text-muted">
+                            <span class="text-warning">{{ stats.kyc_pending }} KYC Pending</span>
+                        </small>
+                    </div>
+                    <div class="text-primary" style="font-size: 3rem; opacity: 0.2;">
+                        <i class="bi bi-people"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="stats-label">Active Loans</div>
+                        <div class="stats-value">{{ stats.active_loans }}</div>
+                        <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(stats.total_loan_outstanding|float) }}</small>
+                    </div>
+                    <div class="text-success" style="font-size: 3rem; opacity: 0.2;">
+                        <i class="bi bi-cash-coin"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="stats-label">Active Investments</div>
+                        <div class="stats-value">{{ stats.active_investments }}</div>
+                        <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(stats.total_investment_amount|float) }}</small>
+                    </div>
+                    <div class="text-info" style="font-size: 3rem; opacity: 0.2;">
+                        <i class="bi bi-piggy-bank"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="stats-label">Active Pawnings</div>
+                        <div class="stats-value">{{ stats.active_pawnings }}</div>
+                        <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(stats.total_pawning_outstanding|float) }}</small>
+                    </div>
+                    <div class="text-warning" style="font-size: 3rem; opacity: 0.2;">
+                        <i class="bi bi-gem"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <!-- Recent Loans -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Recent Loans</h6>
+                <a href="{{ url_for('loans.list_loans') }}" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Loan #</th>
+                                <th>Customer</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for loan in recent_loans %}
+                            <tr>
+                                <td><a href="{{ url_for('loans.view_loan', id=loan.id) }}">{{ loan.loan_number }}</a></td>
+                                <td>{{ loan.customer.full_name }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                                <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted">No loans yet</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Customers -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Recent Customers</h6>
+                <a href="{{ url_for('customers.list_customers') }}" class="btn btn-sm btn-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Customer ID</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>KYC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for customer in recent_customers %}
+                            <tr>
+                                <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
+                                <td>{{ customer.full_name }}</td>
+                                <td>{{ customer.phone_primary }}</td>
+                                <td>
+                                    {% if customer.kyc_verified %}
+                                    <span class="badge bg-success">Verified</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted">No customers yet</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if overdue_loans %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Overdue Loans</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Loan #</th>
+                                <th>Customer</th>
+                                <th>Outstanding</th>
+                                <th>Due Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for loan in overdue_loans %}
+                            <tr>
+                                <td><a href="{{ url_for('loans.view_loan', id=loan.id) }}">{{ loan.loan_number }}</a></td>
+                                <td>{{ loan.customer.full_name }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) }}</td>
+                                <td>{{ loan.first_installment_date }}</td>
+                                <td>
+                                    <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-cash"></i> Add Payment
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>System Settings</h4>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">General Settings</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('settings.system_settings') }}">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.app_name.label }}</label>
+                            {{ form.app_name(class="form-control") }}
+                            {% if form.app_name.errors %}
+                                <div class="text-danger">{{ form.app_name.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.theme_color.label }}</label>
+                            {{ form.theme_color(class="form-control", type="color") }}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Regional Settings</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.currency.label }}</label>
+                            {{ form.currency(class="form-control") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.currency_symbol.label }}</label>
+                            {{ form.currency_symbol(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Company Information</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">{{ form.company_name.label }}</label>
+                            {{ form.company_name(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">{{ form.company_address.label }}</label>
+                            {{ form.company_address(class="form-control", rows="3") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.company_phone.label }}</label>
+                            {{ form.company_phone(class="form-control") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.company_email.label }}</label>
+                            {{ form.company_email(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Default Loan Settings</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.default_loan_interest_rate.label }}</label>
+                            <div class="input-group">
+                                {{ form.default_loan_interest_rate(class="form-control") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.default_loan_duration.label }}</label>
+                            <div class="input-group">
+                                {{ form.default_loan_duration(class="form-control") }}
+                                <span class="input-group-text">months</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.interest_calculation_method.label }}</label>
+                            {{ form.interest_calculation_method(class="form-select") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.late_payment_penalty_percentage.label }}</label>
+                            <div class="input-group">
+                                {{ form.late_payment_penalty_percentage(class="form-control") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Default Investment Settings</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.default_investment_interest_rate.label }}</label>
+                            <div class="input-group">
+                                {{ form.default_investment_interest_rate(class="form-control") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.minimum_investment_amount.label }}</label>
+                            <div class="input-group">
+                                <span class="input-group-text">{{ system_settings.currency_symbol }}</span>
+                                {{ form.minimum_investment_amount(class="form-control") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h6 class="mb-3">Default Pawning Settings</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.default_pawning_interest_rate.label }}</label>
+                            <div class="input-group">
+                                {{ form.default_pawning_interest_rate(class="form-control") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{{ form.maximum_loan_to_value_ratio.label }}</label>
+                            <div class="input-group">
+                                {{ form.maximum_loan_to_value_ratio(class="form-control") }}
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Quick Info</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    <i class="bi bi-info-circle me-2"></i>
+                    These settings control the default behavior of the system. Changes will be applied immediately.
+                </p>
+                <hr>
+                <p class="text-muted small">
+                    <strong>Interest Calculation Methods:</strong><br>
+                    <strong>Flat Rate:</strong> Interest calculated on original principal<br>
+                    <strong>Reducing Balance:</strong> Interest calculated on outstanding balance
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

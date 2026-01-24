@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Customer Details</h4>
+    <div>
+        <a href="{{ url_for('customers.edit_customer', id=customer.id) }}" class="btn btn-warning">
+            <i class="bi bi-pencil me-2"></i>Edit
+        </a>
+        <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Customer Info Card -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Personal Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Customer ID:</strong><br>
+                    {{ customer.customer_id }}
+                </div>
+                <div class="mb-3">
+                    <strong>Full Name:</strong><br>
+                    {{ customer.full_name }}
+                </div>
+                <div class="mb-3">
+                    <strong>NIC Number:</strong><br>
+                    {{ customer.nic_number }}
+                </div>
+                <div class="mb-3">
+                    <strong>Date of Birth:</strong><br>
+                    {{ customer.date_of_birth.strftime('%Y-%m-%d') if customer.date_of_birth else 'N/A' }}
+                </div>
+                <div class="mb-3">
+                    <strong>Gender:</strong><br>
+                    {{ customer.gender|title if customer.gender else 'N/A' }}
+                </div>
+                <div class="mb-3">
+                    <strong>Marital Status:</strong><br>
+                    {{ customer.marital_status|title if customer.marital_status else 'N/A' }}
+                </div>
+                <div class="mb-3">
+                    <strong>Status:</strong><br>
+                    <span class="badge status-{{ customer.status }}">{{ customer.status|title }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>KYC Status:</strong><br>
+                    {% if customer.kyc_verified %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
+                    <br><small class="text-muted">Verified on {{ customer.kyc_verified_date.strftime('%Y-%m-%d') if customer.kyc_verified_date else 'N/A' }}</small>
+                    {% else %}
+                    <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pending</span>
+                    <a href="{{ url_for('customers.customer_kyc', id=customer.id) }}" class="btn btn-sm btn-primary mt-2">
+                        <i class="bi bi-upload"></i> Upload KYC
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <!-- KYC Documents -->
+                {% if customer.nic_front_image or customer.nic_back_image or customer.photo or customer.proof_of_address %}
+                <div class="mb-3">
+                    <strong>KYC Documents:</strong><br>
+                    <div class="mt-2">
+                        {% if customer.nic_front_image %}
+                        <a href="/{{ customer.nic_front_image }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                            <i class="bi bi-card-heading"></i> NIC Front
+                        </a>
+                        {% endif %}
+                        {% if customer.nic_back_image %}
+                        <a href="/{{ customer.nic_back_image }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                            <i class="bi bi-card-heading"></i> NIC Back
+                        </a>
+                        {% endif %}
+                        {% if customer.photo %}
+                        <a href="/{{ customer.photo }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                            <i class="bi bi-person-badge"></i> Photo
+                        </a>
+                        {% endif %}
+                        {% if customer.proof_of_address %}
+                        <a href="/{{ customer.proof_of_address }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                            <i class="bi bi-house"></i> Address Proof
+                        </a>
+                        {% endif %}
+                        <br>
+                        <a href="{{ url_for('customers.customer_kyc', id=customer.id) }}" class="btn btn-sm btn-info mt-1">
+                            <i class="bi bi-folder2-open"></i> View All Documents
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contact & Employment Info -->
+    <div class="col-lg-8 mb-4">
+        <!-- Contact Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-telephone me-2"></i>Contact Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Primary Phone:</strong><br>
+                        {{ customer.phone_primary }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Secondary Phone:</strong><br>
+                        {{ customer.phone_secondary or 'N/A' }}
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <strong>Email:</strong><br>
+                        {{ customer.email or 'N/A' }}
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <strong>Address:</strong><br>
+                        {{ customer.address_line1 }}<br>
+                        {% if customer.address_line2 %}{{ customer.address_line2 }}<br>{% endif %}
+                        {{ customer.city }}, {{ customer.district }}<br>
+                        {% if customer.postal_code %}{{ customer.postal_code }}{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Employment Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-briefcase me-2"></i>Employment Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Occupation:</strong><br>
+                        {{ customer.occupation or 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Employer:</strong><br>
+                        {{ customer.employer_name or 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Employment Type:</strong><br>
+                        {{ customer.employment_type|title if customer.employment_type else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Monthly Income:</strong><br>
+                        {{ system_settings.currency_symbol }} {{ "%.2f"|format(customer.monthly_income|float) if customer.monthly_income else 'N/A' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Emergency Contact -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Emergency Contact</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <strong>Name:</strong><br>
+                        {{ customer.emergency_contact_name or 'N/A' }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>Phone:</strong><br>
+                        {{ customer.emergency_contact_phone or 'N/A' }}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>Relation:</strong><br>
+                        {{ customer.emergency_contact_relation or 'N/A' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs for Loans, Investments, Pawnings -->
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="loans-tab" data-bs-toggle="tab" data-bs-target="#loans" type="button" role="tab">
+                    <i class="bi bi-cash-coin me-2"></i>Loans ({{ customer.loans|list|length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="investments-tab" data-bs-toggle="tab" data-bs-target="#investments" type="button" role="tab">
+                    <i class="bi bi-piggy-bank me-2"></i>Investments ({{ customer.investments|list|length }})
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pawnings-tab" data-bs-toggle="tab" data-bs-target="#pawnings" type="button" role="tab">
+                    <i class="bi bi-gem me-2"></i>Pawnings ({{ customer.pawnings|list|length }})
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content">
+            <!-- Loans Tab -->
+            <div class="tab-pane fade show active" id="loans" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Loan #</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Outstanding</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for loan in customer.loans %}
+                            <tr>
+                                <td>{{ loan.loan_number }}</td>
+                                <td>{{ loan.loan_type|title }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
+                                <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
+                                <td>{{ loan.application_date.strftime('%Y-%m-%d') if loan.application_date else 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7" class="text-center text-muted">No loans found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Investments Tab -->
+            <div class="tab-pane fade" id="investments" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Account #</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Interest Rate</th>
+                                <th>Status</th>
+                                <th>Start Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for investment in customer.investments %}
+                            <tr>
+                                <td>{{ investment.account_number }}</td>
+                                <td>{{ investment.investment_type|title }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.principal_amount|float) }}</td>
+                                <td>{{ investment.interest_rate }}%</td>
+                                <td><span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span></td>
+                                <td>{{ investment.start_date.strftime('%Y-%m-%d') if investment.start_date else 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('investments.view_investment', id=investment.id) }}" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7" class="text-center text-muted">No investments found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Pawnings Tab -->
+            <div class="tab-pane fade" id="pawnings" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Ticket #</th>
+                                <th>Item</th>
+                                <th>Loan Amount</th>
+                                <th>Outstanding</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pawning in customer.pawnings %}
+                            <tr>
+                                <td>{{ pawning.ticket_number }}</td>
+                                <td>{{ pawning.item_description }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.loan_amount|float) }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.outstanding_amount|float) if pawning.outstanding_amount else '0.00' }}</td>
+                                <td><span class="badge status-{{ pawning.status }}">{{ pawning.status|title }}</span></td>
+                                <td>{{ pawning.pawning_date.strftime('%Y-%m-%d') if pawning.pawning_date else 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('pawnings.view_pawning', id=pawning.id) }}" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="7" class="text-center text-muted">No pawnings found</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Section -->
+{% if customer.notes %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-sticky me-2"></i>Notes</h5>
+    </div>
+    <div class="card-body">
+        {{ customer.notes }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

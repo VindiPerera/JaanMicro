@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Investment Details</h4>
+    <div>
+        {% if investment.status == 'active' %}
+        <a href="{{ url_for('investments.add_transaction', id=investment.id) }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-2"></i>Add Transaction
+        </a>
+        {% endif %}
+        <a href="{{ url_for('investments.list_investments') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Investment Summary Card -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Investment Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Account Number:</strong><br>
+                    {{ investment.account_number }}
+                </div>
+                <div class="mb-3">
+                    <strong>Status:</strong><br>
+                    <span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Principal Amount:</strong><br>
+                    <span class="fs-4 text-primary">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.principal_amount|float) }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Current Balance:</strong><br>
+                    <span class="fs-4 text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_balance|float) if investment.current_balance else investment.principal_amount }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Total Interest Earned:</strong><br>
+                    <span class="fs-5 text-info">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.total_interest_earned|float) if investment.total_interest_earned else '0.00' }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer Info Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person me-2"></i>Customer</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Name:</strong><br>
+                    <a href="{{ url_for('customers.view_customer', id=investment.customer.id) }}">
+                        {{ investment.customer.full_name }}
+                    </a>
+                </div>
+                <div class="mb-2">
+                    <strong>Customer ID:</strong><br>
+                    {{ investment.customer.customer_id }}
+                </div>
+                <div class="mb-2">
+                    <strong>Phone:</strong><br>
+                    {{ investment.customer.phone_primary }}
+                </div>
+                <div class="mb-2">
+                    <strong>NIC:</strong><br>
+                    {{ investment.customer.nic_number }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Investment Details -->
+    <div class="col-lg-8 mb-4">
+        <!-- Investment Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-piggy-bank me-2"></i>Investment Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Investment Type:</strong><br>
+                        {{ investment.investment_type|title }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Interest Rate:</strong><br>
+                        {{ investment.interest_rate }}% per annum
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Start Date:</strong><br>
+                        {{ investment.start_date.strftime('%Y-%m-%d') if investment.start_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Maturity Date:</strong><br>
+                        {{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Term:</strong><br>
+                        {{ investment.duration_months }} months
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Interest Payout:</strong><br>
+                        {{ investment.installment_frequency|title if investment.installment_frequency else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Status:</strong><br>
+                        <span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span>
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Interest Calculation -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Interest Calculation</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center mb-3">
+                        <h6 class="text-muted">Monthly Interest</h6>
+                        <div class="fs-4 text-success">
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format((investment.principal_amount * investment.interest_rate / 100 / 12)|float) }}
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-3">
+                        <h6 class="text-muted">Yearly Interest</h6>
+                        <div class="fs-4 text-info">
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format((investment.principal_amount * investment.interest_rate / 100)|float) }}
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-3">
+                        <h6 class="text-muted">Maturity Amount</h6>
+                        <div class="fs-4 text-primary">
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format((investment.principal_amount * (1 + investment.interest_rate / 100 * investment.duration_months / 12))|float) if investment.duration_months else "%.2f"|format(investment.principal_amount|float) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction History -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Transaction History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Transaction Type</th>
+                        <th>Debit</th>
+                        <th>Credit</th>
+                        <th>Balance After</th>
+                        <th>Description</th>
+                        <th>Processed By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') if transaction.transaction_date else 'N/A' }}</td>
+                        <td>
+                            {% if transaction.transaction_type == 'deposit' %}
+                                <span class="badge bg-success">{{ transaction.transaction_type|title }}</span>
+                            {% elif transaction.transaction_type == 'withdrawal' %}
+                                <span class="badge bg-danger">{{ transaction.transaction_type|title }}</span>
+                            {% elif transaction.transaction_type == 'interest' %}
+                                <span class="badge bg-info">{{ transaction.transaction_type|title }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ transaction.transaction_type|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if transaction.transaction_type in ['withdrawal', 'fee'] %}
+                                {{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.amount|float) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if transaction.transaction_type in ['deposit', 'interest'] %}
+                                {{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.amount|float) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.balance_after|float) if transaction.balance_after else '0.00' }}</strong></td>
+                        <td>{{ transaction.description or '-' }}</td>
+                        <td>{{ transaction.processed_by.full_name if transaction.processed_by else 'System' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted">No transactions recorded yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Notes -->
+{% if investment.notes %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-sticky me-2"></i>Notes</h5>
+    </div>
+    <div class="card-body">
+        {{ investment.notes }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

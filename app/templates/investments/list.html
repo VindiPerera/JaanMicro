@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Investments</h4>
+    <a href="{{ url_for('investments.add_investment') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>Add New Investment
+    </a>
+</div>
+
+<!-- Search and Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control" placeholder="Search..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="matured" {% if status == 'matured' %}selected{% endif %}>Matured</option>
+                    <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="investment_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="fixed_deposit">Fixed Deposit</option>
+                    <option value="savings">Savings</option>
+                    <option value="recurring_deposit">Recurring Deposit</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Investments Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>Investment #</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Interest</th>
+                        <th>Current Value</th>
+                        <th>Maturity Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for investment in investments.items %}
+                    <tr>
+                        <td><a href="{{ url_for('investments.view_investment', id=investment.id) }}">{{ investment.investment_number }}</a></td>
+                        <td>{{ investment.customer.full_name }}</td>
+                        <td>{{ investment.investment_type|replace('_', ' ')|title }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.principal_amount|float) }}</td>
+                        <td>{{ investment.interest_rate }}%</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_amount|float) if investment.current_amount else '0.00' }}</td>
+                        <td>{{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else '-' }}</td>
+                        <td><span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span></td>
+                        <td>
+                            <a href="{{ url_for('investments.view_investment', id=investment.id) }}" class="btn btn-sm btn-info">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if investment.status == 'active' %}
+                            <a href="{{ url_for('investments.add_transaction', id=investment.id) }}" class="btn btn-sm btn-success">
+                                <i class="bi bi-cash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted">No investments found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if investments.pages > 1 %}
+        <nav>
+            <ul class="pagination">
+                {% if investments.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('investments.list_investments', page=investments.prev_num, search=search, status=status, investment_type=investment_type) }}">Previous</a></li>
+                {% endif %}
+                
+                {% for page_num in investments.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == investments.page %}
+                        <li class="page-item active"><a class="page-link" href="#">{{ page_num }}</a></li>
+                        {% else %}
+                        <li class="page-item"><a class="page-link" href="{{ url_for('investments.list_investments', page=page_num, search=search, status=status, investment_type=investment_type) }}">{{ page_num }}</a></li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if investments.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('investments.list_investments', page=investments.next_num, search=search, status=status, investment_type=investment_type) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

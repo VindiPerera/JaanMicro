@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>User Management</h4>
+    <div>
+        <button id="bulk-update-btn" class="btn btn-warning me-2" onclick="bulkUpdatePermissions()">
+            <i class="bi bi-arrow-repeat me-2"></i>Reset Role Permissions
+        </button>
+        <a href="{{ url_for('settings.add_user') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Add New User
+        </a>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-4">
+                <input type="text" name="search" class="form-control" placeholder="Search by name, email, username..." value="{{ search }}">
+            </div>
+            <div class="col-md-3">
+                <select name="role" class="form-select">
+                    <option value="">All Roles</option>
+                    <option value="admin" {% if role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="manager" {% if role == 'manager' %}selected{% endif %}>Manager</option>
+                    <option value="staff" {% if role == 'staff' %}selected{% endif %}>Staff</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Users Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>User ID</th>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Phone</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.user_id if user.user_id else 'N/A' }}</td>
+                        <td>{{ user.full_name }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email or 'N/A' }}</td>
+                        <td><span class="badge bg-primary">{{ user.role|title }}</span></td>
+                        <td>{{ user.phone or 'N/A' }}</td>
+                        <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
+                        <td><span class="badge status-{{ user.status }}">{{ user.status|title }}</span></td>
+                        <td>
+                            <a href="{{ url_for('settings.edit_user', id=user.id) }}" class="btn btn-sm btn-warning">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% if user.id != current_user.id %}
+                            <button class="btn btn-sm btn-danger" onclick="confirmDelete('{{ user.id }}', '{{ user.full_name }}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted">No users found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- User Roles & Permissions Info -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>User Roles & Permissions</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <h6 class="text-primary">Admin</h6>
+                <ul>
+                    <li>Full system access</li>
+                    <li>User management</li>
+                    <li>System settings</li>
+                    <li>All reports access</li>
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-success">Manager</h6>
+                <ul>
+                    <li>Customer management</li>
+                    <li>Loan approval</li>
+                    <li>All reports access</li>
+                    <li>Transaction oversight</li>
+                </ul>
+            </div>
+            <div class="col-md-4">
+                <h6 class="text-info">Staff</h6>
+                <ul>
+                    <li>Customer operations</li>
+                    <li>Payment collection</li>
+                    <li>Basic reports</li>
+                    <li>Transaction processing</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+function confirmDelete(userId, userName) {
+    if (confirm('Are you sure you want to delete user "' + userName + '"? This action cannot be undone.')) {
+        // Create form and submit
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/settings/delete_user/' + userId;
+        
+        var csrfToken = document.querySelector('input[name="csrf_token"]');
+        if (csrfToken) {
+            var token = document.createElement('input');
+            token.type = 'hidden';
+            token.name = 'csrf_token';
+            token.value = csrfToken.value;
+            form.appendChild(token);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function bulkUpdatePermissions() {
+    if (confirm('This will reset all users\' permissions to match their role defaults. Are you sure you want to continue?')) {
+        const btn = document.getElementById('bulk-update-btn');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-2"></i>Updating...';
+        
+        fetch('/settings/users/bulk-update-permissions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message and refresh page
+                alert(`Successfully updated permissions for ${data.updated_count} users!`);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error occurred'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while updating permissions');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        });
+    }
+}
+</script>
+{% endblock %}
+{% endblock %}

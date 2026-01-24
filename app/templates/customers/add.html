@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add New Customer</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Personal Information</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.full_name.label(class="form-label") }}
+                            {{ form.full_name(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.nic_number.label(class="form-label") }}
+                            {{ form.nic_number(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.date_of_birth.label(class="form-label") }}
+                            {{ form.date_of_birth(class="form-control", type="date") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.gender.label(class="form-label") }}
+                            {{ form.gender(class="form-select") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.marital_status.label(class="form-label") }}
+                            {{ form.marital_status(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Contact Information</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.phone_primary.label(class="form-label") }}
+                            {{ form.phone_primary(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.phone_secondary.label(class="form-label") }}
+                            {{ form.phone_secondary(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.email.label(class="form-label") }}
+                        {{ form.email(class="form-control", type="email") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.address_line1.label(class="form-label") }}
+                        {{ form.address_line1(class="form-control") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.address_line2.label(class="form-label") }}
+                        {{ form.address_line2(class="form-control") }}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.city.label(class="form-label") }}
+                            {{ form.city(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.district.label(class="form-label") }}
+                            {{ form.district(class="form-select") }}
+                            <small class="text-muted">Select your district</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.postal_code.label(class="form-label") }}
+                            {{ form.postal_code(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Employment Information</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.occupation.label(class="form-label") }}
+                            {{ form.occupation(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.employer_name.label(class="form-label") }}
+                            {{ form.employer_name(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.monthly_income.label(class="form-label") }}
+                            {{ form.monthly_income(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.employment_type.label(class="form-label") }}
+                            {{ form.employment_type(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Emergency Contact</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.emergency_contact_name.label(class="form-label") }}
+                            {{ form.emergency_contact_name(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.emergency_contact_phone.label(class="form-label") }}
+                            {{ form.emergency_contact_phone(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.emergency_contact_relation.label(class="form-label") }}
+                            {{ form.emergency_contact_relation(class="form-control") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

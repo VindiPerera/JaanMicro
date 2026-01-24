@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4><i class="bi bi-shield-check me-2"></i>KYC Document Management</h4>
+            <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left me-2"></i>Back to Customer
+            </a>
+        </div>
+
+        <div class="row">
+            <!-- Upload Form -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload Documents</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Customer: <strong>{{ customer.full_name }}</strong> ({{ customer.customer_id }})
+                        </div>
+                        
+                        <form method="POST" action="" enctype="multipart/form-data">
+                            {{ form.hidden_tag() }}
+                            
+                            <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-card-heading me-2"></i>Identity Documents</h6>
+                            
+                            <div class="mb-3">
+                                {{ form.nic_front_image.label(class="form-label") }}
+                                {{ form.nic_front_image(class="form-control", accept="image/*,application/pdf") }}
+                                <small class="text-muted">JPG, PNG, PDF (Max 16MB)</small>
+                                {% if customer.nic_front_image %}
+                                <div class="mt-2">
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                {{ form.nic_back_image.label(class="form-label") }}
+                                {{ form.nic_back_image(class="form-control", accept="image/*,application/pdf") }}
+                                <small class="text-muted">JPG, PNG, PDF (Max 16MB)</small>
+                                {% if customer.nic_back_image %}
+                                <div class="mt-2">
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-person-badge me-2"></i>Customer Photo</h6>
+                            
+                            <div class="mb-3">
+                                {{ form.photo.label(class="form-label") }}
+                                {{ form.photo(class="form-control", accept="image/*") }}
+                                <small class="text-muted">Customer photograph (Max 16MB)</small>
+                                {% if customer.photo %}
+                                <div class="mt-2">
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-house me-2"></i>Address Proof</h6>
+                            
+                            <div class="mb-3">
+                                {{ form.proof_of_address.label(class="form-label") }}
+                                {{ form.proof_of_address(class="form-control", accept="image/*,application/pdf") }}
+                                <small class="text-muted">Utility bill, bank statement (Max 16MB)</small>
+                                {% if customer.proof_of_address %}
+                                <div class="mt-2">
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                {{ form.kyc_verified(class="form-check-input", id="kycVerified") }}
+                                {{ form.kyc_verified.label(class="form-check-label", for="kycVerified") }}
+                                <small class="d-block text-muted">Check this to mark KYC as verified</small>
+                            </div>
+                            
+                            <div class="mt-4">
+                                {{ form.submit(class="btn btn-primary") }}
+                                <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-secondary">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Existing Documents Preview -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-folder2-open me-2"></i>Uploaded Documents</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- KYC Status -->
+                        <div class="alert {% if customer.kyc_verified %}alert-success{% else %}alert-warning{% endif %}">
+                            <div class="d-flex align-items-center">
+                                <i class="bi {% if customer.kyc_verified %}bi-shield-check{% else %}bi-shield-exclamation{% endif %} fs-3 me-3"></i>
+                                <div>
+                                    <strong>KYC Status: {% if customer.kyc_verified %}Verified{% else %}Pending{% endif %}</strong><br>
+                                    {% if customer.kyc_verified %}
+                                    <small>Verified on {{ customer.kyc_verified_date.strftime('%Y-%m-%d %H:%M') if customer.kyc_verified_date else 'N/A' }}</small>
+                                    {% else %}
+                                    <small>Please upload and verify all documents</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NIC Front -->
+                        {% if customer.nic_front_image %}
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-card-heading me-2"></i>NIC Front Image
+                            </div>
+                            <div class="card-body text-center">
+                                {% if customer.nic_front_image.endswith('.pdf') %}
+                                <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
+                                <p class="mt-2">PDF Document</p>
+                                {% else %}
+                                <img src="/{{ customer.nic_front_image }}" class="img-fluid" style="max-height: 200px;" alt="NIC Front" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display: none;" class="text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                    <p class="mt-2">Image not found</p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <a href="/{{ customer.nic_front_image }}" target="_blank" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="/{{ customer.nic_front_image }}" download class="btn btn-sm btn-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- NIC Back -->
+                        {% if customer.nic_back_image %}
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-card-heading me-2"></i>NIC Back Image
+                            </div>
+                            <div class="card-body text-center">
+                                {% if customer.nic_back_image.endswith('.pdf') %}
+                                <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
+                                <p class="mt-2">PDF Document</p>
+                                {% else %}
+                                <img src="/{{ customer.nic_back_image }}" class="img-fluid" style="max-height: 200px;" alt="NIC Back" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display: none;" class="text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                    <p class="mt-2">Image not found</p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <a href="/{{ customer.nic_back_image }}" target="_blank" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="/{{ customer.nic_back_image }}" download class="btn btn-sm btn-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Photo -->
+                        {% if customer.photo %}
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-person-badge me-2"></i>Customer Photo
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="/{{ customer.photo }}" class="img-fluid rounded" style="max-height: 200px;" alt="Customer Photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display: none;" class="text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                    <p class="mt-2">Image not found</p>
+                                </div>>
+                                <div class="mt-2">
+                                    <a href="/{{ customer.photo }}" target="_blank" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="/{{ customer.photo }}" download class="btn btn-sm btn-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Address Proof -->
+                        {% if customer.proof_of_address %}
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-house me-2"></i>Proof of Address
+                            </div>
+                            <div class="card-body text-center">
+                                {% if customer.proof_of_address.endswith('.pdf') %}
+                                <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
+                                <p class="mt-2">PDF Document</p>
+                                {% else %}
+                                <img src="/{{ customer.proof_of_address }}" class="img-fluid" style="max-height: 200px;" alt="Address Proof" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display: none;" class="text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                    <p class="mt-2">Image not found</p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <a href="/{{ customer.proof_of_address }}" target="_blank" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="/{{ customer.proof_of_address }}" download class="btn btn-sm btn-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if not customer.nic_front_image and not customer.nic_back_image and not customer.photo and not customer.proof_of_address %}
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size: 4rem;"></i>
+                            <p class="mt-3">No documents uploaded yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

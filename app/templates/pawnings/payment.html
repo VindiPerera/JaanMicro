@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Pawning Payment Collection</h5>
+            </div>
+            <div class="card-body">
+                <!-- Pawning Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Pawning Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Ticket Number:</strong> {{ pawning.pawning_number }}<br>
+                            <strong>Customer:</strong> {{ pawning.customer.full_name }}<br>
+                            <strong>Item:</strong> {{ pawning.item_description }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> LKR {{ "%.2f"|format(pawning.loan_amount|float) }}<br>
+                            <strong>Outstanding Principal:</strong> <span class="text-danger fw-bold">LKR {{ "%.2f"|format(pawning.outstanding_principal|float if pawning.outstanding_principal else 0) }}</span><br>
+                            <strong>Interest Rate:</strong> {{ pawning.interest_rate }}% per month
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Monthly Interest:</strong><br>
+                            <span class="fs-5 text-primary">LKR {{ "%.2f"|format(pawning.interest_per_month|float) }}</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Months Elapsed:</strong><br>
+                            <span class="fs-5">{{ months_elapsed }}</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Interest Unpaid:</strong><br>
+                            <span class="fs-5 text-warning">LKR {{ "%.2f"|format(interest_unpaid|float) }}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="bg-light p-3 rounded">
+                        <strong class="text-danger">TOTAL TO REDEEM:</strong><br>
+                        <span class="fs-3 text-danger fw-bold">
+                            LKR {{ "%.2f"|format((pawning.outstanding_principal|float + interest_unpaid|float + (pawning.total_penalty|float if pawning.total_penalty else 0))) }}
+                        </span>
+                        <small class="d-block text-muted">Principal + Interest + Penalty</small>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Payment Information</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_date.label(class="form-label") }}
+                            {{ form.payment_date(class="form-control", type="date") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_type.label(class="form-label") }}
+                            {{ form.payment_type(class="form-select", id="payment_type") }}
+                            <small class="text-muted" id="payment_type_help">Select payment type</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_method.label(class="form-label") }}
+                            {{ form.payment_method(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.reference_number.label(class="form-label") }}
+                            {{ form.reference_number(class="form-control") }}
+                            <small class="text-muted">Cheque/Transfer number (optional)</small>
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Payment Breakdown</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_amount.label(class="form-label") }}
+                            {{ form.payment_amount(class="form-control", id="payment_amount", step="0.01") }}
+                            <small class="text-muted" id="amount_help">Total amount being paid</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.interest_amount.label(class="form-label") }}
+                            {{ form.interest_amount(class="form-control", id="interest_amount", step="0.01") }}
+                            <small class="text-muted">Interest portion</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.principal_amount.label(class="form-label") }}
+                            {{ form.principal_amount(class="form-control", id="principal_amount", step="0.01") }}
+                            <small class="text-muted">Principal portion</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.penalty_amount.label(class="form-label") }}
+                            {{ form.penalty_amount(class="form-control", id="penalty_amount", step="0.01") }}
+                            <small class="text-muted">Penalty (if any)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning" id="breakdown_warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <span id="breakdown_warning_text"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="2") }}
+                    </div>
+                    
+                    <div id="redemption_confirmation" style="display: none;">
+                        <div class="alert alert-danger">
+                            <h6><i class="bi bi-exclamation-triangle-fill me-2"></i>Full Redemption</h6>
+                            <p class="mb-2">This will mark the pawning as redeemed and the item will be returned to the customer.</p>
+                            <div class="form-check">
+                                {{ form.confirm_redemption(class="form-check-input", id="confirm_redemption") }}
+                                {{ form.confirm_redemption.label(class="form-check-label fw-bold") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Summary -->
+                    <div class="alert alert-success mt-4">
+                        <h6 class="mb-2"><i class="bi bi-check-circle me-2"></i>Payment Summary</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Total Payment:</strong> <span id="total_payment_display" class="fs-5">LKR 0.00</span><br>
+                                <strong>Interest Paid:</strong> <span id="interest_display">LKR 0.00</span><br>
+                                <strong>Principal Paid:</strong> <span id="principal_display">LKR 0.00</span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Principal Balance After:</strong> <span id="principal_balance_after" class="fs-5">LKR {{ "%.2f"|format(pawning.outstanding_principal|float if pawning.outstanding_principal else 0) }}</span><br>
+                                <strong>Interest Balance After:</strong> <span id="interest_balance_after">LKR {{ "%.2f"|format(interest_unpaid|float) }}</span><br>
+                                <strong>Status After:</strong> <span id="status_after" class="badge bg-primary">Active</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-success btn-lg") }}
+                        <a href="{{ url_for('pawnings.view_pawning', id=pawning.id) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var outstandingPrincipal = {{ pawning.outstanding_principal|float if pawning.outstanding_principal else 0 }};
+    var interestUnpaid = {{ interest_unpaid|float }};
+    var monthlyInterest = {{ pawning.interest_per_month|float }};
+    var penaltyAmount = {{ pawning.total_penalty|float if pawning.total_penalty else 0 }};
+    
+    // Update UI based on payment type
+    $('#payment_type').change(function() {
+        var paymentType = $(this).val();
+        
+        if (paymentType === 'interest_payment') {
+            $('#payment_type_help').text('Pay monthly interest only (principal remains)');
+            $('#amount_help').text('Typically LKR ' + monthlyInterest.toFixed(2) + ' for one month');
+            $('#redemption_confirmation').hide();
+            
+            // Pre-fill with monthly interest
+            $('#payment_amount').val(monthlyInterest.toFixed(2));
+            $('#interest_amount').val(monthlyInterest.toFixed(2));
+            $('#principal_amount').val('0.00');
+            
+        } else if (paymentType === 'partial_redemption') {
+            $('#payment_type_help').text('Pay some interest + some principal');
+            $('#amount_help').text('Can be any amount');
+            $('#redemption_confirmation').hide();
+            
+            // Clear fields
+            $('#payment_amount').val('');
+            $('#interest_amount').val('');
+            $('#principal_amount').val('');
+            
+        } else if (paymentType === 'full_redemption') {
+            $('#payment_type_help').text('Settle all dues and collect item');
+            var totalDue = outstandingPrincipal + interestUnpaid + penaltyAmount;
+            $('#amount_help').html('<strong class="text-danger">MUST PAY: LKR ' + totalDue.toFixed(2) + '</strong>');
+            $('#redemption_confirmation').show();
+            
+            // Pre-fill with total due
+            $('#payment_amount').val(totalDue.toFixed(2));
+            $('#interest_amount').val(interestUnpaid.toFixed(2));
+            $('#principal_amount').val(outstandingPrincipal.toFixed(2));
+            $('#penalty_amount').val(penaltyAmount.toFixed(2));
+            
+        } else if (paymentType === 'penalty') {
+            $('#payment_type_help').text('Pay penalty only');
+            $('#amount_help').text('Penalty payment');
+            $('#redemption_confirmation').hide();
+            
+            $('#payment_amount').val(penaltyAmount.toFixed(2));
+            $('#penalty_amount').val(penaltyAmount.toFixed(2));
+            $('#interest_amount').val('0.00');
+            $('#principal_amount').val('0.00');
+        }
+        
+        updateSummary();
+    });
+    
+    // Auto-calculate breakdown when payment amount changes
+    $('#payment_amount').on('input', function() {
+        var paymentType = $('#payment_type').val();
+        var paymentAmount = parseFloat($(this).val()) || 0;
+        
+        if (paymentType === 'interest_payment') {
+            $('#interest_amount').val(paymentAmount.toFixed(2));
+            $('#principal_amount').val('0.00');
+            $('#penalty_amount').val('0.00');
+        } else if (paymentType === 'partial_redemption') {
+            // First pay interest, then principal
+            var interestPaid = Math.min(paymentAmount, interestUnpaid);
+            var principalPaid = Math.max(0, paymentAmount - interestPaid);
+            
+            $('#interest_amount').val(interestPaid.toFixed(2));
+            $('#principal_amount').val(principalPaid.toFixed(2));
+            $('#penalty_amount').val('0.00');
+        }
+        
+        updateSummary();
+    });
+    
+    // Update when individual breakdown fields change
+    $('#interest_amount, #principal_amount, #penalty_amount').on('input', updateSummary);
+    
+    function updateSummary() {
+        var paymentAmount = parseFloat($('#payment_amount').val()) || 0;
+        var interestAmt = parseFloat($('#interest_amount').val()) || 0;
+        var principalAmt = parseFloat($('#principal_amount').val()) || 0;
+        var penaltyAmt = parseFloat($('#penalty_amount').val()) || 0;
+        
+        var breakdown = interestAmt + principalAmt + penaltyAmt;
+        
+        // Check if breakdown matches payment amount
+        if (Math.abs(paymentAmount - breakdown) > 0.01) {
+            $('#breakdown_warning').show();
+            $('#breakdown_warning_text').text('Warning: Payment breakdown (' + breakdown.toFixed(2) + ') does not match total payment (' + paymentAmount.toFixed(2) + ')');
+        } else {
+            $('#breakdown_warning').hide();
+        }
+        
+        // Update display
+        $('#total_payment_display').text('LKR ' + paymentAmount.toFixed(2));
+        $('#interest_display').text('LKR ' + interestAmt.toFixed(2));
+        $('#principal_display').text('LKR ' + principalAmt.toFixed(2));
+        $('#penalty_display').text('LKR ' + penaltyAmt.toFixed(2));
+        
+        // Calculate balances after payment
+        var principalAfter = Math.max(0, outstandingPrincipal - principalAmt);
+        var interestAfter = Math.max(0, interestUnpaid - interestAmt);
+        
+        $('#principal_balance_after').text('LKR ' + principalAfter.toFixed(2));
+        $('#interest_balance_after').text('LKR ' + interestAfter.toFixed(2));
+        
+        // Update status
+        if (principalAfter <= 0.01 && interestAfter <= 0.01) {
+            $('#status_after').removeClass().addClass('badge bg-success').text('REDEEMED');
+        } else {
+            $('#status_after').removeClass().addClass('badge bg-primary').text('Active');
+        }
+    }
+    
+    // Initialize
+    $('#payment_type').trigger('change');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Pawning Report</h4>
+    <div>
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="redeemed" {% if status == 'redeemed' %}selected{% endif %}>Redeemed</option>
+                    <option value="defaulted" {% if status == 'defaulted' %}selected{% endif %}>Defaulted</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Item Type</label>
+                <select name="item_type" class="form-select">
+                    <option value="">All</option>
+                    <option value="gold" {% if item_type == 'gold' %}selected{% endif %}>Gold</option>
+                    <option value="jewelry" {% if item_type == 'jewelry' %}selected{% endif %}>Jewelry</option>
+                    <option value="electronics" {% if item_type == 'electronics' %}selected{% endif %}>Electronics</option>
+                    <option value="other" {% if item_type == 'other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Pawnings</div>
+                <div class="stats-value">{{ summary.total_pawnings }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Loan Amount</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_loan_amount|float) if summary.total_loan_amount else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Outstanding</div>
+                <div class="stats-value text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Collected</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_collected|float) if summary.total_collected else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-success">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-graph-up me-1"></i>Interest Profit</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.interest_profit|float) if summary.interest_profit else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pawning Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Pawnings by Item Category</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Count</th>
+                                <th>Total Loan Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in pawnings_by_category %}
+                            <tr>
+                                <td>{{ category.item_category|title }}</td>
+                                <td>{{ category.count }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(category.total|float) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Overdue Pawnings</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Ticket #</th>
+                                <th>Customer</th>
+                                <th>Maturity Date</th>
+                                <th>Outstanding</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pawning in overdue_pawnings %}
+                            <tr>
+                                <td>{{ pawning.pawning_number }}</td>
+                                <td>{{ pawning.customer.full_name }}</td>
+                                <td>{{ pawning.maturity_date.strftime('%Y-%m-%d') if pawning.maturity_date else 'N/A' }}</td>
+                                <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.outstanding_principal|float) if pawning.outstanding_principal else '0.00' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted">No overdue pawnings</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pawnings Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Pawning Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="pawning-report-table">
+                <thead>
+                    <tr>
+                        <th>Pawning #</th>
+                        <th>Customer</th>
+                        <th>Item Type</th>
+                        <th>Description</th>
+                        <th>Pawning Date</th>
+                        <th>Maturity Date</th>
+                        <th>Loan Amount</th>
+                        <th>Interest Rate</th>
+                        <th>Outstanding</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pawning in pawnings %}
+                    <tr>
+                        <td>{{ pawning.pawning_number }}</td>
+                        <td>{{ pawning.customer.full_name }}</td>
+                        <td>{{ pawning.item_type|title }}</td>
+                        <td>{{ pawning.item_description[:30] }}...</td>
+                        <td>{{ pawning.pawning_date.strftime('%Y-%m-%d') if pawning.pawning_date else 'N/A' }}</td>
+                        <td>
+                            {{ pawning.maturity_date.strftime('%Y-%m-%d') if pawning.maturity_date else 'N/A' }}
+                            {% if pawning.maturity_date and pawning.maturity_date < today and pawning.status == 'active' %}
+                                <span class="badge bg-danger ms-1">Overdue</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.loan_amount|float) }}</td>
+                        <td>{{ pawning.interest_rate }}%</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.outstanding_principal|float) if pawning.outstanding_principal else '0.00' }}</td>
+                        <td><span class="badge status-{{ pawning.status }}">{{ pawning.status|title }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted">No pawnings found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-warning fw-bold">
+                        <td colspan="6">TOTAL</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_loan_amount|float) if summary.total_loan_amount else '0.00' }}</td>
+                        <td>-</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</td>
+                        <td>-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var table = document.getElementById('pawning-report-table');
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Pawning Report"});
+    XLSX.writeFile(wb, 'pawning_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+// Print styles
+var style = document.createElement('style');
+style.innerHTML = '@media print { .btn, .card-header, .top-navbar, .sidebar { display: none !important; } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}

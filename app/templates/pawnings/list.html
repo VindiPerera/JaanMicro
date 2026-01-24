@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Pawnings</h4>
+    <a href="{{ url_for('pawnings.add_pawning') }}" class="btn btn-primary">
+        <i class="bi bi-plus-circle me-2"></i>Add New Pawning
+    </a>
+</div>
+
+<!-- Search and Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control" placeholder="Search..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="redeemed" {% if status == 'redeemed' %}selected{% endif %}>Redeemed</option>
+                    <option value="auctioned" {% if status == 'auctioned' %}selected{% endif %}>Auctioned</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Pawnings Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>Pawning #</th>
+                        <th>Customer</th>
+                        <th>Item</th>
+                        <th>Loan Amount</th>
+                        <th>Interest</th>
+                        <th>Outstanding</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pawning in pawnings.items %}
+                    <tr>
+                        <td><a href="{{ url_for('pawnings.view_pawning', id=pawning.id) }}">{{ pawning.pawning_number }}</a></td>
+                        <td>{{ pawning.customer.full_name }}</td>
+                        <td>{{ pawning.item_description[:30] }}...</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.loan_amount|float) }}</td>
+                        <td>{{ pawning.interest_rate }}%</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(pawning.outstanding_principal|float) if pawning.outstanding_principal else '0.00' }}</td>
+                        <td>
+                            {{ (pawning.extended_date or pawning.maturity_date).strftime('%Y-%m-%d') if (pawning.extended_date or pawning.maturity_date) else '-' }}
+                            {% if pawning.maturity_date and (pawning.extended_date or pawning.maturity_date) < today and pawning.status in ['active', 'extended'] %}
+                            <span class="badge bg-danger">Overdue</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge status-{{ pawning.status }}">{{ pawning.status|title }}</span></td>
+                        <td>
+                            <a href="{{ url_for('pawnings.view_pawning', id=pawning.id) }}" class="btn btn-sm btn-info">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if pawning.status == 'active' %}
+                            <a href="{{ url_for('pawnings.add_payment', id=pawning.id) }}" class="btn btn-sm btn-success">
+                                <i class="bi bi-cash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted">No pawnings found</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if pawnings.pages > 1 %}
+        <nav>
+            <ul class="pagination">
+                {% if pawnings.has_prev %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('pawnings.list_pawnings', page=pawnings.prev_num, search=search, status=status) }}">Previous</a></li>
+                {% endif %}
+                
+                {% for page_num in pawnings.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pawnings.page %}
+                        <li class="page-item active"><a class="page-link" href="#">{{ page_num }}</a></li>
+                        {% else %}
+                        <li class="page-item"><a class="page-link" href="{{ url_for('pawnings.list_pawnings', page=page_num, search=search, status=status) }}">{{ page_num }}</a></li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if pawnings.has_next %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('pawnings.list_pawnings', page=pawnings.next_num, search=search, status=status) }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h4>System Settings</h4>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-gear-fill text-primary me-3" style="font-size: 2rem;"></i>
+                    <h5 class="mb-0">System Settings</h5>
+                </div>
+                <p class="text-muted">Configure application name, branding, currency, and default parameters</p>
+                <a href="{{ url_for('settings.system_settings') }}" class="btn btn-primary">
+                    <i class="bi bi-sliders me-2"></i>Configure
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-people-fill text-success me-3" style="font-size: 2rem;"></i>
+                    <h5 class="mb-0">User Management</h5>
+                </div>
+                <p class="text-muted">Manage staff users, roles, and permissions</p>
+                <a href="{{ url_for('settings.list_users') }}" class="btn btn-success">
+                    <i class="bi bi-person-plus me-2"></i>Manage Users
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-shield-lock-fill text-warning me-3" style="font-size: 2rem;"></i>
+                    <h5 class="mb-0">Security</h5>
+                </div>
+                <p class="text-muted">Change password and manage security settings</p>
+                <a href="{{ url_for('auth.change_password') }}" class="btn btn-warning">
+                    <i class="bi bi-key me-2"></i>Change Password
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Current Configuration</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <th width="250">Application Name</th>
+                                <td>{{ settings.app_name }}</td>
+                            </tr>
+                            <tr>
+                                <th>Currency</th>
+                                <td>{{ settings.currency }} ({{ settings.currency_symbol }})</td>
+                            </tr>
+                            <tr>
+                                <th>Company Name</th>
+                                <td>{{ settings.company_name or 'Not set' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Default Loan Interest Rate</th>
+                                <td>{{ settings.default_loan_interest_rate }}% per annum</td>
+                            </tr>
+                            <tr>
+                                <th>Default Investment Interest Rate</th>
+                                <td>{{ settings.default_investment_interest_rate }}% per annum</td>
+                            </tr>
+                            <tr>
+                                <th>Default Pawning Interest Rate</th>
+                                <td>{{ settings.default_pawning_interest_rate }}% per annum</td>
+                            </tr>
+                            <tr>
+                                <th>Late Payment Penalty</th>
+                                <td>{{ settings.late_payment_penalty_percentage }}%</td>
+                            </tr>
+                            <tr>
+                                <th>Grace Period</th>
+                                <td>{{ settings.grace_period_days }} days</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

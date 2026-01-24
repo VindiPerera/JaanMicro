@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Loan Details</h4>
+    <div>
+        {% if loan.status == 'active' %}
+        <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-success">
+            <i class="bi bi-cash me-2"></i>Add Payment
+        </a>
+        {% endif %}
+        {% if loan.status == 'pending' %}
+        <a href="{{ url_for('loans.approve_loan', id=loan.id) }}" class="btn btn-primary">
+            <i class="bi bi-check-circle me-2"></i>Approve
+        </a>
+        {% endif %}
+        <a href="{{ url_for('loans.list_loans') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Loan Summary Card -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Loan Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Loan Number:</strong><br>
+                    {{ loan.loan_number }}
+                </div>
+                <div class="mb-3">
+                    <strong>Status:</strong><br>
+                    <span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Loan Amount:</strong><br>
+                    <span class="fs-4 text-primary">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Outstanding Amount:</strong><br>
+                    <span class="fs-4 text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(current_outstanding|float) }}</span>
+                    {% if accrued_interest > 0 %}
+                    <br><small class="text-warning">Includes {{ system_settings.currency_symbol }} {{ "%.2f"|format(accrued_interest|float) }} accrued interest</small>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <strong>Paid Amount:</strong><br>
+                    <span class="fs-5 text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.paid_amount|float) if loan.paid_amount else '0.00' }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer Info Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person me-2"></i>Customer</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Name:</strong><br>
+                    <a href="{{ url_for('customers.view_customer', id=loan.customer.id) }}">
+                        {{ loan.customer.full_name }}
+                    </a>
+                </div>
+                <div class="mb-2">
+                    <strong>Customer ID:</strong><br>
+                    {{ loan.customer.customer_id }}
+                </div>
+                <div class="mb-2">
+                    <strong>Phone:</strong><br>
+                    {{ loan.customer.phone_primary }}
+                </div>
+                <div class="mb-2">
+                    <strong>NIC:</strong><br>
+                    {{ loan.customer.nic_number }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loan Details -->
+    <div class="col-lg-8 mb-4">
+        <!-- Loan Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Loan Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Loan Type:</strong><br>
+                        {{ loan.loan_type|title }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Application Date:</strong><br>
+                        {{ loan.application_date.strftime('%Y-%m-%d') if loan.application_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Approval Date:</strong><br>
+                        {{ loan.approval_date.strftime('%Y-%m-%d') if loan.approval_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Disbursement Date:</strong><br>
+                        {{ loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Duration:</strong><br>
+                        {{ loan.duration_months }} months
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Interest Rate:</strong><br>
+                        {{ loan.interest_rate }}% ({{ loan.interest_type|title }})
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Installment Frequency:</strong><br>
+                        {{ loan.installment_frequency|title }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Installment Amount:</strong><br>
+                        {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else 'N/A' }}
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <strong>Purpose:</strong><br>
+                        {{ loan.purpose or 'N/A' }}
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <strong>Security/Collateral:</strong><br>
+                        {{ loan.security_details or 'N/A' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Payment Schedule -->
+        {% if loan.status in ['active', 'completed'] %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Payment Schedule</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Due Date</th>
+                                <th>Installment</th>
+                                <th>Principal</th>
+                                <th>Interest</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if loan.payment_schedule %}
+                                {% for schedule in loan.payment_schedule %}
+                                <tr>
+                                    <td>{{ schedule.due_date.strftime('%Y-%m-%d') if schedule.due_date else 'N/A' }}</td>
+                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(schedule.amount|float) }}</td>
+                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(schedule.principal|float) if schedule.principal else 'N/A' }}</td>
+                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(schedule.interest|float) if schedule.interest else 'N/A' }}</td>
+                                    <td><span class="badge status-{{ schedule.status }}">{{ schedule.status|title }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="5" class="text-center text-muted">No payment schedule available</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Payment History -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Receipt #</th>
+                        <th>Amount</th>
+                        <th>Principal</th>
+                        <th>Interest</th>
+                        <th>Penalty</th>
+                        <th>Balance After</th>
+                        <th>Payment Method</th>
+                        <th>Collected By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else 'N/A' }}</td>
+                        <td>{{ payment.receipt_number }}</td>
+                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}</strong></td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.penalty_amount|float) if payment.penalty_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.balance_after|float) if payment.balance_after else '0.00' }}</td>
+                        <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
+                        <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted">No payments recorded yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Notes -->
+{% if loan.notes %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-sticky me-2"></i>Notes</h5>
+    </div>
+    <div class="card-body">
+        {{ loan.notes }}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

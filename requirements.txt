@@ -1,0 +1,15 @@
+Flask
+Flask-SQLAlchemy
+Flask-Login
+Flask-WTF
+Flask-Migrate
+WTForms
+email-validator
+python-dotenv
+Pillow
+reportlab
+pandas
+openpyxl
+Werkzeug
+python-dateutil
+bleach

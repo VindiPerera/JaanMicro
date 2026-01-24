@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Investment Report</h4>
+    <div>
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="matured" {% if status == 'matured' %}selected{% endif %}>Matured</option>
+                    <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Investment Type</label>
+                <select name="investment_type" class="form-select">
+                    <option value="">All</option>
+                    <option value="fixed_deposit" {% if investment_type == 'fixed_deposit' %}selected{% endif %}>Fixed Deposit</option>
+                    <option value="savings" {% if investment_type == 'savings' %}selected{% endif %}>Savings</option>
+                    <option value="recurring" {% if investment_type == 'recurring' %}selected{% endif %}>Recurring</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Investments</div>
+                <div class="stats-value">{{ summary.total_investments }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Principal</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Current Balance</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.current_balance|float) if summary.current_balance else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Interest Paid</div>
+                <div class="stats-value text-info">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest_paid|float) if summary.total_interest_paid else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-danger">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-graph-down me-1"></i>Interest Expense</div>
+                <div class="stats-value text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.interest_expense|float) if summary.interest_expense else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Investment Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Investments by Type</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Count</th>
+                                <th>Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for type in investments_by_type %}
+                            <tr>
+                                <td>{{ type.investment_type|title }}</td>
+                                <td>{{ type.count }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(type.total|float) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar-month me-2"></i>Maturing This Month</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Investment #</th>
+                                <th>Customer</th>
+                                <th>Maturity Date</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for investment in maturing_soon %}
+                            <tr>
+                                <td>{{ investment.investment_number }}</td>
+                                <td>{{ investment.customer.full_name }}</td>
+                                <td>{{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else 'N/A' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_amount|float) if investment.current_amount else investment.principal_amount }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted">No investments maturing soon</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Investments Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Investment Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="investment-report-table">
+                <thead>
+                    <tr>
+                        <th>Investment #</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Start Date</th>
+                        <th>Maturity Date</th>
+                        <th>Principal</th>
+                        <th>Interest Rate</th>
+                        <th>Current Amount</th>
+                        <th>Maturity Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for investment in investments %}
+                    <tr>
+                        <td>{{ investment.investment_number }}</td>
+                        <td>{{ investment.customer.full_name }}</td>
+                        <td>{{ investment.investment_type|title }}</td>
+                        <td>{{ investment.start_date.strftime('%Y-%m-%d') if investment.start_date else 'N/A' }}</td>
+                        <td>{{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else 'N/A' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.principal_amount|float) }}</td>
+                        <td>{{ investment.interest_rate }}%</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_amount|float) if investment.current_amount else investment.principal_amount }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.maturity_amount|float) if investment.maturity_amount else '0.00' }}</td>
+                        <td><span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted">No investments found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-success fw-bold">
+                        <td colspan="5">TOTAL</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
+                        <td>-</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.current_amount|float) if summary.current_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_maturity|float) if summary.total_maturity else '0.00' }}</td>
+                        <td>-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var table = document.getElementById('investment-report-table');
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Investment Report"});
+    XLSX.writeFile(wb, 'investment_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+// Print styles
+var style = document.createElement('style');
+style.innerHTML = '@media print { .btn, .card-header, .top-navbar, .sidebar { display: none !important; } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}

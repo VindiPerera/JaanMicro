@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Customer Report</h4>
+    <div>
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">Registration From</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Registration To</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">District</label>
+                <select name="district" class="form-select">
+                    <option value="">All Districts</option>
+                    {% for dist in available_districts %}
+                    <option value="{{ dist }}" {% if district == dist %}selected{% endif %}>{{ dist }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">KYC Status</label>
+                <select name="kyc_status" class="form-select">
+                    <option value="">All</option>
+                    <option value="verified" {% if kyc_status == 'verified' %}selected{% endif %}>Verified</option>
+                    <option value="pending" {% if kyc_status == 'pending' %}selected{% endif %}>Pending</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Customers</div>
+                <div class="stats-value">{{ summary.total_customers }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Active Customers</div>
+                <div class="stats-value text-success">{{ summary.active_customers }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">KYC Verified</div>
+                <div class="stats-value text-info">{{ summary.kyc_verified }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">KYC Pending</div>
+                <div class="stats-value text-warning">{{ summary.kyc_pending }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Distribution -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Customers by District</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>District</th>
+                                <th>Count</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for district in district_breakdown %}
+                            <tr>
+                                <td>
+                                    <a href="?district={{ district.district }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if kyc_status %}&kyc_status={{ kyc_status }}{% endif %}" 
+                                       class="text-decoration-none">
+                                        {{ district.district }}
+                                    </a>
+                                </td>
+                                <td>{{ district.count }}</td>
+                                <td>{{ "%.1f"|format((district.count / summary.total_customers * 100)|float) if summary.total_customers > 0 else 0 }}%</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-briefcase me-2"></i>Customers by Occupation</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Occupation</th>
+                                <th>Count</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for occupation in occupation_breakdown %}
+                            <tr>
+                                <td>{{ occupation.occupation or 'Not Specified' }}</td>
+                                <td>{{ occupation.count }}</td>
+                                <td>{{ "%.1f"|format((occupation.count / summary.total_customers * 100)|float) if summary.total_customers > 0 else 0 }}%</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Customer Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="customer-report-table">
+                <thead>
+                    <tr>
+                        <th>Customer ID</th>
+                        <th>Name</th>
+                        <th>NIC</th>
+                        <th>Phone</th>
+                        <th>City</th>
+                        <th>District</th>
+                        <th>KYC Status</th>
+                        <th>KYC Documents</th>
+                        <th>Active Loans</th>
+                        <th>Active Investments</th>
+                        <th>Active Pawnings</th>
+                        <th>Registration Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="text-decoration-none">
+                                {{ customer.customer_id }}
+                            </a>
+                        </td>
+                        <td>{{ customer.full_name }}</td>
+                        <td>{{ customer.nic_number }}</td>
+                        <td>{{ customer.phone_primary }}</td>
+                        <td>{{ customer.city }}</td>
+                        <td>{{ customer.district }}</td>
+                        <td>
+                            {% if customer.kyc_verified %}
+                            <span class="badge bg-success">Verified</span>
+                            {% else %}
+                            <span class="badge bg-warning">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                {% if customer.nic_front_image %}
+                                <button onclick="viewKycDocument('{{ url_for('reports.view_kyc_document', customer_id=customer.id, document_type='nic_front') }}', 'NIC Front - {{ customer.full_name }}')" 
+                                   class="btn btn-sm btn-outline-primary" title="NIC Front">
+                                    <i class="bi bi-card-image"></i>
+                                </button>
+                                {% endif %}
+                                {% if customer.nic_back_image %}
+                                <button onclick="viewKycDocument('{{ url_for('reports.view_kyc_document', customer_id=customer.id, document_type='nic_back') }}', 'NIC Back - {{ customer.full_name }}')" 
+                                   class="btn btn-sm btn-outline-primary" title="NIC Back">
+                                    <i class="bi bi-card-image"></i>
+                                </button>
+                                {% endif %}
+                                {% if customer.photo %}
+                                <button onclick="viewKycDocument('{{ url_for('reports.view_kyc_document', customer_id=customer.id, document_type='photo') }}', 'Customer Photo - {{ customer.full_name }}')" 
+                                   class="btn btn-sm btn-outline-info" title="Customer Photo">
+                                    <i class="bi bi-person-badge"></i>
+                                </button>
+                                {% endif %}
+                                {% if customer.proof_of_address %}
+                                <button onclick="viewKycDocument('{{ url_for('reports.view_kyc_document', customer_id=customer.id, document_type='proof_of_address') }}', 'Address Proof - {{ customer.full_name }}')" 
+                                   class="btn btn-sm btn-outline-secondary" title="Address Proof">
+                                    <i class="bi bi-house"></i>
+                                </button>
+                                {% endif %}
+                                {% if not (customer.nic_front_image or customer.nic_back_image or customer.photo or customer.proof_of_address) %}
+                                <span class="text-muted small">No documents</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>{{ customer.active_loans_count or 0 }}</td>
+                        <td>{{ customer.active_investments_count or 0 }}</td>
+                        <td>{{ customer.active_pawnings_count or 0 }}</td>
+                        <td>{{ customer.created_at.strftime('%Y-%m-%d') if customer.created_at else 'N/A' }}</td>
+                        <td><span class="badge status-{{ customer.status }}">{{ customer.status|title }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="13" class="text-center text-muted">No customers found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- KYC Document Modal -->
+<div class="modal fade" id="kycModal" tabindex="-1" aria-labelledby="kycModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="kycModalLabel">KYC Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="kycImage" src="" alt="KYC Document" class="img-fluid" style="max-height: 500px;">
+                <div id="kycLoading" class="d-none">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a id="downloadKyc" href="" class="btn btn-primary" download>
+                    <i class="bi bi-download me-2"></i>Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var table = document.getElementById('customer-report-table');
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Customer Report"});
+    XLSX.writeFile(wb, 'customer_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+function viewKycDocument(url, title) {
+    document.getElementById('kycModalLabel').textContent = title;
+    document.getElementById('kycLoading').classList.remove('d-none');
+    document.getElementById('kycImage').classList.add('d-none');
+    
+    const img = document.getElementById('kycImage');
+    const downloadLink = document.getElementById('downloadKyc');
+    
+    img.onload = function() {
+        document.getElementById('kycLoading').classList.add('d-none');
+        img.classList.remove('d-none');
+    };
+    
+    img.onerror = function() {
+        document.getElementById('kycLoading').classList.add('d-none');
+        img.classList.remove('d-none');
+        img.alt = 'Failed to load document';
+        img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+';
+    };
+    
+    img.src = url;
+    downloadLink.href = url;
+    
+    new bootstrap.Modal(document.getElementById('kycModal')).show();
+}
+
+// Print styles
+var style = document.createElement('style');
+style.innerHTML = `
+    @media print { 
+        .btn, .card-header, .top-navbar, .sidebar { display: none !important; } 
+        .btn-group { display: none !important; }
+    }
+    .btn-group .btn {
+        margin: 1px;
+        font-size: 0.8rem;
+        padding: 2px 6px;
+    }
+    .btn-group .btn i {
+        font-size: 12px;
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}

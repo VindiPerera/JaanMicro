@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Collection Report</h4>
+    <div>
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Payment Method</label>
+                <select name="payment_method" class="form-select">
+                    <option value="">All</option>
+                    <option value="cash" {% if payment_method == 'cash' %}selected{% endif %}>Cash</option>
+                    <option value="check" {% if payment_method == 'check' %}selected{% endif %}>Check</option>
+                    <option value="bank_transfer" {% if payment_method == 'bank_transfer' %}selected{% endif %}>Bank Transfer</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Collection Type</label>
+                <select name="collection_type" class="form-select">
+                    <option value="">All</option>
+                    <option value="loan" {% if collection_type == 'loan' %}selected{% endif %}>Loan</option>
+                    <option value="pawning" {% if collection_type == 'pawning' %}selected{% endif %}>Pawning</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Collections</div>
+                <div class="stats-value">{{ summary.total_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Amount</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount|float) if summary.total_amount else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Principal Collected</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Interest Collected</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Collections by Method -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Collections by Payment Method</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>Count</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for method in collections_by_method %}
+                            <tr>
+                                <td>{{ method.payment_method|title }}</td>
+                                <td>{{ method.count }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(method.total|float) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Collections by User</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Collected By</th>
+                                <th>Count</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in collections_by_user %}
+                            <tr>
+                                <td>{{ user.user_name }}</td>
+                                <td>{{ user.count }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(user.total|float) }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3" class="text-center text-muted">No data</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Collections Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Collection Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="collection-report-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Receipt #</th>
+                        <th>Type</th>
+                        <th>Reference #</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Principal</th>
+                        <th>Interest</th>
+                        <th>Method</th>
+                        <th>Collected By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else 'N/A' }}</td>
+                        <td>{{ payment.receipt_number }}</td>
+                        <td>
+                            {% if payment.loan_id %}
+                                <span class="badge bg-primary">Loan</span>
+                            {% elif payment.pawning_id %}
+                                <span class="badge bg-warning">Pawning</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Other</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if payment.loan_id %}
+                                {{ payment.loan.loan_number if payment.loan else 'N/A' }}
+                            {% elif payment.pawning_id %}
+                                {{ payment.pawning.ticket_number if payment.pawning else 'N/A' }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if payment.loan_id and payment.loan %}
+                                {{ payment.loan.customer.full_name }}
+                            {% elif payment.pawning_id and payment.pawning %}
+                                {{ payment.pawning.customer.full_name }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.amount|float) }}</strong></td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
+                        <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
+                        <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted">No collections found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-success fw-bold">
+                        <td colspan="5">TOTAL</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount|float) if summary.total_amount else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
+                        <td colspan="2">-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var table = document.getElementById('collection-report-table');
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Collection Report"});
+    XLSX.writeFile(wb, 'collection_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+// Print styles
+var style = document.createElement('style');
+style.innerHTML = '@media print { .btn, .card-header, .top-navbar, .sidebar { display: none !important; } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}

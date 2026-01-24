@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add New Pawning (Sri Lankan Method)</h5>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items() %}
+                            {% for error in errors %}
+                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <form method="POST" action="" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.customer_id.label(class="form-label") }}
+                        {{ form.customer_id(class="form-select", required=true) }}
+                        {% if form.customer_id.errors %}
+                        <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Item Details (Gold/Jewelry)</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.item_type.label(class="form-label") }}
+                            {{ form.item_type(class="form-select") }}
+                            <small class="text-muted">Type of gold/jewelry item</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.number_of_items.label(class="form-label") }}
+                            {{ form.number_of_items(class="form-control", type="number", min="1") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.item_description.label(class="form-label") }}
+                        {{ form.item_description(class="form-control", rows="2") }}
+                        <small class="text-muted">Describe the item(s) in detail</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.item_weight.label(class="form-label") }}
+                            {{ form.item_weight(class="form-control", id="item_weight", step="0.001") }}
+                            <small class="text-muted">Weight in grams</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.item_purity.label(class="form-label") }}
+                            {{ form.item_purity(class="form-select", id="item_purity") }}
+                            <small class="text-muted">Gold purity</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.karats.label(class="form-label") }}
+                            {{ form.karats(class="form-control", id="karats", step="0.01") }}
+                            <small class="text-muted">Or enter custom karat value</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.market_value_per_gram.label(class="form-label") }}
+                            {{ form.market_value_per_gram(class="form-control", id="market_rate", step="0.01") }}
+                            <small class="text-muted">Current market rate</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.total_market_value.label(class="form-label") }}
+                            {{ form.total_market_value(class="form-control", id="total_value", step="0.01") }}
+                            <small class="text-muted">Total appraised value</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.item_photo.label(class="form-label") }}
+                        {{ form.item_photo(class="form-control", multiple=true) }}
+                        <small class="text-muted">Upload photos of the item(s)</small>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Loan Details</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_amount.label(class="form-label") }}
+                            {{ form.loan_amount(class="form-control", id="loan_amount", step="0.01") }}
+                            <small class="text-muted" id="ltv_info">Maximum {{ system_settings.maximum_loan_to_value_ratio|float if system_settings.maximum_loan_to_value_ratio else 80 }}% of appraised value</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_to_value_ratio.label(class="form-label") }}
+                            {{ form.loan_to_value_ratio(class="form-control", id="ltv_ratio", step="0.01", readonly=true) }}
+                            <small class="text-muted">Calculated automatically</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.interest_rate.label(class="form-label") }}
+                            {{ form.interest_rate(class="form-control", id="interest_rate", step="0.01") }}
+                            <small class="text-muted">Monthly interest rate</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Monthly Interest Amount</label>
+                            <input type="text" class="form-control" id="monthly_interest" readonly>
+                            <small class="text-muted">Calculated monthly interest</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.pawning_date.label(class="form-label") }}
+                            {{ form.pawning_date(class="form-control", type="date") }}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.duration_months.label(class="form-label") }}
+                            {{ form.duration_months(class="form-control", id="duration_months", type="number", min="1", max="120") }}
+                            <small class="text-muted">Loan period</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.grace_period_days.label(class="form-label") }}
+                            {{ form.grace_period_days(class="form-control", type="number", min="0", max="90") }}
+                            <small class="text-muted">Before auction</small>
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Storage Information</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.storage_location.label(class="form-label") }}
+                            {{ form.storage_location(class="form-control") }}
+                            <small class="text-muted">Safe/vault location</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.storage_box_number.label(class="form-label") }}
+                            {{ form.storage_box_number(class="form-control") }}
+                            <small class="text-muted">Box/compartment number</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.storage_notes.label(class="form-label") }}
+                        {{ form.storage_notes(class="form-control", rows="2") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('pawnings.list_pawnings') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Get max LTV from system settings
+    var maxLtvRatio = {{ system_settings.maximum_loan_to_value_ratio|float if system_settings.maximum_loan_to_value_ratio else 80 }};
+    
+    // Auto-calculate total market value from weight and rate
+    function updateTotalValue() {
+        var weight = parseFloat($('#item_weight').val()) || 0;
+        var rate = parseFloat($('#market_rate').val()) || 0;
+        var totalValue = weight * rate;
+        if (totalValue > 0) {
+            $('#total_value').val(totalValue.toFixed(2));
+        }
+        updateLTV();
+    }
+    
+    // Auto-fill karat value from purity dropdown
+    $('#item_purity').change(function() {
+        var purity = $(this).val();
+        if (purity && purity !== 'other') {
+            var karat = parseFloat(purity.replace('K', ''));
+            $('#karats').val(karat.toFixed(2));
+        }
+    });
+    
+    // Calculate LTV ratio
+    function updateLTV() {
+        var totalValue = parseFloat($('#total_value').val()) || 0;
+        var loanAmount = parseFloat($('#loan_amount').val()) || 0;
+        
+        if (totalValue > 0) {
+            var ltv = (loanAmount / totalValue * 100);
+            $('#ltv_ratio').val(ltv.toFixed(2));
+            
+            var maxLoan = totalValue * (maxLtvRatio / 100);
+            if (loanAmount > maxLoan) {
+                $('#ltv_info').html('<span class="text-danger">⚠ Loan amount exceeds ' + maxLtvRatio + '% limit! Max: LKR ' + maxLoan.toFixed(2) + '</span>');
+                $('#loan_amount').addClass('is-invalid');
+            } else {
+                $('#ltv_info').html('LTV: ' + ltv.toFixed(1) + '% (Max: LKR ' + maxLoan.toFixed(2) + ' at ' + maxLtvRatio + '%)');
+                $('#loan_amount').removeClass('is-invalid');
+            }
+        }
+        updateMonthlyInterest();
+    }
+    
+    // Calculate monthly interest
+    function updateMonthlyInterest() {
+        var loanAmount = parseFloat($('#loan_amount').val()) || 0;
+        var interestRate = parseFloat($('#interest_rate').val()) || 0;
+        var monthlyInterest = loanAmount * interestRate / 100;
+        $('#monthly_interest').val('LKR ' + monthlyInterest.toFixed(2));
+    }
+    
+    $('#item_weight, #market_rate').on('input', updateTotalValue);
+    $('#total_value, #loan_amount').on('input', updateLTV);
+    $('#loan_amount, #interest_rate').on('input', updateMonthlyInterest);
+    
+    // Initialize calculations
+    updateTotalValue();
+    updateLTV();
+    updateMonthlyInterest();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Approve Loan Application</h5>
+            </div>
+            <div class="card-body">
+                <!-- Loan Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Loan Application Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Loan Number:</strong> {{ loan.loan_number }}<br>
+                            <strong>Customer:</strong> {{ loan.customer.full_name }}<br>
+                            <strong>Loan Type:</strong> {{ loan.loan_type|title }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
+                            <strong>Duration:</strong> {{ loan.duration_months }} months<br>
+                            <strong>Interest Rate:</strong> {{ loan.interest_rate }}%
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Approval Details</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_status.label(class="form-label") }}
+                            {{ form.approval_status(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_date.label(class="form-label") }}
+                            {{ form.approval_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="approved-fields">
+                        <div class="col-md-6 mb-3">
+                            {{ form.approved_amount.label(class="form-label") }}
+                            {{ form.approved_amount(class="form-control") }}
+                            <small class="text-muted">Can be different from requested amount</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.disbursement_date.label(class="form-label") }}
+                            {{ form.disbursement_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row" id="approved-fields-2">
+                        <div class="col-md-6 mb-3">
+                            {{ form.disbursement_method.label(class="form-label") }}
+                            {{ form.disbursement_method(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.disbursement_reference.label(class="form-label") }}
+                            {{ form.disbursement_reference(class="form-control") }}
+                            <small class="text-muted">Check/Transfer number</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.approval_notes.label(class="form-label") }}
+                        {{ form.approval_notes(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <div class="mb-3" id="rejection-field" style="display: none;">
+                        {{ form.rejection_reason.label(class="form-label") }}
+                        {{ form.rejection_reason(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        {{ form.send_notification(class="form-check-input") }}
+                        {{ form.send_notification.label(class="form-check-label") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#approval_status').on('change', function() {
+        if ($(this).val() === 'approved') {
+            $('#approved-fields, #approved-fields-2').show();
+            $('#rejection-field').hide();
+        } else if ($(this).val() === 'rejected') {
+            $('#approved-fields, #approved-fields-2').hide();
+            $('#rejection-field').show();
+        } else {
+            $('#approved-fields, #approved-fields-2, #rejection-field').hide();
+        }
+    });
+    
+    // Set default approved amount to loan amount
+    $('#approved_amount').val('{{ loan.loan_amount }}');
+    
+    // Trigger change event on page load
+    $('#approval_status').trigger('change');
+});
+</script>
+{% endblock %}
+{% endblock %}

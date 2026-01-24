@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add New Investment</h5>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items() %}
+                            {% for error in errors %}
+                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.customer_id.label(class="form-label") }}
+                        {{ form.customer_id(class="form-select", required=true) }}
+                        {% if form.customer_id.errors %}
+                        <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-3">Investment Details</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.investment_type.label(class="form-label") }}
+                            {{ form.investment_type(class="form-select") }}
+                            <small class="text-muted">Fixed Deposit: Lump sum. Recurring: Monthly installments</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.start_date.label(class="form-label") }}
+                            {{ form.start_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.principal_amount.label(class="form-label") }}
+                            {{ form.principal_amount(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.interest_rate.label(class="form-label") }}
+                            {{ form.interest_rate(class="form-control") }}
+                            <small class="text-muted">Annual percentage rate</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.duration_months.label(class="form-label") }}
+                        {{ form.duration_months(class="form-control") }}
+                        <small class="text-muted">Investment term in months</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.installment_frequency.label(class="form-label") }}
+                            {{ form.installment_frequency(class="form-select") }}
+                            <small class="text-muted">For recurring deposits</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.installment_amount.label(class="form-label") }}
+                            {{ form.installment_amount(class="form-control") }}
+                            <small class="text-muted">For recurring deposits</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('investments.list_investments') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Show/hide recurring deposit fields
+    $('#investment_type').on('change', function() {
+        if ($(this).val() === 'recurring_deposit') {
+            $('#installment_frequency, #installment_amount').closest('.col-md-6').show();
+        } else {
+            $('#installment_frequency, #installment_amount').closest('.col-md-6').hide();
+        }
+    }).trigger('change');
+});
+</script>
+{% endblock %}

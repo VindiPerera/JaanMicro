@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Pawning Details - {{ pawning.pawning_number }}</h4>
+    <div>
+        {% if pawning.status in ['active', 'extended', 'overdue'] %}
+        <a href="{{ url_for('pawnings.add_payment', id=pawning.id) }}" class="btn btn-success">
+            <i class="bi bi-cash me-2"></i>Add Payment
+        </a>
+        <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#extendModal">
+            <i class="bi bi-calendar-plus me-2"></i>Extend Period
+        </button>
+        {% endif %}
+        <a href="{{ url_for('pawnings.list_pawnings') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back
+        </a>
+    </div>
+</div>
+
+{% if is_overdue %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>OVERDUE!</strong> This pawning has exceeded the grace period and may be subject to auction.
+</div>
+{% endif %}
+
+<div class="row">
+    <!-- Pawning Summary Card -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Pawning Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Ticket Number:</strong><br>
+                    <span class="fs-5">{{ pawning.pawning_number }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Status:</strong><br>
+                    <span class="badge status-{{ pawning.status }}">{{ pawning.status|title }}</span>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <strong>Loan Amount (Principal):</strong><br>
+                    <span class="fs-4 text-primary">LKR {{ "%.2f"|format(pawning.loan_amount|float) }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Outstanding Principal:</strong><br>
+                    <span class="fs-4 {% if pawning.outstanding_principal > 0 %}text-danger{% else %}text-success{% endif %}">
+                        LKR {{ "%.2f"|format(pawning.outstanding_principal|float if pawning.outstanding_principal else 0) }}
+                    </span>
+                </div>
+                <div class="mb-3">
+                    <strong>Interest Unpaid:</strong><br>
+                    <span class="fs-5 text-warning">LKR {{ "%.2f"|format(interest_unpaid|float) }}</span>
+                    <br><small class="text-muted">{{ months_elapsed }} months @ LKR {{ "%.2f"|format(pawning.interest_per_month|float) }}/month</small>
+                </div>
+                {% if pawning.total_penalty > 0 %}
+                <div class="mb-3">
+                    <strong>Penalty:</strong><br>
+                    <span class="fs-5 text-danger">LKR {{ "%.2f"|format(pawning.total_penalty|float) }}</span>
+                </div>
+                {% endif %}
+                <hr>
+                <div class="mb-2">
+                    <strong class="text-danger">TOTAL TO REDEEM:</strong><br>
+                    <span class="fs-3 text-danger fw-bold">
+                        LKR {{ "%.2f"|format((pawning.outstanding_principal|float + interest_unpaid|float + (pawning.total_penalty|float if pawning.total_penalty else 0))) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Customer Info Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person me-2"></i>Customer</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <strong>Name:</strong><br>
+                    <a href="{{ url_for('customers.view_customer', id=pawning.customer.id) }}">
+                        {{ pawning.customer.full_name }}
+                    </a>
+                </div>
+                <div class="mb-2">
+                    <strong>Customer ID:</strong><br>
+                    {{ pawning.customer.customer_id }}
+                </div>
+                <div class="mb-2">
+                    <strong>Phone:</strong><br>
+                    {{ pawning.customer.phone_primary }}
+                </div>
+                <div class="mb-2">
+                    <strong>NIC:</strong><br>
+                    {{ pawning.customer.nic_number }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pawning Details -->
+    <div class="col-lg-8 mb-4">
+        <!-- Item Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gem me-2"></i>Pawned Item Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Item Type:</strong><br>
+                        {{ pawning.item_type|title }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Number of Items:</strong><br>
+                        {{ pawning.number_of_items or 1 }}
+                    </div>
+                    <div class="col-md-12 mb-3">
+                        <strong>Description:</strong><br>
+                        {{ pawning.item_description }}
+                    </div>
+                    {% if pawning.item_weight %}
+                    <div class="col-md-4 mb-3">
+                        <strong>Weight:</strong><br>
+                        {{ "%.3f"|format(pawning.item_weight|float) }} grams
+                    </div>
+                    {% endif %}
+                    {% if pawning.item_purity or pawning.karats %}
+                    <div class="col-md-4 mb-3">
+                        <strong>Purity/Karats:</strong><br>
+                        {{ pawning.item_purity or '' }} {% if pawning.karats %}({{ "%.2f"|format(pawning.karats|float) }}K){% endif %}
+                    </div>
+                    {% endif %}
+                    {% if pawning.market_value_per_gram %}
+                    <div class="col-md-4 mb-3">
+                        <strong>Market Rate/gram:</strong><br>
+                        LKR {{ "%.2f"|format(pawning.market_value_per_gram|float) }}
+                    </div>
+                    {% endif %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Total Market Value:</strong><br>
+                        <span class="fs-5 text-success">LKR {{ "%.2f"|format(pawning.total_market_value|float) }}</span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Loan-to-Value Ratio:</strong><br>
+                        <span class="fs-5">{{ "%.1f"|format(pawning.loan_to_value_ratio|float) }}%</span>
+                    </div>
+                    {% if pawning.storage_location or pawning.storage_box_number %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Storage Location:</strong><br>
+                        {{ pawning.storage_location or 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Box/Locker Number:</strong><br>
+                        {{ pawning.storage_box_number or 'N/A' }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Loan Information -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Loan Information (Sri Lankan Method)</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Pawning Date:</strong><br>
+                        {{ pawning.pawning_date.strftime('%Y-%m-%d') if pawning.pawning_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Original Maturity Date:</strong><br>
+                        {{ pawning.maturity_date.strftime('%Y-%m-%d') if pawning.maturity_date else 'N/A' }}
+                        {% if pawning.maturity_date and pawning.maturity_date < today and pawning.status in ['active', 'extended'] %}
+                            <span class="badge bg-warning ms-2">Matured</span>
+                        {% endif %}
+                    </div>
+                    {% if pawning.extended_date %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Extended Until:</strong><br>
+                        <span class="text-info fs-5">{{ pawning.extended_date.strftime('%Y-%m-%d') }}</span>
+                        <br><small class="text-muted">Extended {{ pawning.times_extended }} time(s)</small>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Duration:</strong><br>
+                        {{ pawning.duration_months }} months
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Grace Period:</strong><br>
+                        {{ pawning.grace_period_days or 30 }} days after maturity
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Interest Rate:</strong><br>
+                        <span class="fs-5">{{ "%.2f"|format(pawning.interest_rate|float) }}% per month</span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Monthly Interest Amount:</strong><br>
+                        <span class="fs-5 text-primary">LKR {{ "%.2f"|format(pawning.interest_per_month|float) }}</span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Total Interest Paid So Far:</strong><br>
+                        <span class="fs-5 text-success">LKR {{ "%.2f"|format(pawning.total_interest_paid|float if pawning.total_interest_paid else 0) }}</span>
+                    </div>
+                </div>
+                {% if pawning.extension_notes %}
+                <div class="alert alert-info mt-3">
+                    <strong>Extension History:</strong><br>
+                    {{ pawning.extension_notes|replace('\n', '<br>')|safe }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment History -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Receipt #</th>
+                        <th>Type</th>
+                        <th>Total Amount</th>
+                        <th>Interest</th>
+                        <th>Principal</th>
+                        <th>Penalty</th>
+                        <th>Balance After</th>
+                        <th>Method</th>
+                        <th>Collected By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else 'N/A' }}</td>
+                        <td><small>{{ payment.receipt_number or 'N/A' }}</small></td>
+                        <td><span class="badge bg-secondary">{{ payment.payment_type|replace('_', ' ')|title if payment.payment_type else 'N/A' }}</span></td>
+                        <td><strong>LKR {{ "%.2f"|format(payment.payment_amount|float) }}</strong></td>
+                        <td>LKR {{ "%.2f"|format(payment.interest_amount|float if payment.interest_amount else 0) }}</td>
+                        <td>LKR {{ "%.2f"|format(payment.principal_amount|float if payment.principal_amount else 0) }}</td>
+                        <td>LKR {{ "%.2f"|format(payment.penalty_amount|float if payment.penalty_amount else 0) }}</td>
+                        <td>
+                            <small>
+                                P: LKR {{ "%.2f"|format(payment.principal_balance_after|float if payment.principal_balance_after else 0) }}<br>
+                                I: LKR {{ "%.2f"|format(payment.interest_balance_after|float if payment.interest_balance_after else 0) }}
+                            </small>
+                        </td>
+                        <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
+                        <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted">No payments recorded yet</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Notes -->
+{% if pawning.notes %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-sticky me-2"></i>Notes</h5>
+    </div>
+    <div class="card-body">
+        {{ pawning.notes }}
+    </div>
+</div>
+{% endif %}
+
+<!-- Extension Modal -->
+<div class="modal fade" id="extendModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('pawnings.extend_pawning', id=pawning.id) }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Extend Pawning Period</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Current maturity: <strong>{{ (pawning.extended_date or pawning.maturity_date).strftime('%Y-%m-%d') }}</strong></p>
+                    <p class="text-info">Note: Interest must be paid up-to-date before extending.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Extend by (months):</label>
+                        <select name="extend_months" class="form-select" required>
+                            <option value="1">1 month</option>
+                            <option value="2">2 months</option>
+                            <option value="3" selected>3 months</option>
+                            <option value="6">6 months</option>
+                            <option value="12">12 months</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Extend Period</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

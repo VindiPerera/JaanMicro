@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add New Loan</h5>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items() %}
+                            {% for error in errors %}
+                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.customer_id.label(class="form-label") }}
+                        {{ form.customer_id(class="form-select", required=true) }}
+                        {% if form.customer_id.errors %}
+                        <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_type.label(class="form-label") }}
+                            {{ form.loan_type(class="form-select", id="loan_type") }}
+                            <small class="text-muted">Purpose/category of the loan</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.application_date.label(class="form-label") }}
+                            {{ form.application_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-3">Loan Amount & Terms</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_amount.label(class="form-label") }}
+                            {{ form.loan_amount(class="form-control", id="loan_amount") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.duration_months.label(class="form-label") }}
+                            {{ form.duration_months(class="form-control", id="duration_months") }}
+                            <small class="text-muted">Repayment period in months</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.interest_rate.label(class="form-label") }}
+                            {{ form.interest_rate(class="form-control", id="interest_rate") }}
+                            <small class="text-muted">Annual percentage rate</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.interest_type.label(class="form-label") }}
+                            {{ form.interest_type(class="form-select", id="interest_type") }}
+                            <small class="text-muted">Flat Rate: Simple interest. Reducing Balance: EMI with compound interest</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.installment_frequency.label(class="form-label") }}
+                        {{ form.installment_frequency(class="form-select", id="installment_frequency") }}
+                        <small class="text-muted">How often payments are made</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.purpose.label(class="form-label") }}
+                        {{ form.purpose(class="form-control", rows="3") }}
+                        <small class="text-muted">What will the loan be used for?</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.security_details.label(class="form-label") }}
+                        {{ form.security_details(class="form-control", rows="3") }}
+                        <small class="text-muted">Collateral or guarantee details</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.status.label(class="form-label") }}
+                        {{ form.status(class="form-select") }}
+                        <small class="text-muted">Select 'Active' to approve and disburse immediately</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="2") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('loans.list_loans') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Auto-calculate EMI on field change
+    $('#loan_amount, #interest_rate, #duration_months, #interest_type').on('change', function() {
+        calculateEMI();
+    });
+    
+    function calculateEMI() {
+        var principal = parseFloat($('#loan_amount').val()) || 0;
+        var rate = parseFloat($('#interest_rate').val()) || 0;
+        var months = parseInt($('#duration_months').val()) || 1;
+        var type = $('#interest_type').val();
+        
+        if (principal > 0 && rate > 0 && months > 0) {
+            var monthlyRate = rate / (12 * 100);
+            var emi;
+            
+            if (type === 'reducing_balance' && monthlyRate > 0) {
+                emi = principal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+            } else {
+                var totalInterest = principal * rate * months / (12 * 100);
+                emi = (principal + totalInterest) / months;
+            }
+            
+            var totalPayable = emi * months;
+            
+            // Show calculated values
+            if ($('#emi-display').length === 0) {
+                $('#duration_months').parent().after(
+                    '<div id="emi-display" class="col-md-12 mb-3">' +
+                    '<div class="alert alert-info">' +
+                    '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                    '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                    '</div></div>'
+                );
+            } else {
+                $('#emi-display .alert').html(
+                    '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                    '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                );
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Loan Payment Collection</h5>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items() %}
+                            {% for error in errors %}
+                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <!-- Loan Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Loan Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Loan Number:</strong> {{ loan.loan_number }}<br>
+                            <strong>Customer:</strong> {{ loan.customer.full_name }}<br>
+                            <strong>Phone:</strong> {{ loan.customer.phone_primary }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
+                            <strong>Outstanding:</strong> <span class="text-danger fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(current_outstanding|float) }}</span>
+                            {% if accrued_interest > 0 %}<br><small class="text-warning">Includes {{ system_settings.currency_symbol }} {{ "%.2f"|format(accrued_interest|float) }} accrued interest</small>{% endif %}<br>
+                            <strong>Paid So Far:</strong> <span class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.paid_amount|float) if loan.paid_amount else '0.00' }}</span><br>
+                            <strong>Installment:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else 'N/A' }}
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Payment Information</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_date.label(class="form-label") }}
+                            {{ form.payment_date(class="form-control", type="date") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_amount.label(class="form-label") }}
+                            {{ form.payment_amount(class="form-control", id="payment_amount") }}
+                            <small class="text-muted">Maximum: {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_method.label(class="form-label") }}
+                            {{ form.payment_method(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.reference_number.label(class="form-label") }}
+                            {{ form.reference_number(class="form-control") }}
+                            <small class="text-muted">Check/Transfer number (optional)</small>
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Payment Breakdown</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            {{ form.principal_amount.label(class="form-label") }}
+                            {{ form.principal_amount(class="form-control", id="principal_amount", readonly=true) }}
+                            <small class="text-muted">Loan amount portion</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.interest_amount.label(class="form-label") }}
+                            {{ form.interest_amount(class="form-control", id="interest_amount", readonly=true) }}
+                            <small class="text-muted">Interest charge portion</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            {{ form.penalty_amount.label(class="form-label") }}
+                            {{ form.penalty_amount(class="form-control", id="penalty_amount") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="2") }}
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        {{ form.send_receipt(class="form-check-input") }}
+                        {{ form.send_receipt.label(class="form-check-label") }}
+                    </div>
+                    
+                    <!-- Payment Summary -->
+                    <div class="alert alert-success mt-4">
+                        <h6 class="mb-2">Payment Summary</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Total Payment:</strong> <span id="total_payment" class="fs-5">{{ system_settings.currency_symbol }} 0.00</span><br>
+                                <strong>Outstanding After:</strong> <span id="outstanding_after" class="fs-5">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-success btn-lg") }}
+                        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Recent Payments -->
+        {% if recent_payments %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Payments</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                                <th>Receipt #</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in recent_payments %}
+                            <tr>
+                                <td>{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else 'N/A' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}</td>
+                                <td>{{ payment.payment_method|title }}</td>
+                                <td>{{ payment.receipt_number }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var outstandingAmount = {{ loan.outstanding_amount|float if loan.outstanding_amount else 0 }};
+    var interestRate = {{ loan.interest_rate|float }};
+    
+    function calculatePaymentBreakdown() {
+        var paymentAmount = parseFloat($('#payment_amount').val()) || 0;
+        var penaltyAmount = parseFloat($('#penalty_amount').val()) || 0;
+        var interestRate = {{ loan.interest_rate|float }};
+        var interestType = '{{ loan.interest_type }}';
+        
+        // Round to 2 decimal places to avoid floating point issues
+        paymentAmount = Math.round(paymentAmount * 100) / 100;
+        var roundedOutstanding = Math.round(outstandingAmount * 100) / 100;
+        
+        // Check if this is a full payment or overpayment
+        var isFullPayment = paymentAmount >= roundedOutstanding || Math.abs(paymentAmount - roundedOutstanding) <= 0.05;
+        
+        var principalAmount, interestAmount;
+        
+        if (isFullPayment) {
+            // For full payments, all outstanding goes to principal
+            principalAmount = roundedOutstanding;
+            interestAmount = paymentAmount - principalAmount;
+            // Ensure no negative interest
+            if (interestAmount < 0) {
+                interestAmount = 0;
+                principalAmount = paymentAmount;
+            }
+        } else {
+            if (interestType === 'reducing_balance') {
+                // For reducing balance: Interest first, then principal
+                var monthlyInterestDue = Math.round((roundedOutstanding * (interestRate / 100) / 12) * 100) / 100;
+                
+                if (paymentAmount <= monthlyInterestDue) {
+                    // Payment is less than or equal to interest due
+                    interestAmount = paymentAmount - penaltyAmount;
+                    principalAmount = 0;
+                } else {
+                    // Payment covers interest and some principal
+                    interestAmount = monthlyInterestDue;
+                    var remainingPayment = paymentAmount - interestAmount - penaltyAmount;
+                    principalAmount = Math.min(remainingPayment, roundedOutstanding);
+                    
+                    // Handle excess payment
+                    if (remainingPayment > roundedOutstanding) {
+                        var excess = remainingPayment - roundedOutstanding;
+                        principalAmount = roundedOutstanding;
+                        interestAmount = interestAmount + excess;
+                    }
+                }
+            } else {
+                // For flat rate: Proportional distribution
+                var totalPayable = {{ loan.total_payable|float if loan.total_payable else loan.loan_amount|float }};
+                var loanAmount = {{ loan.loan_amount|float }};
+                
+                if (totalPayable > 0 && loanAmount > 0) {
+                    var principalRatio = roundedOutstanding / loanAmount;
+                    
+                    principalAmount = Math.round((paymentAmount - penaltyAmount) * principalRatio * 100) / 100;
+                    interestAmount = (paymentAmount - penaltyAmount) - principalAmount;
+                    
+                    // Handle overpayment
+                    if (principalAmount > roundedOutstanding) {
+                        var excess = principalAmount - roundedOutstanding;
+                        principalAmount = roundedOutstanding;
+                        interestAmount = interestAmount + excess;
+                    }
+                } else {
+                    // Fallback: all payment goes to principal
+                    principalAmount = Math.min(paymentAmount - penaltyAmount, roundedOutstanding);
+                    interestAmount = (paymentAmount - penaltyAmount) - principalAmount;
+                }
+            }
+            
+            // Ensure no negative values and proper rounding
+            principalAmount = Math.max(0, Math.round(principalAmount * 100) / 100);
+            interestAmount = Math.max(0, Math.round(interestAmount * 100) / 100);
+        }
+        
+        $('#principal_amount').val(principalAmount.toFixed(2));
+        $('#interest_amount').val(interestAmount.toFixed(2));
+        
+        var totalPayment = paymentAmount;
+        var outstandingAfter = Math.max(0, Math.round((roundedOutstanding - principalAmount) * 100) / 100);
+        
+        // If outstanding after payment is very small (≤ 0.02), show as 0.00
+        if (outstandingAfter <= 0.02) {
+            outstandingAfter = 0;
+        }
+        
+        $('#total_payment').text('{{ system_settings.currency_symbol }} ' + totalPayment.toFixed(2));
+        $('#outstanding_after').text('{{ system_settings.currency_symbol }} ' + outstandingAfter.toFixed(2));
+    }
+    
+    // Quick amount buttons
+    var installmentAmount = {{ loan.installment_amount|float if loan.installment_amount else 0 }};
+    if (installmentAmount > 0) {
+        $('#payment_amount').after(
+            '<div class="btn-group mt-2" role="group">' +
+            '<button type="button" class="btn btn-sm btn-outline-primary quick-amount" data-amount="' + installmentAmount + '">Installment</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-success quick-amount" data-amount="' + outstandingAmount + '">Full Payment</button>' +
+            '</div>'
+        );
+    }
+    
+    $(document).on('click', '.quick-amount', function() {
+        $('#payment_amount').val($(this).data('amount'));
+        calculatePaymentBreakdown();
+    });
+    
+    $('#payment_amount, #penalty_amount').on('input', calculatePaymentBreakdown);
+    
+    // Set default to installment amount
+    if (installmentAmount > 0) {
+        $('#payment_amount').val(installmentAmount.toFixed(2));
+    }
+    
+    calculatePaymentBreakdown();
+});
+</script>
+{% endblock %}

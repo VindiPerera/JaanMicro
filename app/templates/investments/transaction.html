@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add Investment Transaction</h5>
+            </div>
+            <div class="card-body">
+                <!-- Investment Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Investment Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Account Number:</strong> {{ investment.account_number }}<br>
+                            <strong>Customer:</strong> {{ investment.customer.full_name }}<br>
+                            <strong>Investment Type:</strong> {{ investment.investment_type|title }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Current Balance:</strong> <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_balance|float) if investment.current_balance else investment.principal_amount }}</span><br>
+                            <strong>Interest Rate:</strong> {{ investment.interest_rate }}%<br>
+                            <strong>Status:</strong> <span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Transaction Details</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.transaction_type.label(class="form-label") }}
+                            {{ form.transaction_type(class="form-select", id="transaction_type") }}
+                            <small class="text-muted">Deposit: Add funds. Withdrawal: Take funds out</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.transaction_date.label(class="form-label") }}
+                            {{ form.transaction_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.amount.label(class="form-label") }}
+                            {{ form.amount(class="form-control", id="amount") }}
+                            <small class="text-muted" id="amount-hint">Enter transaction amount</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.payment_method.label(class="form-label") }}
+                            {{ form.payment_method(class="form-select") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.reference_number.label(class="form-label") }}
+                        {{ form.reference_number(class="form-control") }}
+                        <small class="text-muted">Check/Transfer number (optional)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="3") }}
+                    </div>
+                    
+                    <!-- Balance Summary -->
+                    <div class="alert alert-success mt-4">
+                        <h6 class="mb-2">Balance Summary</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Current Balance:</strong> <span id="current_balance" class="fs-5">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_balance|float) if investment.current_balance else investment.principal_amount }}</span><br>
+                                <strong>Transaction Amount:</strong> <span id="transaction_amount" class="fs-5">{{ system_settings.currency_symbol }} 0.00</span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Balance After:</strong> <span id="balance_after" class="fs-4 text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_balance|float) if investment.current_balance else investment.principal_amount }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-success btn-lg") }}
+                        <a href="{{ url_for('investments.view_investment', id=investment.id) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Recent Transactions -->
+        {% if recent_transactions %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Transactions</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in recent_transactions %}
+                            <tr>
+                                <td>{{ transaction.transaction_date.strftime('%Y-%m-%d') if transaction.transaction_date else 'N/A' }}</td>
+                                <td>
+                                    {% if transaction.transaction_type == 'deposit' %}
+                                        <span class="badge bg-success">{{ transaction.transaction_type|title }}</span>
+                                    {% elif transaction.transaction_type == 'withdrawal' %}
+                                        <span class="badge bg-danger">{{ transaction.transaction_type|title }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ transaction.transaction_type|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.amount|float) }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.balance_after|float) if transaction.balance_after else '0.00' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var currentBalance = {{ investment.current_balance|float if investment.current_balance else investment.principal_amount|float }};
+    
+    function updateBalanceSummary() {
+        var transactionType = $('#transaction_type').val();
+        var amount = parseFloat($('#amount').val()) || 0;
+        var balanceAfter = currentBalance;
+        
+        if (transactionType === 'deposit' || transactionType === 'interest') {
+            balanceAfter = currentBalance + amount;
+            $('#amount-hint').text('Amount to deposit/add');
+        } else if (transactionType === 'withdrawal' || transactionType === 'fee') {
+            balanceAfter = currentBalance - amount;
+            $('#amount-hint').text('Maximum: ' + '{{ system_settings.currency_symbol }} ' + currentBalance.toFixed(2));
+            
+            // Check if withdrawal exceeds balance
+            if (amount > currentBalance) {
+                $('#amount').addClass('is-invalid');
+                $('#amount-hint').addClass('text-danger').text('Amount exceeds current balance!');
+            } else {
+                $('#amount').removeClass('is-invalid');
+                $('#amount-hint').removeClass('text-danger');
+            }
+        }
+        
+        $('#transaction_amount').text('{{ system_settings.currency_symbol }} ' + amount.toFixed(2));
+        $('#balance_after').text('{{ system_settings.currency_symbol }} ' + balanceAfter.toFixed(2));
+    }
+    
+    $('#transaction_type, #amount').on('change input', updateBalanceSummary);
+    
+    // Trigger on page load
+    updateBalanceSummary();
+});
+</script>
+{% endblock %}
+{% endblock %}
