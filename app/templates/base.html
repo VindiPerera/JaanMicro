@@ -81,16 +81,10 @@
         .main-content {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
-            padding-bottom: 120px; /* Space for fixed footer */
         }
         
-        /* Footer Fixed to Bottom */
+        /* Footer */
         .footer {
-            position: fixed;
-            bottom: 0;
-            left: var(--sidebar-width);
-            right: 0;
-            z-index: 999;
             background: white;
             border-top: 1px solid #dee2e6;
             box-shadow: 0 -2px 4px rgba(0,0,0,0.08);
@@ -248,11 +242,6 @@
             
             .main-content {
                 margin-left: 0;
-                padding-bottom: 120px; /* Space for fixed footer */
-            }
-            
-            .footer {
-                left: 0; /* Footer spans full width on mobile */
             }
         }
         
@@ -398,39 +387,21 @@
         <!-- Footer -->
         <footer class="footer py-2 bg-white">
             <div class="container-fluid">
-                {% if system_settings.company_name or system_settings.company_address or system_settings.company_phone or system_settings.company_email %}
-                <div class="row">
-                    <div class="col-md-4 mb-1 mb-md-0">
-                        <h6 class="fw-bold text-dark mb-1 small">{{ system_settings.company_name or system_settings.app_name }}</h6>
-                        {% if system_settings.company_phone %}
-                        <p class="mb-0 text-muted small"><i class="bi bi-telephone me-1"></i>{{ system_settings.company_phone }}</p>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-4 mb-1 mb-md-0">
-                        {% if system_settings.company_email %}
-                        <h6 class="fw-bold text-dark mb-1 small">Contact</h6>
-                        <p class="mb-0 text-muted small"><i class="bi bi-envelope me-1"></i>{{ system_settings.company_email }}</p>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-4">
-                        <h6 class="fw-bold text-dark mb-1 small">Session</h6>
-                        <p class="mb-0 text-muted small">{{ current_user.full_name or current_user.username }} ({{ current_user.role|capitalize }})</p>
-                    </div>
+                {% if system_settings.company_phone or system_settings.company_email or system_settings.company_address %}
+                <div class="text-center mb-1">
+                    <p class="mb-0 text-muted small">
+                        {% if system_settings.company_phone %}<i class="bi bi-telephone me-1"></i>{{ system_settings.company_phone }}{% endif %}
+                        {% if system_settings.company_phone and system_settings.company_email %} | {% endif %}
+                        {% if system_settings.company_email %}<i class="bi bi-envelope me-1"></i>{{ system_settings.company_email }}{% endif %}
+                        {% if (system_settings.company_phone or system_settings.company_email) and system_settings.company_address %} | {% endif %}
+                        {% if system_settings.company_address %}<i class="bi bi-geo-alt me-1"></i>{{ system_settings.company_address }}{% endif %}
+                    </p>
                 </div>
-                <hr class="my-1">
                 {% endif %}
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <p class="mb-0 text-muted small">
-                            &copy; 2026 {{ system_settings.company_name or system_settings.app_name }}. All rights reserved.
-                        </p>
-                    </div>
-                    <div class="col-md-6 text-md-end">
-                        <p class="mb-0 text-muted small">
-                            Powered by <strong class="text-primary">JAANmicro</strong> v1.0 
-                            <i class="bi bi-shield-check-fill text-success ms-1" title="Secure & Reliable"></i>
-                        </p>
-                    </div>
+                <div class="text-center">
+                    <p class="mb-0 text-muted small">
+                        &copy; 2026 {{ system_settings.company_name or system_settings.app_name }}. All rights reserved. | <strong style="color: #007bff;">JAANmicro V1</strong>
+                    </p>
                 </div>
             </div>
         </footer>

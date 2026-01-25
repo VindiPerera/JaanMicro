@@ -127,53 +127,8 @@
         
         .footer {
             background: white;
-            border-top: 1px solid #e0e0e0;
-            padding: 1.5rem 0;
+            border-top: 1px solid #dee2e6;
             margin-top: auto;
-        }
-        
-        .footer-content {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem;
-        }
-        
-        .footer-info {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 2rem;
-            margin-bottom: 1rem;
-        }
-        
-        .footer-section {
-            flex: 1;
-            min-width: 200px;
-        }
-        
-        .footer-section h6 {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-        
-        .footer-section p {
-            color: #666;
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
-        }
-        
-        .footer-section i {
-            width: 18px;
-            color: {{ system_settings.theme_color or '#2c3e50' }};
-        }
-        
-        .footer-bottom {
-            text-align: center;
-            padding-top: 1rem;
-            border-top: 1px solid #e0e0e0;
-            color: #666;
-            font-size: 0.85rem;
         }
     </style>
 </head>
@@ -265,30 +220,12 @@
     </div>
     
     <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            {% if system_settings.company_name or system_settings.company_address or system_settings.company_phone or system_settings.company_email %}
-            <div class="footer-info">
-                <div class="footer-section">
-                    <h6>{{ system_settings.company_name or system_settings.app_name }}</h6>
-                    {% if system_settings.company_address %}
-                    <p><i class="bi bi-geo-alt me-2"></i>{{ system_settings.company_address }}</p>
-                    {% endif %}
-                </div>
-                <div class="footer-section">
-                    <h6>Contact Information</h6>
-                    {% if system_settings.company_phone %}
-                    <p><i class="bi bi-telephone me-2"></i>{{ system_settings.company_phone }}</p>
-                    {% endif %}
-                    {% if system_settings.company_email %}
-                    <p><i class="bi bi-envelope me-2"></i>{{ system_settings.company_email }}</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-            
-            <div class="footer-bottom">
-                <p class="mb-0">&copy; 2026 {{ system_settings.app_name }}. All rights reserved.</p>
+    <footer class="footer py-2 bg-white">
+        <div class="container-fluid">
+            <div class="text-center">
+                <p class="mb-0 text-muted small">
+                    &copy; 2026 {{ system_settings.company_name or system_settings.app_name }}. All rights reserved. | <strong style="color: #007bff;">JAANmicro V1</strong>
+                </p>
             </div>
         </div>
     </footer>
