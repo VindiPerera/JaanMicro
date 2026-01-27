@@ -171,6 +171,7 @@ class Customer(db.Model):
     # Personal Information
     full_name = db.Column(db.String(200), nullable=False, index=True)
     nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    customer_type = db.Column(db.String(20), default='customer')  # customer, investor, guarantor
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))
     marital_status = db.Column(db.String(20))

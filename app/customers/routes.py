@@ -20,6 +20,7 @@ def list_customers():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '', type=str)
     status = request.args.get('status', '', type=str)
+    customer_type = request.args.get('customer_type', '', type=str)
     
     query = Customer.query
     
@@ -42,6 +43,9 @@ def list_customers():
     if status:
         query = query.filter_by(status=status)
     
+    if customer_type:
+        query = query.filter_by(customer_type=customer_type)
+    
     customers = query.order_by(Customer.created_at.desc()).paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
     )
@@ -50,7 +54,8 @@ def list_customers():
                          title='Customers',
                          customers=customers,
                          search=search,
-                         status=status)
+                         status=status,
+                         customer_type=customer_type)
 
 @customers_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -68,6 +73,7 @@ def add_customer():
             branch_id=get_current_branch_id(),
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
+            customer_type=form.customer_type.data,
             date_of_birth=form.date_of_birth.data,
             gender=form.gender.data,
             marital_status=form.marital_status.data,
@@ -157,6 +163,7 @@ def edit_customer(id):
     if form.validate_on_submit():
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data
+        customer.customer_type = form.customer_type.data
         customer.date_of_birth = form.date_of_birth.data
         customer.gender = form.gender.data
         customer.marital_status = form.marital_status.data

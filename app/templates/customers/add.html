@@ -12,6 +12,10 @@
                     {{ form.hidden_tag() }}
                     
                     <h6 class="border-bottom pb-2 mb-3">Personal Information</h6>
+                    <div class="mb-3">
+                        {{ form.customer_type.label(class="form-label") }}
+                        {{ form.customer_type(class="form-select") }}
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ form.full_name.label(class="form-label") }}
