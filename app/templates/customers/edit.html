@@ -104,6 +104,28 @@
                         </div>
                     </div>
                     
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">Bank Information</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_name.label(class="form-label") }}
+                            {{ form.bank_name(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_branch.label(class="form-label") }}
+                            {{ form.bank_branch(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_account_number.label(class="form-label") }}
+                            {{ form.bank_account_number(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_account_type.label(class="form-label") }}
+                            {{ form.bank_account_type(class="form-select") }}
+                        </div>
+                    </div>
+
                     <h6 class="border-bottom pb-2 mb-3 mt-4">Emergency Contact</h6>
                     <div class="row">
                         <div class="col-md-4 mb-3">

@@ -136,6 +136,12 @@ class User(UserMixin, db.Model):
 class Customer(db.Model):
     """Customer model with KYC information"""
     __tablename__ = 'customers'
+
+    # Bank Information
+    bank_name = db.Column(db.String(100))
+    bank_branch = db.Column(db.String(100))
+    bank_account_number = db.Column(db.String(30))
+    bank_account_type = db.Column(db.String(30))
     
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.String(50), unique=True, nullable=False, index=True)

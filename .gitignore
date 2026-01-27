@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Flask/Instance
+instance/
+
+# Uploads and generated files
+app/static/uploads/*
+!app/static/uploads/.gitkeep
+
+# Database
+*.sqlite3
+*.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Migrations
+migrations/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Coverage
+htmlcov/
+.coverage
+
+# System
+Thumbs.db
