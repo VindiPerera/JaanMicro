@@ -41,7 +41,7 @@ def list_customers():
     )
     
     return render_template('customers/list.html',
-                         title='Customers',
+                         title='Members',
                          customers=customers,
                          search=search,
                          status=status)
@@ -104,12 +104,12 @@ def add_customer():
         flash(f'Customer {customer.full_name} added successfully!', 'success')
         return redirect(url_for('customers.view_customer', id=customer.id))
     
-    return render_template('customers/add.html', title='Add Customer', form=form)
+    return render_template('customers/add.html', title='Add Member', form=form)
 
 @customers_bp.route('/<int:id>')
 @login_required
 def view_customer(id):
-    """View customer details"""
+    """View Member details"""
     customer = Customer.query.get_or_404(id)
     
     # Get related records
@@ -118,7 +118,7 @@ def view_customer(id):
     pawnings = customer.pawnings.order_by(db.desc('created_at')).all()
     
     return render_template('customers/view.html',
-                         title=f'Customer: {customer.full_name}',
+                         title=f'Member: {customer.full_name}',
                          customer=customer,
                          loans=loans,
                          investments=investments,
@@ -128,7 +128,7 @@ def view_customer(id):
 @login_required
 @permission_required('edit_customers')
 def edit_customer(id):
-    """Edit customer details"""
+    """Edit Member details"""
     customer = Customer.query.get_or_404(id)
     form = CustomerForm(obj=customer)
     
@@ -184,7 +184,7 @@ def edit_customer(id):
 @login_required
 @permission_required('edit_customers')
 def customer_kyc(id):
-    """Manage customer KYC"""
+    """Manage Member KYC"""
     customer = Customer.query.get_or_404(id)
     form = KYCForm()
     

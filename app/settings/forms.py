@@ -71,9 +71,9 @@ class UserForm(FlaskForm):
     is_active = BooleanField('Active', default=True)
     
     # Permissions - removed defaults, will be set programmatically
-    can_add_customers = BooleanField('Can Add Customers')
-    can_edit_customers = BooleanField('Can Edit Customers')
-    can_delete_customers = BooleanField('Can Delete Customers')
+    can_add_customers = BooleanField('Can Add Members')
+    can_edit_customers = BooleanField('Can Edit Members')
+    can_delete_customers = BooleanField('Can Delete Members')
     can_manage_loans = BooleanField('Can Manage Loans')
     can_approve_loans = BooleanField('Can Approve Loans')
     can_manage_investments = BooleanField('Can Manage Investments')
@@ -195,9 +195,9 @@ class UserEditForm(FlaskForm):
     is_active = BooleanField('Active')
     
     # Permissions
-    can_add_customers = BooleanField('Can Add Customers')
-    can_edit_customers = BooleanField('Can Edit Customers')
-    can_delete_customers = BooleanField('Can Delete Customers')
+    can_add_customers = BooleanField('Can Add Members')
+    can_edit_customers = BooleanField('Can Edit Members')
+    can_delete_customers = BooleanField('Can Delete Members')
     can_manage_loans = BooleanField('Can Manage Loans')
     can_approve_loans = BooleanField('Can Approve Loans')
     can_manage_investments = BooleanField('Can Manage Investments')

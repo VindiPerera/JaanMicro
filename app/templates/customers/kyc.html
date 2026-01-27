@@ -6,7 +6,7 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h4><i class="bi bi-shield-check me-2"></i>KYC Document Management</h4>
             <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left me-2"></i>Back to Customer
+                <i class="bi bi-arrow-left me-2"></i>Back to Member Details
             </a>
         </div>
 
@@ -20,7 +20,7 @@
                     <div class="card-body">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle me-2"></i>
-                            Customer: <strong>{{ customer.full_name }}</strong> ({{ customer.customer_id }})
+                            Member: <strong>{{ customer.full_name }}</strong> ({{ customer.customer_id }})
                         </div>
                         
                         <form method="POST" action="" enctype="multipart/form-data">
@@ -50,12 +50,12 @@
                                 {% endif %}
                             </div>
                             
-                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-person-badge me-2"></i>Customer Photo</h6>
+                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-person-badge me-2"></i>Member Photo</h6>
                             
                             <div class="mb-3">
                                 {{ form.photo.label(class="form-label") }}
                                 {{ form.photo(class="form-control", accept="image/*") }}
-                                <small class="text-muted">Customer photograph (Max 16MB)</small>
+                                <small class="text-muted">Member photograph (Max 16MB)</small>
                                 {% if customer.photo %}
                                 <div class="mt-2">
                                     <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
@@ -175,10 +175,10 @@
                         {% if customer.photo %}
                         <div class="card mb-3">
                             <div class="card-header">
-                                <i class="bi bi-person-badge me-2"></i>Customer Photo
+                                <i class="bi bi-person-badge me-2"></i>Member Photo
                             </div>
                             <div class="card-body text-center">
-                                <img src="/{{ customer.photo }}" class="img-fluid rounded" style="max-height: 200px;" alt="Customer Photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="/{{ customer.photo }}" class="img-fluid rounded" style="max-height: 200px;" alt="Member Photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>

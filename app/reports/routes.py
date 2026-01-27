@@ -285,7 +285,7 @@ def customer_report():
     available_districts = [d[0] for d in available_districts if d[0]]  # Convert to list and filter out None values
     
     return render_template('reports/customer_report.html',
-                         title='Customer Report',
+                         title='Member Report',
                          customers=customers,
                          summary=summary,
                          district_breakdown=district_breakdown,

@@ -36,8 +36,8 @@
         <div class="card h-100">
             <div class="card-body text-center">
                 <i class="bi bi-people text-info" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">Customer Reports</h5>
-                <p class="text-muted">Customer demographics, KYC status, and activity reports</p>
+                <h5 class="mt-3">Member Reports</h5>
+                <p class="text-muted">Member demographics, KYC status, and activity reports</p>
                 <a href="{{ url_for('reports.customer_report') }}" class="btn btn-info btn-sm">View Report</a>
             </div>
         </div>
@@ -87,7 +87,7 @@
                 <div class="row text-center">
                     <div class="col-md-3 col-6 mb-3">
                         <h3 class="text-primary">{{ "%.0f"|format(stats.total_customers|float) if stats else 0 }}</h3>
-                        <p class="text-muted mb-0">Total Customers</p>
+                        <p class="text-muted mb-0">Total Members</p>
                         <small class="text-success">{{ "%.0f"|format(stats.active_customers|float) if stats else 0 }} active</small>
                     </div>
                     <div class="col-md-3 col-6 mb-3">
@@ -129,7 +129,7 @@
                     </div>
                     <div class="col-md-4 col-6 mb-3">
                         <h4 class="text-info">{{ "%.0f"|format(stats.todays_new_customers|float) if stats else 0 }}</h4>
-                        <p class="text-muted mb-0">New Customers</p>
+                        <p class="text-muted mb-0">New Member</p>
                     </div>
                 </div>
             </div>

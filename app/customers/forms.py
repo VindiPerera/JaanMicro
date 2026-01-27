@@ -69,7 +69,7 @@ class CustomerForm(FlaskForm):
     guarantor_address = TextAreaField('Guarantor Address', validators=[Optional()])
     
     notes = TextAreaField('Notes', validators=[Optional()])
-    submit = SubmitField('Save Customer')
+    submit = SubmitField('Save Member')
     
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)

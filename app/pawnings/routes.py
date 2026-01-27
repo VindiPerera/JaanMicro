@@ -56,7 +56,7 @@ def add_pawning():
     
     # Get customers for dropdown
     customers = Customer.query.filter_by(status='active', kyc_verified=True).order_by(Customer.full_name).all()
-    form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
+    form.customer_id.choices = [(0, 'Select Member')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
     
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':

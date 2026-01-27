@@ -25,7 +25,7 @@
                     {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
-                        {{ form.customer_id.label(class="form-label") }}
+                        {{ form.customer_id.label(class="form-label", text="Member")  }}
                         {{ form.customer_id(class="form-select", required=true) }}
                         {% if form.customer_id.errors %}
                         <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>

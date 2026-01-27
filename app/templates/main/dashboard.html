@@ -8,7 +8,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <div class="stats-label">Total Customers</div>
+                        <div class="stats-label">Total Members</div>
                         <div class="stats-value">{{ stats.total_customers }}</div>
                         <small class="text-muted">
                             <span class="text-warning">{{ stats.kyc_pending }} KYC Pending</span>
@@ -88,7 +88,7 @@
                         <thead>
                             <tr>
                                 <th>Loan #</th>
-                                <th>Customer</th>
+                                <th>Member</th>
                                 <th>Amount</th>
                                 <th>Status</th>
                             </tr>
@@ -111,11 +111,11 @@
         </div>
     </div>
     
-    <!-- Recent Customers -->
+    <!-- Recent Members -->
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">Recent Customers</h6>
+                <h6 class="mb-0">Recent Members</h6>
                 <a href="{{ url_for('customers.list_customers') }}" class="btn btn-sm btn-primary">View All</a>
             </div>
             <div class="card-body">
@@ -123,7 +123,7 @@
                     <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Customer ID</th>
+                                <th>Member ID</th>
                                 <th>Name</th>
                                 <th>Phone</th>
                                 <th>KYC</th>
@@ -144,7 +144,7 @@
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center text-muted">No customers yet</td></tr>
+                            <tr><td colspan="4" class="text-center text-muted">No members yet</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -167,7 +167,7 @@
                         <thead>
                             <tr>
                                 <th>Loan #</th>
-                                <th>Customer</th>
+                                <th>Member</th>
                                 <th>Outstanding</th>
                                 <th>Due Date</th>
                                 <th>Action</th>
