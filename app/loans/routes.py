@@ -8,7 +8,7 @@ from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
 from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import generate_loan_number
+from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
 
 @loans_bp.route('/')
 @login_required
@@ -21,6 +21,12 @@ def list_loans():
     loan_type = request.args.get('loan_type', '')
     
     query = Loan.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
     
     if search:
         query = query.join(Customer).filter(
@@ -56,7 +62,15 @@ def add_loan():
     form = LoanForm()
     
     # Get customers for dropdown
-    customers = Customer.query.filter_by(status='active', kyc_verified=True).order_by(Customer.full_name).all()
+    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
+    
+    # Apply branch filtering if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            customer_query = customer_query.filter_by(branch_id=current_branch_id)
+    
+    customers = customer_query.order_by(Customer.full_name).all()
     form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
     
     # Pre-fill interest rate from settings on GET request
@@ -96,6 +110,7 @@ def add_loan():
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
+            branch_id=get_current_branch_id(),
             loan_type=form.loan_type.data,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
@@ -146,6 +161,14 @@ def add_loan():
 def view_loan(id):
     """View loan details"""
     loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
     payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
     
     # Calculate current outstanding amount with accrued interest
@@ -168,6 +191,13 @@ def view_loan(id):
 def approve_loan(id):
     """Approve loan"""
     loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
     
     if loan.status != 'pending':
         flash('Only pending loans can be approved!', 'warning')
@@ -233,6 +263,13 @@ def approve_loan(id):
 def add_payment(id):
     """Add loan payment"""
     loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
     
     if loan.status not in ['active', 'disbursed']:
         flash('Cannot add payment for this loan! Loan must be active.', 'warning')

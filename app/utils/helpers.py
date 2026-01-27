@@ -2,9 +2,9 @@
 import os
 import uuid
 from datetime import datetime
-from flask import current_app
+from flask import current_app, session
 from werkzeug.utils import secure_filename
-from app.models import Customer, Loan, Investment, Pawning
+from app.models import Customer, Loan, Investment, Pawning, Branch
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -94,3 +94,29 @@ def save_uploaded_file(file, folder, filename_prefix=None):
         return os.path.join(folder, filename)
     
     return None
+
+def get_current_branch():
+    """Get the current branch for the logged-in user"""
+    branch_id = session.get('current_branch_id')
+    if branch_id:
+        return Branch.query.get(branch_id)
+    return None
+
+def get_current_branch_id():
+    """Get the current branch ID for filtering queries"""
+    return session.get('current_branch_id')
+
+def should_filter_by_branch():
+    """Check if current user should have branch filtering applied"""
+    from flask_login import current_user
+    from flask import session
+    
+    if not current_user.is_authenticated:
+        return True
+    
+    if current_user.role == 'admin':
+        # Admin can choose to filter by a specific branch or see all
+        return session.get('current_branch_id') is not None
+    
+    # Regular users always filter by their assigned branch
+    return True

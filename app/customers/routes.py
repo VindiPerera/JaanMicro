@@ -10,7 +10,7 @@ from app.customers import customers_bp
 from app.models import Customer, ActivityLog, SystemSettings
 from app.customers.forms import CustomerForm, KYCForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import allowed_file, generate_customer_id
+from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
 
 @customers_bp.route('/')
 @login_required
@@ -22,6 +22,12 @@ def list_customers():
     status = request.args.get('status', '', type=str)
     
     query = Customer.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
     
     if search:
         query = query.filter(
@@ -59,6 +65,7 @@ def add_customer():
         
         customer = Customer(
             customer_id=customer_id,
+            branch_id=get_current_branch_id(),
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
             date_of_birth=form.date_of_birth.data,
@@ -112,6 +119,13 @@ def view_customer(id):
     """View customer details"""
     customer = Customer.query.get_or_404(id)
     
+    # Check if customer belongs to current branch
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and customer.branch_id != current_branch_id:
+            flash('Access denied: Customer does not belong to your branch.', 'danger')
+            return redirect(url_for('customers.list_customers'))
+    
     # Get related records
     loans = customer.loans.order_by(db.desc('created_at')).all()
     investments = customer.investments.order_by(db.desc('created_at')).all()
@@ -130,6 +144,14 @@ def view_customer(id):
 def edit_customer(id):
     """Edit customer details"""
     customer = Customer.query.get_or_404(id)
+    
+    # Check if customer belongs to current branch
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and customer.branch_id != current_branch_id:
+            flash('Access denied: Customer does not belong to your branch.', 'danger')
+            return redirect(url_for('customers.list_customers'))
+    
     form = CustomerForm(obj=customer)
     
     if form.validate_on_submit():

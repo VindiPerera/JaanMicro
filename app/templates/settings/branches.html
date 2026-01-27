@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Branches</h5>
+                <a href="{{ url_for('settings.add_branch') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>Add Branch
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Branch Code</th>
+                                <th>Name</th>
+                                <th>Manager</th>
+                                <th>Phone</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for branch in branches %}
+                            <tr>
+                                <td><strong>{{ branch.branch_code }}</strong></td>
+                                <td>{{ branch.name }}</td>
+                                <td>
+                                    {% if branch.manager %}
+                                        {{ branch.manager.full_name }}
+                                    {% else %}
+                                        <span class="text-muted">Not assigned</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ branch.phone or '-' }}</td>
+                                <td>{{ branch.email or '-' }}</td>
+                                <td>
+                                    {% if branch.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('settings.edit_branch', id=branch.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        {% if not branch.users and not branch.customers and not branch.loans and not branch.investments and not branch.pawnings %}
+                                        <form method="post" action="{{ url_for('settings.delete_branch', id=branch.id) }}" class="d-inline"
+                                              onsubmit="return confirm('Are you sure you want to delete this branch?')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if not branches %}
+                <div class="text-center py-5">
+                    <i class="bi bi-building fs-1 text-muted"></i>
+                    <h5 class="text-muted mt-3">No branches found</h5>
+                    <p class="text-muted">Get started by adding your first branch.</p>
+                    <a href="{{ url_for('settings.add_branch') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-2"></i>Add First Branch
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

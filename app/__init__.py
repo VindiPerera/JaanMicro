@@ -74,9 +74,24 @@ def create_app(config_name='default'):
     # Context processor for global variables
     @app.context_processor
     def inject_settings():
-        from app.models import SystemSettings
+        from app.models import SystemSettings, Branch
+        from app.utils.helpers import get_current_branch
+        from flask_login import current_user
         from datetime import datetime
         settings = SystemSettings.get_settings()
-        return dict(system_settings=settings, now=datetime.now, today=datetime.now().date())
+        current_branch = get_current_branch()
+        
+        # Get active branches for admin users
+        branches = []
+        if current_user.is_authenticated and current_user.role == 'admin':
+            branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
+        
+        return dict(
+            system_settings=settings, 
+            now=datetime.now, 
+            today=datetime.now().date(), 
+            current_branch=current_branch,
+            branches=branches
+        )
     
     return app

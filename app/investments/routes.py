@@ -8,7 +8,7 @@ from app.investments import investments_bp
 from app.models import Investment, InvestmentTransaction, Customer, ActivityLog, SystemSettings
 from app.investments.forms import InvestmentForm, InvestmentTransactionForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import generate_investment_number
+from app.utils.helpers import generate_investment_number, get_current_branch_id, should_filter_by_branch
 
 @investments_bp.route('/')
 @login_required
@@ -21,6 +21,12 @@ def list_investments():
     investment_type = request.args.get('investment_type', '')
     
     query = Investment.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
     
     if search:
         query = query.join(Customer).filter(
@@ -56,7 +62,15 @@ def add_investment():
     form = InvestmentForm()
     
     # Get customers for dropdown
-    customers = Customer.query.filter_by(status='active', kyc_verified=True).order_by(Customer.full_name).all()
+    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
+    
+    # Apply branch filtering if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            customer_query = customer_query.filter_by(branch_id=current_branch_id)
+    
+    customers = customer_query.order_by(Customer.full_name).all()
     form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
     
     # Pre-fill interest rate from settings on GET request
@@ -94,6 +108,7 @@ def add_investment():
         investment = Investment(
             investment_number=investment_number,
             customer_id=form.customer_id.data,
+            branch_id=get_current_branch_id(),
             investment_type=form.investment_type.data,
             principal_amount=form.principal_amount.data,
             interest_rate=form.interest_rate.data,
@@ -145,6 +160,14 @@ def add_investment():
 def view_investment(id):
     """View investment details"""
     investment = Investment.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and investment.branch_id != current_branch_id:
+            flash('Access denied: Investment not found in current branch.', 'danger')
+            return redirect(url_for('investments.list_investments'))
+    
     transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
     
     return render_template('investments/view.html',
@@ -158,6 +181,13 @@ def view_investment(id):
 def add_transaction(id):
     """Add investment transaction"""
     investment = Investment.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and investment.branch_id != current_branch_id:
+            flash('Access denied: Investment not found in current branch.', 'danger')
+            return redirect(url_for('investments.list_investments'))
     
     if investment.status not in ['active']:
         flash('Cannot add transaction for this investment!', 'warning')
