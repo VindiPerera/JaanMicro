@@ -6,8 +6,8 @@ from werkzeug.security import generate_password_hash
 import os
 from app import db
 from app.settings import settings_bp
-from app.models import SystemSettings, User, ActivityLog
-from app.settings.forms import SystemSettingsForm, UserForm, UserEditForm
+from app.models import SystemSettings, User, ActivityLog, Branch
+from app.settings.forms import SystemSettingsForm, UserForm, UserEditForm, BranchForm
 from app.utils.decorators import admin_required, permission_required
 from app.utils.helpers import allowed_file
 
@@ -114,6 +114,7 @@ def add_user():
             full_name=form.full_name.data,
             phone=form.phone.data,
             role=form.role.data,
+            branch_id=form.branch_id.data if form.branch_id.data != 0 else None,
             is_active=form.is_active.data,
             can_add_customers=form.can_add_customers.data,
             can_edit_customers=form.can_edit_customers.data,
@@ -161,6 +162,7 @@ def edit_user(id):
         user.full_name = form.full_name.data
         user.phone = form.phone.data
         user.role = form.role.data
+        user.branch_id = form.branch_id.data if form.branch_id.data != 0 else None
         user.is_active = form.is_active.data
         user.can_add_customers = form.can_add_customers.data
         user.can_edit_customers = form.can_edit_customers.data
@@ -263,3 +265,181 @@ def bulk_update_permissions():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Branch Management Routes
+@settings_bp.route('/branches')
+@login_required
+@admin_required
+def branches():
+    """List all branches"""
+    branches = Branch.query.order_by(Branch.created_at.desc()).all()
+    return render_template('settings/branches.html', title='Branches', branches=branches)
+
+@settings_bp.route('/branches/add', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_branch():
+    """Add new branch"""
+    form = BranchForm()
+    
+    if form.validate_on_submit():
+        # Check if branch code already exists
+        existing_branch = Branch.query.filter_by(branch_code=form.branch_code.data.upper()).first()
+        if existing_branch:
+            flash('Branch code already exists!', 'danger')
+            return redirect(url_for('settings.add_branch'))
+        
+        branch = Branch(
+            branch_code=form.branch_code.data.upper(),
+            name=form.name.data,
+            address=form.address.data,
+            phone=form.phone.data,
+            email=form.email.data,
+            manager_id=form.manager_id.data if form.manager_id.data != 0 else None,
+            is_active=form.is_active.data
+        )
+        
+        db.session.add(branch)
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='create_branch',
+            entity_type='branch',
+            entity_id=branch.id,
+            description=f'Created branch: {branch.name}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f'Branch {branch.name} added successfully!', 'success')
+        return redirect(url_for('settings.branches'))
+    
+    return render_template('settings/add_branch.html', title='Add Branch', form=form)
+
+@settings_bp.route('/branches/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_branch(id):
+    """Edit branch"""
+    branch = Branch.query.get_or_404(id)
+    form = BranchForm(obj=branch)
+    
+    if form.validate_on_submit():
+        # Check if branch code already exists (excluding current branch)
+        existing_branch = Branch.query.filter(
+            Branch.branch_code == form.branch_code.data.upper(),
+            Branch.id != id
+        ).first()
+        if existing_branch:
+            flash('Branch code already exists!', 'danger')
+            return redirect(url_for('settings.edit_branch', id=id))
+        
+        branch.branch_code = form.branch_code.data.upper()
+        branch.name = form.name.data
+        branch.address = form.address.data
+        branch.phone = form.phone.data
+        branch.email = form.email.data
+        branch.manager_id = form.manager_id.data if form.manager_id.data != 0 else None
+        branch.is_active = form.is_active.data
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='update_branch',
+            entity_type='branch',
+            entity_id=branch.id,
+            description=f'Updated branch: {branch.name}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f'Branch {branch.name} updated successfully!', 'success')
+        return redirect(url_for('settings.branches'))
+    
+    return render_template('settings/edit_branch.html', title='Edit Branch', form=form, branch=branch)
+
+@settings_bp.route('/branches/<int:id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_branch(id):
+    """Delete branch"""
+    branch = Branch.query.get_or_404(id)
+    
+    # Check if branch has users
+    if branch.users:
+        flash('Cannot delete branch with assigned users!', 'danger')
+        return redirect(url_for('settings.branches'))
+    
+    # Check if branch has data
+    if branch.customers or branch.loans or branch.investments or branch.pawnings:
+        flash('Cannot delete branch with existing data!', 'danger')
+        return redirect(url_for('settings.branches'))
+    
+    # Log activity
+    log = ActivityLog(
+        user_id=current_user.id,
+        action='delete_branch',
+        entity_type='branch',
+        entity_id=branch.id,
+        description=f'Deleted branch: {branch.name}',
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    
+    db.session.delete(branch)
+    db.session.commit()
+    
+    flash(f'Branch {branch.name} deleted successfully!', 'success')
+    return redirect(url_for('settings.branches'))
+
+
+@settings_bp.route('/switch_branch/<int:branch_id>', methods=['POST'])
+@login_required
+@admin_required
+def switch_branch(branch_id):
+    """Switch current branch context for admin users"""
+    from flask import session
+    
+    if branch_id == 0:
+        # Switch to "All Branches" view
+        session['current_branch_id'] = None
+        session['current_branch_name'] = 'All Branches'
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='switch_branch',
+            description=f'Admin {current_user.username} switched to view: All Branches',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash('Switched to view: All Branches', 'success')
+        return redirect(request.referrer or url_for('main.dashboard'))
+    
+    branch = Branch.query.get_or_404(branch_id)
+    
+    if not branch.is_active:
+        flash('Cannot switch to an inactive branch.', 'danger')
+        return redirect(request.referrer or url_for('main.dashboard'))
+    
+    # Update session with new branch context
+    session['current_branch_id'] = branch.id
+    session['current_branch_name'] = branch.name
+    
+    # Log activity
+    log = ActivityLog(
+        user_id=current_user.id,
+        action='switch_branch',
+        description=f'Admin {current_user.username} switched to branch: {branch.name}',
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    flash(f'Switched to branch: {branch.name}', 'success')
+    return redirect(request.referrer or url_for('main.dashboard'))

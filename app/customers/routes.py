@@ -10,7 +10,7 @@ from app.customers import customers_bp
 from app.models import Customer, ActivityLog, SystemSettings
 from app.customers.forms import CustomerForm, KYCForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import allowed_file, generate_customer_id
+from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
 
 @customers_bp.route('/')
 @login_required
@@ -20,8 +20,15 @@ def list_customers():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '', type=str)
     status = request.args.get('status', '', type=str)
+    customer_type = request.args.get('customer_type', '', type=str)
     
     query = Customer.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
     
     if search:
         query = query.filter(
@@ -36,6 +43,9 @@ def list_customers():
     if status:
         query = query.filter_by(status=status)
     
+    if customer_type:
+        query = query.filter_by(customer_type=customer_type)
+    
     customers = query.order_by(Customer.created_at.desc()).paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
     )
@@ -44,7 +54,8 @@ def list_customers():
                          title='Members',
                          customers=customers,
                          search=search,
-                         status=status)
+                         status=status,
+                         customer_type=customer_type)
 
 @customers_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -59,8 +70,10 @@ def add_customer():
         
         customer = Customer(
             customer_id=customer_id,
+            branch_id=get_current_branch_id(),
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
+            customer_type=form.customer_type.data,
             date_of_birth=form.date_of_birth.data,
             gender=form.gender.data,
             marital_status=form.marital_status.data,
@@ -112,6 +125,13 @@ def view_customer(id):
     """View Member details"""
     customer = Customer.query.get_or_404(id)
     
+    # Check if customer belongs to current branch
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and customer.branch_id != current_branch_id:
+            flash('Access denied: Customer does not belong to your branch.', 'danger')
+            return redirect(url_for('customers.list_customers'))
+    
     # Get related records
     loans = customer.loans.order_by(db.desc('created_at')).all()
     investments = customer.investments.order_by(db.desc('created_at')).all()
@@ -130,11 +150,20 @@ def view_customer(id):
 def edit_customer(id):
     """Edit Member details"""
     customer = Customer.query.get_or_404(id)
+    
+    # Check if customer belongs to current branch
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and customer.branch_id != current_branch_id:
+            flash('Access denied: Customer does not belong to your branch.', 'danger')
+            return redirect(url_for('customers.list_customers'))
+    
     form = CustomerForm(obj=customer)
     
     if form.validate_on_submit():
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data
+        customer.customer_type = form.customer_type.data
         customer.date_of_birth = form.date_of_birth.data
         customer.gender = form.gender.data
         customer.marital_status = form.marital_status.data

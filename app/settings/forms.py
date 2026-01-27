@@ -68,6 +68,7 @@ class UserForm(FlaskForm):
         ('manager', 'Manager'),
         ('admin', 'Administrator')
     ], validators=[DataRequired()])
+    branch_id = SelectField('Branch', coerce=int, validators=[Optional()])
     is_active = BooleanField('Active', default=True)
     
     # Permissions - removed defaults, will be set programmatically
@@ -84,6 +85,10 @@ class UserForm(FlaskForm):
     
     def __init__(self, *args, **kwargs):
         super(UserForm, self).__init__(*args, **kwargs)
+        # Set branch choices
+        from app.models import Branch
+        self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+        
         # Set default permissions for staff role on new forms only if no data provided
         if not args and not kwargs.get('obj'):  # New form, no existing data
             # Set default role to staff if not provided
@@ -192,6 +197,7 @@ class UserEditForm(FlaskForm):
         ('manager', 'Manager'),
         ('admin', 'Administrator')
     ], validators=[DataRequired()])
+    branch_id = SelectField('Branch', coerce=int, validators=[Optional()])
     is_active = BooleanField('Active')
     
     # Permissions
@@ -208,7 +214,32 @@ class UserEditForm(FlaskForm):
     
     submit = SubmitField('Update User')
     
+    def __init__(self, *args, **kwargs):
+        super(UserEditForm, self).__init__(*args, **kwargs)
+        # Set branch choices
+        from app.models import Branch
+        self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+    
     @staticmethod
     def get_role_permissions(role):
         """Get default permissions for a role - same as UserForm"""
         return UserForm.get_role_permissions(role)
+
+class BranchForm(FlaskForm):
+    """Branch form"""
+    branch_code = StringField('Branch Code', validators=[DataRequired(), Length(max=20)])
+    name = StringField('Branch Name', validators=[DataRequired(), Length(max=200)])
+    address = TextAreaField('Address', validators=[Optional()])
+    phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    email = StringField('Email', validators=[Optional(), Email(), Length(max=120)])
+    manager_id = SelectField('Manager', coerce=int, validators=[Optional()])
+    is_active = BooleanField('Active', default=True)
+    
+    submit = SubmitField('Save Branch')
+    
+    def __init__(self, *args, **kwargs):
+        super(BranchForm, self).__init__(*args, **kwargs)
+        from app.models import User
+        # Get users who can be managers (admin or manager role)
+        managers = User.query.filter(User.role.in_(['admin', 'manager']), User.is_active == True).all()
+        self.manager_id.choices = [(0, '-- Select Manager --')] + [(user.id, f"{user.full_name} ({user.username})") for user in managers]

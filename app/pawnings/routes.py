@@ -11,7 +11,7 @@ from app.pawnings import pawnings_bp
 from app.models import Pawning, PawningPayment, Customer, ActivityLog, SystemSettings
 from app.pawnings.forms import PawningForm, PawningPaymentForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import generate_pawning_number, allowed_file
+from app.utils.helpers import generate_pawning_number, allowed_file, get_current_branch_id, should_filter_by_branch
 
 @pawnings_bp.route('/')
 @login_required
@@ -23,6 +23,12 @@ def list_pawnings():
     status = request.args.get('status', '')
     
     query = Pawning.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
     
     if search:
         query = query.join(Customer).filter(
@@ -55,8 +61,16 @@ def add_pawning():
     form = PawningForm()
     
     # Get customers for dropdown
-    customers = Customer.query.filter_by(status='active', kyc_verified=True).order_by(Customer.full_name).all()
-    form.customer_id.choices = [(0, 'Select Member')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
+    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
+    
+    # Apply branch filtering if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            customer_query = customer_query.filter_by(branch_id=current_branch_id)
+    
+    customers = customer_query.order_by(Customer.full_name).all()
+    form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
     
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
@@ -111,6 +125,7 @@ def add_pawning():
         pawning = Pawning(
             pawning_number=pawning_number,
             customer_id=form.customer_id.data,
+            branch_id=get_current_branch_id(),
             item_description=form.item_description.data,
             item_type=form.item_type.data,
             item_weight=form.item_weight.data,
@@ -183,6 +198,14 @@ def add_pawning():
 def view_pawning(id):
     """View pawning details - Sri Lankan style"""
     pawning = Pawning.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and pawning.branch_id != current_branch_id:
+            flash('Access denied: Pawning not found in current branch.', 'danger')
+            return redirect(url_for('pawnings.list_pawnings'))
+    
     payments = pawning.payments.order_by(PawningPayment.payment_date.desc()).all()
     
     # Parse item photos
@@ -225,6 +248,13 @@ def view_pawning(id):
 def add_payment(id):
     """Add pawning payment - Sri Lankan method (interest-only or redemption)"""
     pawning = Pawning.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and pawning.branch_id != current_branch_id:
+            flash('Access denied: Pawning not found in current branch.', 'danger')
+            return redirect(url_for('pawnings.list_pawnings'))
     
     if pawning.status not in ['active', 'extended', 'overdue']:
         flash('Cannot add payment for this pawning!', 'warning')
@@ -375,6 +405,13 @@ def redeem_pawning(id):
     """Mark pawning as redeemed"""
     pawning = Pawning.query.get_or_404(id)
     
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and pawning.branch_id != current_branch_id:
+            flash('Access denied: Pawning not found in current branch.', 'danger')
+            return redirect(url_for('pawnings.list_pawnings'))
+    
     # Calculate outstanding amounts
     from decimal import Decimal
     total_interest_due = Decimal(str(pawning.calculate_total_interest_due()))
@@ -413,6 +450,13 @@ def redeem_pawning(id):
 def extend_pawning(id):
     """Extend/renew pawning period"""
     pawning = Pawning.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and pawning.branch_id != current_branch_id:
+            flash('Access denied: Pawning not found in current branch.', 'danger')
+            return redirect(url_for('pawnings.list_pawnings'))
     
     if pawning.status not in ['active', 'extended', 'overdue']:
         flash('Cannot extend this pawning!', 'warning')

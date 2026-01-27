@@ -56,6 +56,7 @@
                         <th>Username</th>
                         <th>Email</th>
                         <th>Role</th>
+                        <th>Branch</th>
                         <th>Phone</th>
                         <th>Last Login</th>
                         <th>Status</th>
@@ -70,6 +71,13 @@
                         <td>{{ user.username }}</td>
                         <td>{{ user.email or 'N/A' }}</td>
                         <td><span class="badge bg-primary">{{ user.role|title }}</span></td>
+                        <td>
+                            {% if user.branch %}
+                                {{ user.branch.name }} ({{ user.branch.branch_code }})
+                            {% else %}
+                                <span class="text-muted">All Branches</span>
+                            {% endif %}
+                        </td>
                         <td>{{ user.phone or 'N/A' }}</td>
                         <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
                         <td><span class="badge status-{{ user.status }}">{{ user.status|title }}</span></td>

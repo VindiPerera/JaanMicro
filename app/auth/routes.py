@@ -1,11 +1,11 @@
 """Authentication routes"""
-from flask import render_template, redirect, url_for, flash, request
+from flask import render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse
 from datetime import datetime
 from app import db
 from app.auth import auth_bp
-from app.models import User, ActivityLog
+from app.models import User, ActivityLog, Branch
 from app.auth.forms import LoginForm, ChangePasswordForm
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -29,11 +29,25 @@ def login():
         login_user(user, remember=form.remember_me.data)
         user.last_login = datetime.utcnow()
         
+        # Set current branch in session
+        if user.branch_id:
+            session['current_branch_id'] = user.branch_id
+            session['current_branch_name'] = user.branch.name if user.branch else 'Unknown Branch'
+        else:
+            # Admin user - can access all branches, default to first active branch
+            default_branch = Branch.query.filter_by(is_active=True).first()
+            if default_branch:
+                session['current_branch_id'] = default_branch.id
+                session['current_branch_name'] = default_branch.name
+            else:
+                session['current_branch_id'] = None
+                session['current_branch_name'] = 'All Branches'
+        
         # Log activity
         log = ActivityLog(
             user_id=user.id,
             action='login',
-            description=f'User {user.username} logged in',
+            description=f'User {user.username} logged in to branch: {session.get("current_branch_name", "Unknown")}',
             ip_address=request.remote_addr,
             user_agent=request.user_agent.string
         )

@@ -34,6 +34,10 @@
                     {{ customer.nic_number }}
                 </div>
                 <div class="mb-3">
+                    <strong>Customer Type:</strong><br>
+                    {{ customer.customer_type|title if customer.customer_type else 'Customer' }}
+                </div>
+                <div class="mb-3">
                     <strong>Date of Birth:</strong><br>
                     {{ customer.date_of_birth.strftime('%Y-%m-%d') if customer.date_of_birth else 'N/A' }}
                 </div>

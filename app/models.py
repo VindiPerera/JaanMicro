@@ -24,6 +24,7 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(20))
     role = db.Column(db.String(50), nullable=False, default='staff')  # admin, manager, staff, loan_collector, accountant
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=True)  # Nullable for admin users who can access all branches
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -132,6 +133,32 @@ class User(UserMixin, db.Model):
     def __repr__(self):
         return f'<User {self.username}>'
 
+# Branch Model
+class Branch(db.Model):
+    """Branch model for multi-branch support"""
+    __tablename__ = 'branches'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    branch_code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(200), nullable=False)
+    address = db.Column(db.Text)
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(120))
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    users = db.relationship('User', backref='branch', lazy='dynamic', foreign_keys='User.branch_id')
+    customers = db.relationship('Customer', backref='branch', lazy='dynamic')
+    loans = db.relationship('Loan', backref='branch', lazy='dynamic')
+    investments = db.relationship('Investment', backref='branch', lazy='dynamic')
+    pawnings = db.relationship('Pawning', backref='branch', lazy='dynamic')
+    
+    def __repr__(self):
+        return f'<Branch {self.name}>'
+
 # Customer and KYC Models
 class Customer(db.Model):
     """Customer model with KYC information"""
@@ -139,10 +166,12 @@ class Customer(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     
     # Personal Information
     full_name = db.Column(db.String(200), nullable=False, index=True)
     nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    customer_type = db.Column(db.String(20), default='customer')  # customer, investor, guarantor
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))
     marital_status = db.Column(db.String(20))
@@ -215,6 +244,7 @@ class Loan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     loan_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     
     # Loan Details
     loan_type = db.Column(db.String(50), nullable=False)  # business, personal, education, etc.
@@ -420,6 +450,7 @@ class Investment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     investment_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     
     # Investment Details
     investment_type = db.Column(db.String(50), nullable=False)  # fixed_deposit, savings, recurring_deposit
@@ -494,6 +525,7 @@ class Pawning(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pawning_number = db.Column(db.String(50), unique=True, nullable=False, index=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     
     # Item Details (Gold-focused for Sri Lankan pawning)
     item_description = db.Column(db.Text, nullable=False)

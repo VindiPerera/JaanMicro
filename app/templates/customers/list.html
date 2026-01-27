@@ -12,10 +12,18 @@
 <!-- <div class="card mb-4">
     <div class="card-body">
         <form method="GET" action="" class="row g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <input type="text" name="search" class="form-control" placeholder="Search by name, ID, NIC..." value="{{ search }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <select name="customer_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="customer" {% if customer_type == 'customer' %}selected{% endif %}>Customer</option>
+                    <option value="investor" {% if customer_type == 'investor' %}selected{% endif %}>Investor</option>
+                    <option value="guarantor" {% if customer_type == 'guarantor' %}selected{% endif %}>Guarantor</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <select name="status" class="form-select">
                     <option value="">All Status</option>
                     <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
@@ -40,6 +48,7 @@
                     <tr>
                         <th>Member ID</th>
                         <th>Name</th>
+                        <th>Type</th>
                         <th>NIC</th>
                         <th>Phone</th>
                         <th>City</th>
@@ -53,6 +62,7 @@
                     <tr>
                         <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
                         <td>{{ customer.full_name }}</td>
+                        <td>{{ customer.customer_type|title if customer.customer_type else 'Customer' }}</td>
                         <td>{{ customer.nic_number }}</td>
                         <td>{{ customer.phone_primary }}</td>
                         <td>{{ customer.city }}</td>

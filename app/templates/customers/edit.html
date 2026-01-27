@@ -12,6 +12,10 @@
                     {{ form.hidden_tag() }}
                     
                     <h6 class="border-bottom pb-2 mb-3">Personal Information</h6>
+                    <div class="mb-3">
+                        {{ form.customer_type.label(class="form-label") }}
+                        {{ form.customer_type(class="form-select") }}
+                    </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             {{ form.full_name.label(class="form-label") }}
@@ -19,18 +23,18 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             {{ form.nic_number.label(class="form-label") }}
-                            {{ form.nic_number(class="form-control") }}
+                            {{ form.nic_number(class="form-control", id="nic_number") }}
                         </div>
                     </div>
                     
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             {{ form.date_of_birth.label(class="form-label") }}
-                            {{ form.date_of_birth(class="form-control", type="date") }}
+                            {{ form.date_of_birth(class="form-control", type="date", id="date_of_birth") }}
                         </div>
                         <div class="col-md-4 mb-3">
                             {{ form.gender.label(class="form-label") }}
-                            {{ form.gender(class="form-select") }}
+                            {{ form.gender(class="form-select", id="gender") }}
                         </div>
                         <div class="col-md-4 mb-3">
                             {{ form.marital_status.label(class="form-label") }}
@@ -134,4 +138,43 @@
         </div>
     </div>
 </div>
+
+<script>
+function calculateDOB(nic) {
+    nic = nic.trim().toUpperCase();
+    let year, dayOfYear, gender = 'male';
+    
+    if (nic.length === 10 && /^[0-9]{9}[VX]$/.test(nic)) { // old NIC
+        year = parseInt('19' + nic.substring(0, 2));
+        dayOfYear = parseInt(nic.substring(2, 5));
+    } else if (nic.length === 12 && /^[0-9]{12}$/.test(nic)) { // new NIC
+        year = parseInt(nic.substring(0, 4));
+        dayOfYear = parseInt(nic.substring(4, 7));
+    } else {
+        return null;
+    }
+    
+    if (dayOfYear > 500) {
+        gender = 'female';
+        dayOfYear -= 500;
+    }
+    
+    // Create date from day of year
+    let date = new Date(year, 0, dayOfYear);
+    let formattedDate = date.getFullYear() + '-' + 
+                        (date.getMonth() + 1).toString().padStart(2, '0') + '-' + 
+                        date.getDate().toString().padStart(2, '0');
+    
+    return { date: formattedDate, gender: gender };
+}
+
+document.getElementById('nic_number').addEventListener('input', function() {
+    let result = calculateDOB(this.value);
+    if (result) {
+        document.getElementById('date_of_birth').value = result.date;
+        document.getElementById('gender').value = result.gender;
+    }
+});
+</script>
+
 {% endblock %}
