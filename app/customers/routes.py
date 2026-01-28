@@ -89,6 +89,10 @@ def add_customer():
             employer_name=form.employer_name.data,
             monthly_income=form.monthly_income.data,
             employment_type=form.employment_type.data,
+            bank_name=form.bank_name.data,
+            bank_branch=form.bank_branch.data,
+            bank_account_number=form.bank_account_number.data,
+            bank_account_type=form.bank_account_type.data,
             emergency_contact_name=form.emergency_contact_name.data,
             emergency_contact_phone=form.emergency_contact_phone.data,
             emergency_contact_relation=form.emergency_contact_relation.data,
@@ -179,6 +183,10 @@ def edit_customer(id):
         customer.employer_name = form.employer_name.data
         customer.monthly_income = form.monthly_income.data
         customer.employment_type = form.employment_type.data
+        customer.bank_name = form.bank_name.data
+        customer.bank_branch = form.bank_branch.data
+        customer.bank_account_number = form.bank_account_number.data
+        customer.bank_account_type = form.bank_account_type.data
         customer.emergency_contact_name = form.emergency_contact_name.data
         customer.emergency_contact_phone = form.emergency_contact_phone.data
         customer.emergency_contact_relation = form.emergency_contact_relation.data

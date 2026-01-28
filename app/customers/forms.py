@@ -68,6 +68,12 @@ class CustomerForm(FlaskForm):
     guarantor_nic = StringField('Guarantor NIC', validators=[Optional(), Length(max=20)])
     guarantor_phone = StringField('Guarantor Phone', validators=[Optional(), Length(max=20)])
     guarantor_address = TextAreaField('Guarantor Address', validators=[Optional()])
+
+    # Bank Information
+    bank_name = StringField('Bank Name', validators=[Optional(), Length(max=100)])
+    bank_branch = StringField('Bank Branch', validators=[Optional(), Length(max=100)])
+    bank_account_number = StringField('Account Number', validators=[Optional(), Length(max=30)])
+    bank_account_type = SelectField('Account Type', choices=[('', 'Select'), ('savings', 'Savings'), ('current', 'Current'), ('fixed', 'Fixed Deposit')], validators=[Optional()])
     
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Member')
