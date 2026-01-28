@@ -47,12 +47,10 @@ def create_app(config_name='default'):
         # Add basic security check for customer files
         if filename.startswith('customers/'):
             # User should have permission to view customers
-            if not current_user.has_permission('view_customers'):
+            if not current_user.has_permission('edit_customers'):
                 abort(403)
         
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    
-    # Register blueprints
     from app.auth import auth_bp
     from app.main import main_bp
     from app.customers import customers_bp
