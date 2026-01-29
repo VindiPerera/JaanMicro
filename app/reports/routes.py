@@ -590,21 +590,65 @@ def arrears_report():
         loans = loan_query.all()
         
         for loan in loans:
-            from decimal import Decimal
+            from decimal import Decimal, ROUND_HALF_UP
             
             # Calculate what's left to pay
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
             principal_paid = loan.get_total_paid_principal()
             outstanding_principal = disbursed - principal_paid
             
-            # Calculate remaining interest
-            if loan.interest_type == 'flat':
+            # Calculate remaining interest based on loan type
+            interest_paid = loan.get_total_paid_interest()
+            
+            # Handle special loan types that use flat interest calculations
+            if loan.loan_type and ('Type 1' in loan.loan_type or 'Type 4' in loan.loan_type or 'Micro' in loan.loan_type or '54' in loan.loan_type):
+                # For Type 1, Type 4 Micro, and 54 Daily loans - they use flat interest
+                # Calculate total interest for these special types
+                interest_rate = Decimal(str(loan.interest_rate))
+                
+                if 'Type 1' in loan.loan_type or '54' in loan.loan_type:
+                    # Type 1 & 54 Daily: Interest = Interest rate * 2
+                    total_interest = (disbursed * interest_rate * Decimal('2')) / Decimal('100')
+                elif 'Micro' in loan.loan_type or 'Type 4' in loan.loan_type:
+                    # Type 4 Micro & Daily: Full Interest = Interest Rate * Months
+                    duration = Decimal(str(loan.duration_months))
+                    total_interest = (disbursed * interest_rate * duration) / Decimal('100')
+                else:
+                    # Fallback to standard flat calculation
+                    total_interest = loan.get_total_expected_interest()
+                
+                remaining_interest = total_interest - interest_paid
+            elif loan.interest_type == 'flat':
+                # Standard flat interest loans
                 total_expected_interest = loan.get_total_expected_interest()
-                interest_paid = loan.get_total_paid_interest()
                 remaining_interest = total_expected_interest - interest_paid
             else:
-                # For reducing balance, accrued interest
-                remaining_interest = loan.calculate_accrued_interest()
+                # For reducing balance loans
+                # The remaining interest is not fixed - it depends on remaining principal
+                # Show accrued interest + estimated future interest on remaining principal
+                accrued_interest = loan.calculate_accrued_interest()
+                
+                # Estimate remaining interest based on outstanding principal
+                # This is an approximation for arrears reporting
+                if loan.duration_months and outstanding_principal > 0:
+                    # Calculate remaining months (approximate)
+                    total_paid = Decimal(str(loan.paid_amount or 0))
+                    installment = Decimal(str(loan.installment_amount))
+                    if installment > 0:
+                        paid_installments = (total_paid / installment).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+                        remaining_installments = max(Decimal('0'), Decimal(str(loan.duration_months)) - paid_installments)
+                        
+                        # Estimate average interest per remaining installment
+                        # This is a rough estimate: (Outstanding Principal * Rate * Remaining Time) / 2
+                        # Divided by 2 because principal reduces over time
+                        annual_rate = Decimal(str(loan.interest_rate)) / Decimal('100')
+                        remaining_time = remaining_installments / Decimal('12')
+                        estimated_future_interest = (outstanding_principal * annual_rate * remaining_time) / Decimal('2')
+                        remaining_interest = accrued_interest + estimated_future_interest
+                    else:
+                        remaining_interest = accrued_interest
+                else:
+                    remaining_interest = accrued_interest
             
             # Total arrears
             penalty = Decimal(str(loan.penalty_amount or 0))
