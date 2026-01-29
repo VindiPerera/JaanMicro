@@ -10,7 +10,7 @@ class CustomerForm(FlaskForm):
     # Personal Information
     full_name = StringField('Full Name', validators=[DataRequired(), Length(max=200)])
     nic_number = StringField('NIC Number', validators=[DataRequired(), Length(max=20)])
-    customer_type = SelectField('Customer Type', choices=[('customer', 'Customer'), ('investor', 'Investor'), ('guarantor', 'Family Guarantor')], validators=[DataRequired()])
+    customer_type = SelectField('Customer Type', choices=[('customer', 'Customer'), ('investor', 'Loan Borrower'), ('guarantor', 'Family Guarantor')], validators=[DataRequired()])
     date_of_birth = DateField('Date of Birth', validators=[Optional()])
     gender = SelectField('Gender', choices=[('', 'Select'), ('male', 'Male'), ('female', 'Female'), ('other', 'Other')], validators=[Optional()])
     marital_status = SelectField('Marital Status', choices=[('', 'Select'), ('single', 'Single'), ('married', 'Married'), ('divorced', 'Divorced'), ('widowed', 'Widowed')], validators=[Optional()])
