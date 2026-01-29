@@ -283,6 +283,7 @@ class Loan(db.Model):
     paid_amount = db.Column(db.Numeric(15, 2), default=0)
     outstanding_amount = db.Column(db.Numeric(15, 2))
     penalty_amount = db.Column(db.Numeric(15, 2), default=0)
+    documentation_fee = db.Column(db.Numeric(15, 2), default=0)  # 1% documentation cost
     
     # Dates
     application_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
@@ -477,6 +478,109 @@ class Loan(db.Model):
         """Update the outstanding_amount field with current calculation"""
         self.outstanding_amount = float(self.calculate_current_outstanding())
     
+    def generate_payment_schedule(self):
+        """Generate payment schedule based on loan type and frequency"""
+        from decimal import Decimal, ROUND_HALF_UP
+        from datetime import timedelta, datetime
+        
+        if not self.first_installment_date or self.status not in ['active', 'completed']:
+            return []
+        
+        schedule = []
+        installment_amount = Decimal(str(self.installment_amount))
+        total_payable = Decimal(str(self.total_payable))
+        loan_amount = Decimal(str(self.loan_amount))
+        
+        # Determine number of installments and frequency delta based on loan type
+        if self.duration_days and ('daily' in self.loan_type.lower() or '54' in self.loan_type):
+            # Daily installments
+            num_installments = self.duration_days
+            frequency_delta = timedelta(days=1)
+            frequency_name = 'Daily'
+        elif self.duration_weeks and ('week' in self.loan_type.lower() or 'micro' in self.loan_type.lower()):
+            # Weekly installments
+            num_installments = self.duration_weeks
+            frequency_delta = timedelta(weeks=1)
+            frequency_name = 'Weekly'
+        else:
+            # Monthly installments
+            num_installments = self.duration_months
+            frequency_delta = None  # Will use relativedelta for months
+            frequency_name = 'Monthly'
+        
+        # Get all payments sorted by date
+        all_payments = self.payments.order_by(LoanPayment.payment_date).all()
+        total_paid = Decimal(str(self.paid_amount or 0))
+        
+        # Generate schedule
+        remaining_balance = total_payable
+        
+        for i in range(num_installments):
+            installment_num = i + 1
+            
+            # Calculate due date
+            if frequency_delta:
+                due_date = self.first_installment_date + (frequency_delta * i)
+            else:
+                # For monthly, use relativedelta
+                due_date = self.first_installment_date + relativedelta(months=i)
+            
+            # Determine installment amount (last installment might be different due to rounding)
+            if installment_num == num_installments:
+                # Last installment: pay remaining balance
+                current_installment = remaining_balance
+            else:
+                current_installment = installment_amount
+            
+            # Calculate principal and interest breakdown
+            if self.interest_type == 'flat' or 'type' in self.loan_type.lower():
+                # For flat interest or special loan types, split evenly
+                total_interest = total_payable - loan_amount
+                interest_per_installment = total_interest / Decimal(str(num_installments))
+                principal_per_installment = loan_amount / Decimal(str(num_installments))
+                
+                interest = interest_per_installment
+                principal = principal_per_installment
+            else:
+                # For reducing balance, calculate based on remaining principal
+                interest_rate_per_period = (Decimal(str(self.interest_rate)) / Decimal('100'))
+                if frequency_name == 'Daily':
+                    interest_rate_per_period = interest_rate_per_period / Decimal('365')
+                elif frequency_name == 'Weekly':
+                    interest_rate_per_period = interest_rate_per_period / Decimal('52')
+                elif frequency_name == 'Monthly':
+                    interest_rate_per_period = interest_rate_per_period / Decimal('12')
+                
+                remaining_principal = loan_amount - (loan_amount / Decimal(str(num_installments)) * Decimal(str(i)))
+                interest = remaining_principal * interest_rate_per_period
+                principal = current_installment - interest
+            
+            # Determine status based on payments
+            status = 'pending'
+            
+            # Check if this installment has been paid
+            if total_paid >= current_installment:
+                status = 'paid'
+                total_paid -= current_installment
+            elif total_paid > 0:
+                status = 'partial'
+                total_paid = Decimal('0')
+            elif due_date < datetime.utcnow().date():
+                status = 'overdue'
+            
+            remaining_balance -= current_installment
+            
+            schedule.append({
+                'installment_number': installment_num,
+                'due_date': due_date,
+                'amount': float(current_installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'principal': float(principal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'interest': float(interest.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'status': status
+            })
+        
+        return schedule
+    
     def __repr__(self):
         return f'<Loan {self.loan_number}>'
 
@@ -492,9 +596,11 @@ class LoanPayment(db.Model):
     principal_amount = db.Column(db.Numeric(15, 2))
     interest_amount = db.Column(db.Numeric(15, 2))
     penalty_amount = db.Column(db.Numeric(15, 2), default=0)
+    balance_after = db.Column(db.Numeric(15, 2))  # Outstanding balance after this payment
     
     payment_method = db.Column(db.String(50))  # cash, bank_transfer, cheque, etc.
     reference_number = db.Column(db.String(100))
+    receipt_number = db.Column(db.String(100))  # Receipt number for this payment
     notes = db.Column(db.Text)
     
     collected_by = db.Column(db.Integer, db.ForeignKey('users.id'))
