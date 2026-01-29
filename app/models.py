@@ -266,11 +266,13 @@ class Loan(db.Model):
     branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=False)
     
     # Loan Details
-    loan_type = db.Column(db.String(50), nullable=False)  # business, personal, education, etc.
+    loan_type = db.Column(db.String(50), nullable=False)  # Type 1 - 9 week loan, Type 2, etc.
+    loan_purpose = db.Column(db.String(50))  # business, personal, education, etc.
     loan_amount = db.Column(db.Numeric(15, 2), nullable=False)
     interest_rate = db.Column(db.Numeric(5, 2), nullable=False)  # Annual percentage rate
     interest_type = db.Column(db.String(30), default='reducing_balance')  # flat, reducing_balance
     duration_months = db.Column(db.Integer, nullable=False)
+    duration_weeks = db.Column(db.Integer)  # For weekly loan types
     installment_amount = db.Column(db.Numeric(15, 2), nullable=False)
     installment_frequency = db.Column(db.String(20), default='monthly')  # weekly, monthly, quarterly
     
@@ -309,12 +311,22 @@ class Loan(db.Model):
     payments = db.relationship('LoanPayment', backref='loan', lazy='dynamic', cascade='all, delete-orphan')
     
     def calculate_emi(self):
-        """Calculate EMI based on loan parameters"""
-        from decimal import Decimal, ROUND_HALF_UP
+        """Calculate EMI based on loan parameters and loan type"""
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
         
         loan_amount = Decimal(str(self.loan_amount))
         interest_rate = Decimal(str(self.interest_rate))
         
+        # Check if this is a Type 1 - 9 week loan
+        if self.loan_type and 'Type 1' in self.loan_type and self.duration_weeks:
+            # Type 1: Interest = Interest rate * 2
+            # Installment = ((100 + Interest) * Loan Amount) / (100 * weeks)
+            interest = interest_rate * Decimal('2')
+            installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_weeks)))
+            # Floor to whole number to get exact total
+            return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+        
+        # Standard calculation methods
         if self.interest_type == 'reducing_balance':
             # EMI = [P x R x (1+R)^N]/[(1+R)^N-1]
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))

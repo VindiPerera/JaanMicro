@@ -82,6 +82,24 @@ def add_loan():
         form.application_date.data = datetime.now().date()
     
     if form.validate_on_submit():
+        # Custom validation based on loan type
+        if form.loan_type.data == 'type1_9weeks':
+            # For Type 1 loans, validate weeks instead of months
+            if not form.duration_weeks.data:
+                flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
+        else:
+            # For other loan types, validate months, interest type, and installment frequency
+            if not form.duration_months.data:
+                flash('Duration (Months) is required!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
+            if not form.interest_type.data:
+                flash('Interest Type is required!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
+            if not form.installment_frequency.data:
+                flash('Installment Frequency is required!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
+        
         # Validate customer selection
         if form.customer_id.data == 0:
             flash('Please select a customer!', 'error')
@@ -91,24 +109,42 @@ def add_loan():
         loan_number = generate_loan_number(settings.loan_number_prefix)
         
         # Calculate EMI using Decimal arithmetic
-        from decimal import Decimal, ROUND_HALF_UP
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
         
         loan_amount = Decimal(str(form.loan_amount.data))
         interest_rate = Decimal(str(form.interest_rate.data))
-        monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
-        n = form.duration_months.data
         
-        if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
-            # Convert to float for power calculation, then back to Decimal
-            mr_float = float(monthly_rate)
-            power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
-            emi = loan_amount * monthly_rate * Decimal(str(power_calc))
+        # Determine duration and calculation method based on loan type
+        duration_weeks = None
+        duration_months = form.duration_months.data
+        
+        # Check if this is a Type 1 - 9 week loan
+        if form.loan_type.data == 'type1_9weeks':
+            duration_weeks = form.duration_weeks.data or 9
+            duration_months = 0  # Not used for weekly loans
+            # Type 1 calculation: Interest = Interest rate * 2
+            # Installment = ((100 + Interest) * Loan Amount) / (100 * weeks)
+            interest = interest_rate * Decimal('2')
+            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
+            # Floor to whole number to get exact total
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
-            total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
-            emi = (loan_amount + total_interest) / Decimal(str(n))
-        
-        emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # Standard monthly calculation
+            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
+            n = duration_months
+            
+            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
+                # Convert to float for power calculation, then back to Decimal
+                mr_float = float(monthly_rate)
+                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
+                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
+            else:
+                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
+                emi = (loan_amount + total_interest) / Decimal(str(n))
+            
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         # Handle document upload
         document_filename = None
@@ -135,12 +171,14 @@ def add_loan():
             customer_id=form.customer_id.data,
             branch_id=get_current_branch_id(),
             loan_type=form.loan_type.data,
+            loan_purpose=form.loan_purpose.data,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
             interest_type=form.interest_type.data,
-            duration_months=form.duration_months.data,
+            duration_months=duration_months,
+            duration_weeks=duration_weeks,
             installment_amount=emi,
-            installment_frequency=form.installment_frequency.data,
+            installment_frequency='weekly' if duration_weeks else form.installment_frequency.data,
             disbursed_amount=form.loan_amount.data if form.status.data == 'active' else None,
             total_payable=total_payable,
             outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
@@ -158,8 +196,12 @@ def add_loan():
         if form.status.data == 'active':
             loan.approval_date = datetime.utcnow().date()
             loan.disbursement_date = datetime.utcnow().date()
-            loan.first_installment_date = datetime.utcnow().date() + timedelta(days=30)
-            loan.maturity_date = datetime.utcnow().date() + relativedelta(months=n)
+            if duration_weeks:
+                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=7)
+                loan.maturity_date = datetime.utcnow().date() + timedelta(weeks=duration_weeks)
+            else:
+                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=30)
+                loan.maturity_date = datetime.utcnow().date() + relativedelta(months=duration_months)
             loan.approved_by = current_user.id
         
         db.session.add(loan)
