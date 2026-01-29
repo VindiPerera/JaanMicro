@@ -41,6 +41,7 @@ class User(UserMixin, db.Model):
     can_view_reports = db.Column(db.Boolean, default=True)
     can_manage_settings = db.Column(db.Boolean, default=False)
     can_collect_payments = db.Column(db.Boolean, default=True)
+    can_verify_kyc = db.Column(db.Boolean, default=False)
     
     # Relationships
     created_customers = db.relationship('Customer', foreign_keys='Customer.created_by', backref='created_by_user', lazy='dynamic')
@@ -74,7 +75,8 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': False,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'loan_collector': {
                 'can_add_customers': False,
@@ -86,7 +88,8 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': False,
                 'can_view_reports': True,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'accountant': {
                 'can_add_customers': True,
@@ -98,7 +101,8 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'manager': {
                 'can_add_customers': True,
@@ -110,7 +114,8 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': True,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': True
             },
             'admin': {
                 'can_add_customers': True,
@@ -122,7 +127,8 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': True,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             }
         }
         

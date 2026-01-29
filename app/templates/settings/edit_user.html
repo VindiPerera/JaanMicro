@@ -126,6 +126,10 @@
                                 {{ form.can_collect_payments(class="form-check-input") }}
                                 {{ form.can_collect_payments.label(class="form-check-label", title="Allows user to process loan and investment payments") }}
                             </div>
+                            <div class="form-check mb-2" id="verify-kyc-permission" style="display: none;">
+                                {{ form.can_verify_kyc(class="form-check-input") }}
+                                {{ form.can_verify_kyc.label(class="form-check-label", title="Allows user to verify customer KYC documents") }}
+                            </div>
                         </div>
                     </div>
                     
@@ -230,7 +234,8 @@ $(document).ready(function() {
             'can_manage_pawnings': true,
             'can_view_reports': true,
             'can_manage_settings': true,
-            'can_collect_payments': true
+            'can_collect_payments': true,
+            'can_verify_kyc': true
         },
         'admin': {
             'can_add_customers': true,
@@ -257,6 +262,14 @@ $(document).ready(function() {
         Object.keys(permissions).forEach(function(permission) {
             $('#' + permission).prop('checked', permissions[permission]);
         });
+        
+        // Show/hide KYC verification permission based on role
+        if (role === 'manager') {
+            $('#verify-kyc-permission').show();
+        } else {
+            $('#verify-kyc-permission').hide();
+            $('#can_verify_kyc').prop('checked', false); // Uncheck if hidden
+        }
         
         // Update info message
         updateRoleInfoMessage(role);
@@ -291,6 +304,11 @@ $(document).ready(function() {
     // Set role description on page load
     const currentRole = $('#role').val();
     updateRoleInfoMessage(currentRole);
+    
+    // Show KYC verification permission if current role is manager
+    if (currentRole === 'manager') {
+        $('#verify-kyc-permission').show();
+    }
 });
 
 function confirmDelete() {

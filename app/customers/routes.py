@@ -264,6 +264,9 @@ def customer_kyc(id):
                 customer.proof_of_address = f'uploads/customers/{customer.id}/{filename}'
         
         if form.kyc_verified.data:
+            if not current_user.has_permission('verify_kyc'):
+                flash('You do not have permission to verify KYC.', 'danger')
+                return redirect(url_for('customers.customer_kyc', id=customer.id))
             customer.kyc_verified = True
             customer.kyc_verified_by = current_user.id
             customer.kyc_verified_date = datetime.utcnow()

@@ -82,6 +82,7 @@ class UserForm(FlaskForm):
     can_view_reports = BooleanField('Can View Reports')
     can_manage_settings = BooleanField('Can Manage Settings')
     can_collect_payments = BooleanField('Can Collect Payments')
+    can_verify_kyc = BooleanField('Can Verify KYC')
     
     def __init__(self, *args, **kwargs):
         super(UserForm, self).__init__(*args, **kwargs)
@@ -117,7 +118,8 @@ class UserForm(FlaskForm):
                 'can_manage_pawnings': True,
                 'can_view_reports': False,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'loan_collector': {
                 'can_add_customers': False,
@@ -129,7 +131,8 @@ class UserForm(FlaskForm):
                 'can_manage_pawnings': False,
                 'can_view_reports': True,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'accountant': {
                 'can_add_customers': True,
@@ -141,7 +144,8 @@ class UserForm(FlaskForm):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': False,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             },
             'manager': {
                 'can_add_customers': True,
@@ -153,7 +157,8 @@ class UserForm(FlaskForm):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': True,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': True
             },
             'admin': {
                 'can_add_customers': True,
@@ -165,7 +170,8 @@ class UserForm(FlaskForm):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_manage_settings': True,
-                'can_collect_payments': True
+                'can_collect_payments': True,
+                'can_verify_kyc': False
             }
         }
         return permissions_map.get(role, {})
@@ -211,6 +217,7 @@ class UserEditForm(FlaskForm):
     can_view_reports = BooleanField('Can View Reports')
     can_manage_settings = BooleanField('Can Manage Settings')
     can_collect_payments = BooleanField('Can Collect Payments')
+    can_verify_kyc = BooleanField('Can Verify KYC')
     
     submit = SubmitField('Update User')
     

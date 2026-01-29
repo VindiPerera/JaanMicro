@@ -76,11 +76,13 @@
                                 {% endif %}
                             </div>
                             
+                            {% if current_user.has_permission('verify_kyc') %}
                             <div class="form-check form-switch mb-3">
                                 {{ form.kyc_verified(class="form-check-input", id="kycVerified") }}
                                 {{ form.kyc_verified.label(class="form-check-label", for="kycVerified") }}
                                 <small class="d-block text-muted">Check this to mark KYC as verified</small>
                             </div>
+                            {% endif %}
                             
                             <div class="mt-4">
                                 {{ form.submit(class="btn btn-primary") }}
