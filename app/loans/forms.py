@@ -10,6 +10,7 @@ class LoanForm(FlaskForm):
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
         ('type1_9weeks', 'Type 1 - 9 Week Loan'),
+        ('54_daily', '54 Daily Loan'),
         ('monthly_loan', 'Monthly Loan'),
     ], validators=[DataRequired()])
     loan_purpose = SelectField('Loan Purpose', choices=[
@@ -25,6 +26,7 @@ class LoanForm(FlaskForm):
     
     loan_amount = DecimalField('Loan Amount', validators=[DataRequired(), NumberRange(min=0)], places=2)
     duration_weeks = IntegerField('Duration (Weeks)', validators=[Optional(), NumberRange(min=1, max=52)])
+    duration_months_54daily = IntegerField('Duration (Months)', validators=[Optional(), NumberRange(min=1, max=12)])
     interest_rate = DecimalField('Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0, max=100)], places=2)
     interest_type = SelectField('Interest Type', choices=[
         ('reducing_balance', 'Reducing Balance'),

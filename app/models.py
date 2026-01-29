@@ -273,6 +273,7 @@ class Loan(db.Model):
     interest_type = db.Column(db.String(30), default='reducing_balance')  # flat, reducing_balance
     duration_months = db.Column(db.Integer, nullable=False)
     duration_weeks = db.Column(db.Integer)  # For weekly loan types
+    duration_days = db.Column(db.Integer)  # For daily loan types
     installment_amount = db.Column(db.Numeric(15, 2), nullable=False)
     installment_frequency = db.Column(db.String(20), default='monthly')  # weekly, monthly, quarterly
     
@@ -325,6 +326,16 @@ class Loan(db.Model):
             installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_weeks)))
             # Floor to whole number to get exact total
             return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+        
+        # Check if this is a 54 Daily loan
+        if self.loan_type and '54' in self.loan_type and self.duration_weeks:
+            # Full Interest = Interest Rate × Duration (in months of 4 weeks each)
+            # Weeks = calculated from duration_weeks field
+            # Weekly Installment = Amount × ((Full Interest + 100) / 100) ÷ Weeks
+            months = Decimal(str(self.duration_weeks)) / Decimal('4')  # Reverse calculate months
+            full_interest = interest_rate * months
+            installment = loan_amount * ((full_interest + Decimal('100')) / Decimal('100')) / Decimal(str(self.duration_weeks))
+            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         
         # Standard calculation methods
         if self.interest_type == 'reducing_balance':
