@@ -345,6 +345,25 @@ $(document).ready(function() {
             
             // Update interest rate help text
             $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
+        } else if (loanType === 'type4_micro') {
+            // Show months field, hide weeks and days
+            $('#durationWeeksField').hide();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').show();
+            $('#duration_weeks').val('');
+            $('#duration_weeks').prop('required', false);
+            $('#duration_days').val('');
+            $('#duration_days').prop('required', false);
+            $('#duration_months').prop('required', true);
+            
+            // Hide interest type and installment frequency (fixed for this type)
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false);
+            $('#installment_frequency').prop('required', false);
+            
+            // Update interest rate help text
+            $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
         } else {
             // Show months field, hide weeks and days
             $('#durationWeeksField').hide();
@@ -627,6 +646,39 @@ $(document).ready(function() {
                 } else {
                     $('#emi-display .alert').html(
                         '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else if (loanType === 'type4_micro') {
+            var months = parseInt($('#duration_months').val()) || 1;
+            
+            if (principal > 0 && rate > 0 && months > 0) {
+                // Type 4: Full Interest = Interest Rate * Months
+                // Weeks = Months * 4
+                // Installment = LA * ((Full Interest + 100) / 100) / Weeks
+                var fullInterest = rate * months;
+                var weeks = months * 4;
+                emi = (principal * ((fullInterest + 100) / 100)) / weeks;
+                // Round EMI to 2 decimal places first
+                emi = Math.round(emi * 100) / 100;
+                // Then calculate total payable from rounded EMI
+                totalPayable = emi * weeks;
+                
+                // Show calculated values
+                if ($('#emi-display').length === 0) {
+                    $('#duration_months').parent().after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Weekly Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Weeks:</strong> ' + weeks + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Weekly Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Weeks:</strong> ' + weeks + '<br>' +
                         '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
                     );
                 }

@@ -336,6 +336,15 @@ class Loan(db.Model):
             # Floor to whole number to get exact total
             return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
         
+        # Check if this is a Type 4 Micro Loan
+        if self.loan_type and 'Type 4' in self.loan_type and self.duration_weeks and self.duration_months:
+            # Type 4: Full Interest = Interest Rate * Months
+            # Weeks = Months * 4
+            # Installment = LA * ((Full Interest + 100) / 100) / Weeks
+            full_interest = interest_rate * Decimal(str(self.duration_months))
+            installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_weeks))
+            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        
         # Standard calculation methods
         if self.interest_type == 'reducing_balance':
             # EMI = [P x R x (1+R)^N]/[(1+R)^N-1]

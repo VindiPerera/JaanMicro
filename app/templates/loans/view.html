@@ -170,6 +170,8 @@
                         <strong>Duration:</strong><br>
                         {% if loan.duration_days %}
                             {{ loan.duration_days }} days
+                        {% elif loan.duration_weeks and loan.duration_months %}
+                            {{ loan.duration_months }} months ({{ loan.duration_weeks }} weeks)
                         {% elif loan.duration_weeks %}
                             {{ loan.duration_weeks }} weeks
                         {% elif loan.duration_months %}

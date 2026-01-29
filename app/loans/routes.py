@@ -93,6 +93,11 @@ def add_loan():
             if not form.duration_days.data:
                 flash('Duration (Days) is required for 54 Daily Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form)
+        elif form.loan_type.data == 'type4_micro':
+            # For Type 4 Micro loans, validate months (will convert to weeks internally)
+            if not form.duration_months.data:
+                flash('Duration (Months) is required for Type 4 - Micro Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
         else:
             # For other loan types, validate months, interest type, and installment frequency
             if not form.duration_months.data:
@@ -145,6 +150,17 @@ def add_loan():
             # Floor to whole number to get exact total
             emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
             total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'type4_micro':
+            # Type 4 Micro Loan: Uses months as input, converts to weeks
+            # Full Interest = Interest Rate * Months
+            # Weeks = Months * 4
+            # Installment = LA * ((Full Interest + 100) / 100) / Weeks
+            months = form.duration_months.data
+            duration_weeks = months * 4
+            full_interest = interest_rate * Decimal(str(months))
+            emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_weeks))
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             # Standard monthly calculation
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
