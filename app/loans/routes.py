@@ -77,6 +77,7 @@ def add_loan():
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_loan_interest_rate
+        form.application_date.data = datetime.now().date()
     
     if form.validate_on_submit():
         # Validate customer selection
