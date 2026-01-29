@@ -559,6 +559,192 @@ def pawning_report():
                          status=status,
                          item_type=item_type)
 
+@reports_bp.route('/arrears')
+@login_required
+@permission_required('view_reports')
+def arrears_report():
+    """Arrears report - what's left to pay"""
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    status = request.args.get('status', 'active')  # Default to active
+    product_type = request.args.get('product_type', '')  # loan, pawning, or all
+    
+    # Get branch filtering info
+    current_branch_id = get_current_branch_id()
+    should_filter = should_filter_by_branch()
+    
+    arrears_data = []
+    
+    # Loan arrears - only active loans have arrears
+    if product_type in ['', 'loan']:
+        loan_query = Loan.query.filter_by(status='active')
+        
+        if should_filter and current_branch_id:
+            loan_query = loan_query.filter_by(branch_id=current_branch_id)
+        
+        if start_date:
+            loan_query = loan_query.filter(Loan.disbursement_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            loan_query = loan_query.filter(Loan.disbursement_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+        
+        loans = loan_query.all()
+        
+        for loan in loans:
+            from decimal import Decimal
+            
+            # Calculate what's left to pay
+            disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
+            principal_paid = loan.get_total_paid_principal()
+            outstanding_principal = disbursed - principal_paid
+            
+            # Calculate remaining interest
+            if loan.interest_type == 'flat':
+                total_expected_interest = loan.get_total_expected_interest()
+                interest_paid = loan.get_total_paid_interest()
+                remaining_interest = total_expected_interest - interest_paid
+            else:
+                # For reducing balance, accrued interest
+                remaining_interest = loan.calculate_accrued_interest()
+            
+            # Total arrears
+            penalty = Decimal(str(loan.penalty_amount or 0))
+            total_arrears = outstanding_principal + remaining_interest + penalty
+            
+            # Calculate overdue status
+            from datetime import date
+            overdue_days = 0
+            is_overdue = False
+            if loan.maturity_date:
+                days_diff = (date.today() - loan.maturity_date).days
+                if days_diff > 0:
+                    overdue_days = days_diff
+                    is_overdue = True
+            
+            arrears_data.append({
+                'product_type': 'Loan',
+                'reference_number': loan.loan_number,
+                'customer_name': loan.customer.full_name,
+                'customer_id': loan.customer.customer_id,
+                'disbursement_date': loan.disbursement_date,
+                'maturity_date': loan.maturity_date,
+                'original_amount': float(disbursed),
+                'principal_outstanding': float(outstanding_principal),
+                'interest_outstanding': float(remaining_interest),
+                'penalty': float(penalty),
+                'total_arrears': float(total_arrears),
+                'is_overdue': is_overdue,
+                'overdue_days': overdue_days,
+                'loan_type': loan.loan_type,
+                'interest_type': loan.interest_type
+            })
+    
+    # Pawning arrears - only active pawnings have arrears
+    if product_type in ['', 'pawning']:
+        pawning_query = Pawning.query.filter_by(status='active')
+        
+        if should_filter and current_branch_id:
+            pawning_query = pawning_query.filter_by(branch_id=current_branch_id)
+        
+        if start_date:
+            pawning_query = pawning_query.filter(Pawning.pawning_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            pawning_query = pawning_query.filter(Pawning.pawning_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+        
+        pawnings = pawning_query.all()
+        
+        for pawning in pawnings:
+            from decimal import Decimal
+            
+            # Calculate what's left to pay
+            loan_amount = Decimal(str(pawning.loan_amount))
+            principal_paid = Decimal(str(pawning.principal_paid or 0))
+            outstanding_principal = loan_amount - principal_paid
+            
+            # Calculate interest due
+            interest_due = Decimal(str(pawning.interest_due or 0))
+            penalty = Decimal(str(pawning.total_penalty or 0))
+            
+            total_arrears = outstanding_principal + interest_due + penalty
+            
+            # Calculate overdue status
+            from datetime import date
+            overdue_days = 0
+            is_overdue = False
+            maturity_date = pawning.extended_date or pawning.maturity_date
+            if maturity_date:
+                days_diff = (date.today() - maturity_date).days
+                if days_diff > 0:
+                    overdue_days = days_diff
+                    is_overdue = True
+            
+            arrears_data.append({
+                'product_type': 'Pawning',
+                'reference_number': pawning.pawning_number,
+                'customer_name': pawning.customer.full_name,
+                'customer_id': pawning.customer.customer_id,
+                'disbursement_date': pawning.pawning_date,
+                'maturity_date': maturity_date,
+                'original_amount': float(loan_amount),
+                'principal_outstanding': float(outstanding_principal),
+                'interest_outstanding': float(interest_due),
+                'penalty': float(penalty),
+                'total_arrears': float(total_arrears),
+                'is_overdue': is_overdue,
+                'overdue_days': overdue_days,
+                'loan_type': pawning.item_type,
+                'interest_type': 'monthly'
+            })
+    
+    # Sort by total arrears descending
+    arrears_data.sort(key=lambda x: x['total_arrears'], reverse=True)
+    
+    # Calculate summary statistics
+    from decimal import Decimal
+    total_arrears = sum(Decimal(str(item['total_arrears'])) for item in arrears_data)
+    total_principal = sum(Decimal(str(item['principal_outstanding'])) for item in arrears_data)
+    total_interest = sum(Decimal(str(item['interest_outstanding'])) for item in arrears_data)
+    total_penalty = sum(Decimal(str(item['penalty'])) for item in arrears_data)
+    
+    overdue_items = [item for item in arrears_data if item['is_overdue']]
+    overdue_amount = sum(Decimal(str(item['total_arrears'])) for item in overdue_items)
+    
+    summary = {
+        'total_accounts': len(arrears_data),
+        'total_arrears': float(total_arrears),
+        'total_principal': float(total_principal),
+        'total_interest': float(total_interest),
+        'total_penalty': float(total_penalty),
+        'overdue_accounts': len(overdue_items),
+        'overdue_amount': float(overdue_amount)
+    }
+    
+    # Breakdown by product type
+    loan_arrears = [item for item in arrears_data if item['product_type'] == 'Loan']
+    pawning_arrears = [item for item in arrears_data if item['product_type'] == 'Pawning']
+    
+    product_breakdown = [
+        {
+            'product_type': 'Loan',
+            'count': len(loan_arrears),
+            'total_arrears': sum(item['total_arrears'] for item in loan_arrears)
+        },
+        {
+            'product_type': 'Pawning',
+            'count': len(pawning_arrears),
+            'total_arrears': sum(item['total_arrears'] for item in pawning_arrears)
+        }
+    ]
+    
+    return render_template('reports/arrears_report.html',
+                         title='Arrears Report',
+                         arrears_data=arrears_data,
+                         summary=summary,
+                         product_breakdown=product_breakdown,
+                         start_date=start_date,
+                         end_date=end_date,
+                         status=status,
+                         product_type=product_type)
+
 @reports_bp.route('/export/loans')
 @login_required
 @permission_required('view_reports')
