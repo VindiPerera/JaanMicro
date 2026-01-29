@@ -80,6 +80,61 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Guarantors Card -->
+        {% if guarantors %}
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Guarantors ({{ guarantors|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% for guarantor in guarantors %}
+                <div class="{% if not loop.last %}border-bottom pb-3 mb-3{% endif %}">
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-primary me-2">{{ loop.index }}</span>
+                        <strong>
+                            <a href="{{ url_for('customers.view_customer', id=guarantor.id) }}">
+                                {{ guarantor.full_name }}
+                            </a>
+                        </strong>
+                    </div>
+                    <div class="small">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Type:</strong> 
+                                {% if guarantor.customer_type == 'family_guarantor' %}
+                                    <span class="badge bg-info">Family Guarantor</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Guarantor</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-6">
+                                <strong>Member ID:</strong> {{ guarantor.customer_id }}
+                            </div>
+                            <div class="col-6 mt-2">
+                                <strong>NIC:</strong> {{ guarantor.nic_number }}
+                            </div>
+                            <div class="col-6 mt-2">
+                                <strong>Phone:</strong> {{ guarantor.phone_primary }}
+                            </div>
+                            <div class="col-12 mt-2">
+                                <strong>Address:</strong> {{ guarantor.address_line1 }}{% if guarantor.city %}, {{ guarantor.city }}{% endif %}
+                            </div>
+                            <div class="col-12 mt-2">
+                                <strong>KYC Status:</strong> 
+                                {% if guarantor.kyc_verified %}
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pending</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
     
     <!-- Loan Details -->

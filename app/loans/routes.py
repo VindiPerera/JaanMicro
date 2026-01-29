@@ -148,6 +148,7 @@ def add_loan():
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
+            guarantor_ids=request.form.get('guarantor_ids', ''),
             status=form.status.data,
             created_by=current_user.id,
             notes=form.notes.data
@@ -202,10 +203,18 @@ def view_loan(id):
     # Update the loan's stored outstanding amount to reflect current calculation
     loan.update_outstanding_amount()
     
+    # Get guarantors
+    guarantors = []
+    if loan.guarantor_ids:
+        guarantor_id_list = [int(gid.strip()) for gid in loan.guarantor_ids.split(',') if gid.strip()]
+        if guarantor_id_list:
+            guarantors = Customer.query.filter(Customer.id.in_(guarantor_id_list)).all()
+    
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
                          payments=payments,
+                         guarantors=guarantors,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest)
 
