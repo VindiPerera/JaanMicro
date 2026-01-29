@@ -14,6 +14,9 @@ class CustomerForm(FlaskForm):
     date_of_birth = DateField('Date of Birth', validators=[Optional()])
     gender = SelectField('Gender', choices=[('', 'Select'), ('male', 'Male'), ('female', 'Female'), ('other', 'Other')], validators=[Optional()])
     marital_status = SelectField('Marital Status', choices=[('', 'Select'), ('single', 'Single'), ('married', 'Married'), ('divorced', 'Divorced'), ('widowed', 'Widowed')], validators=[Optional()])
+    profile_picture = FileField('Profile Picture', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
+    ])
     
     # Contact Information
     phone_primary = StringField('Primary Phone', validators=[DataRequired(), Length(max=20)])
