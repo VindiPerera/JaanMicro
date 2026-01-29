@@ -1,5 +1,5 @@
 """Loan management routes"""
-from flask import render_template, redirect, url_for, flash, request, current_app
+from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -410,3 +410,53 @@ def add_payment(id):
                          loan=loan,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest)
+
+# API endpoint for fetching guarantors
+@loans_bp.route('/api/guarantors')
+@login_required
+@permission_required('manage_loans')
+def get_guarantors():
+    """Get KYC approved guarantors and family guarantors"""
+    # Get the member ID to exclude (loan borrower cannot be their own guarantor)
+    exclude_customer_id = request.args.get('exclude_customer_id', type=int)
+    
+    # Query customers who are guarantors or family guarantors and have KYC verified
+    query = Customer.query.filter(
+        Customer.customer_type.in_(['guarantor', 'family_guarantor']),
+        Customer.kyc_verified == True
+    )
+    
+    # Exclude the selected loan member
+    if exclude_customer_id:
+        query = query.filter(Customer.id != exclude_customer_id)
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    guarantors = query.order_by(Customer.full_name).all()
+    
+    # Format guarantor data
+    guarantor_list = []
+    for guarantor in guarantors:
+        guarantor_list.append({
+            'id': guarantor.id,
+            'full_name': guarantor.full_name,
+            'nic_number': guarantor.nic_number,
+            'phone_primary': guarantor.phone_primary,
+            'customer_type': guarantor.customer_type,
+            'customer_type_display': 'Family Guarantor' if guarantor.customer_type == 'family_guarantor' else 'Guarantor',
+            'address_line1': guarantor.address_line1,
+            'address_line2': guarantor.address_line2 or '',
+            'city': guarantor.city,
+            'district': guarantor.district,
+            'email': guarantor.email or ''
+        })
+    
+    return jsonify({
+        'success': True,
+        'guarantors': guarantor_list
+    })
+
