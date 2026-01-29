@@ -411,6 +411,77 @@ def add_payment(id):
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest)
 
+@loans_bp.route('/search')
+@login_required
+@permission_required('manage_loans')
+def search_loans():
+    """Search loans page"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    loan_type = request.args.get('loan_type', '', type=str)
+    status = request.args.get('status', '', type=str)
+    interest_type = request.args.get('interest_type', '', type=str)
+    min_amount = request.args.get('min_amount', '', type=str)
+    max_amount = request.args.get('max_amount', '', type=str)
+    
+    loans = None
+    searched = False
+    
+    if search or loan_type or status or interest_type or min_amount or max_amount:
+        searched = True
+        query = Loan.query
+        
+        # Filter by current branch if needed
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                query = query.filter_by(branch_id=current_branch_id)
+        
+        if search:
+            query = query.join(Customer).filter(
+                db.or_(
+                    Loan.loan_number.ilike(f'%{search}%'),
+                    Customer.full_name.ilike(f'%{search}%'),
+                    Customer.customer_id.ilike(f'%{search}%')
+                )
+            )
+        
+        if loan_type:
+            query = query.filter_by(loan_type=loan_type)
+        
+        if status:
+            query = query.filter_by(status=status)
+        
+        if interest_type:
+            query = query.filter_by(interest_type=interest_type)
+        
+        if min_amount:
+            try:
+                query = query.filter(Loan.loan_amount >= float(min_amount))
+            except ValueError:
+                pass
+        
+        if max_amount:
+            try:
+                query = query.filter(Loan.loan_amount <= float(max_amount))
+            except ValueError:
+                pass
+        
+        loans = query.order_by(Loan.created_at.desc()).paginate(
+            page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+        )
+    
+    return render_template('loans/search.html',
+                         title='Search Loans',
+                         loans=loans,
+                         search=search,
+                         loan_type=loan_type,
+                         status=status,
+                         interest_type=interest_type,
+                         min_amount=min_amount,
+                         max_amount=max_amount,
+                         searched=searched)
+
 # API endpoint for fetching guarantors
 @loans_bp.route('/api/guarantors')
 @login_required
