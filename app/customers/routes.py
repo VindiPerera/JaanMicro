@@ -7,7 +7,7 @@ import os
 import json
 from app import db
 from app.customers import customers_bp
-from app.models import Customer, ActivityLog, SystemSettings
+from app.models import Customer, ActivityLog
 from app.customers.forms import CustomerForm, KYCForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
@@ -65,8 +65,19 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
-        settings = SystemSettings.get_settings()
-        customer_id = generate_customer_id(settings.customer_id_prefix)
+        customer_id = generate_customer_id(form.customer_type.data, get_current_branch_id())
+        
+        # Handle profile picture upload
+        profile_picture_path = None
+        if form.profile_picture.data:
+            file = form.profile_picture.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                profile_picture_path = f"customers/{get_current_branch_id()}/{filename}"
         
         customer = Customer(
             customer_id=customer_id,
@@ -77,6 +88,7 @@ def add_customer():
             date_of_birth=form.date_of_birth.data,
             gender=form.gender.data,
             marital_status=form.marital_status.data,
+            profile_picture=profile_picture_path,
             phone_primary=form.phone_primary.data,
             phone_secondary=form.phone_secondary.data,
             email=form.email.data,
@@ -165,6 +177,17 @@ def edit_customer(id):
     form = CustomerForm(obj=customer)
     
     if form.validate_on_submit():
+        # Handle profile picture upload
+        if form.profile_picture.data:
+            file = form.profile_picture.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.profile_picture = f"customers/{customer.branch_id}/{filename}"
+        
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data
         customer.customer_type = form.customer_type.data

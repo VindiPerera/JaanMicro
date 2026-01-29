@@ -11,16 +11,50 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in current_app.config['ALLOWED_EXTENSIONS']
 
-def generate_customer_id(prefix='CUST'):
-    """Generate unique customer ID"""
-    last_customer = Customer.query.order_by(Customer.id.desc()).first()
-    if last_customer:
-        last_number = int(last_customer.customer_id.replace(prefix, ''))
-        new_number = last_number + 1
+def generate_customer_id(customer_type='customer', branch_id=None):
+    """Generate unique customer ID based on type and branch"""
+    # Get branch code
+    if branch_id:
+        try:
+            branch = Branch.query.get(branch_id)
+            branch_code = branch.branch_code if branch else 'BR'
+        except:
+            # Handle case where database is not available (e.g., testing)
+            branch_code = f'BR{branch_id}'
     else:
+        branch_code = 'BR'
+    
+    # Define prefixes based on customer type
+    type_prefixes = {
+        'customer': 'C',
+        'investor': 'LB',  # Loan Borrower
+        'guarantor': 'G',
+        'family_guarantor': 'FG'
+    }
+    
+    prefix = type_prefixes.get(customer_type, 'C')
+    
+    # Find the last customer of this type in this branch
+    try:
+        last_customer = Customer.query.filter(
+            Customer.customer_type == customer_type,
+            Customer.branch_id == branch_id
+        ).order_by(Customer.id.desc()).first()
+        
+        if last_customer and last_customer.customer_id.startswith(f"{branch_code}/{prefix}/"):
+            # Extract the number from the existing ID
+            try:
+                last_number = int(last_customer.customer_id.split('/')[-1])
+                new_number = last_number + 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+    except:
+        # Handle case where database is not available (e.g., testing)
         new_number = 1
     
-    return f"{prefix}{new_number:06d}"
+    return f"{branch_code}/{prefix}/{new_number:04d}"
 
 def generate_loan_number(prefix='LN'):
     """Generate unique loan number"""

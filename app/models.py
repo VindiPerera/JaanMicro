@@ -187,6 +187,7 @@ class Customer(db.Model):
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))
     marital_status = db.Column(db.String(20))
+    profile_picture = db.Column(db.String(255))
     
     # Contact Information
     phone_primary = db.Column(db.String(20), nullable=False)
