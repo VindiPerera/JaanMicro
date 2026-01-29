@@ -336,13 +336,22 @@ class Loan(db.Model):
             # Floor to whole number to get exact total
             return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
         
-        # Check if this is a Type 4 Micro Loan
-        if self.loan_type and 'Type 4' in self.loan_type and self.duration_weeks and self.duration_months:
-            # Type 4: Full Interest = Interest Rate * Months
+        # Check if this is a Type 4 Micro Loan (weekly)
+        if self.loan_type and 'Micro' in self.loan_type and self.duration_weeks and self.duration_months:
+            # Type 4 Micro: Full Interest = Interest Rate * Months
             # Weeks = Months * 4
             # Installment = LA * ((Full Interest + 100) / 100) / Weeks
             full_interest = interest_rate * Decimal(str(self.duration_months))
             installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_weeks))
+            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        
+        # Check if this is a Type 4 Daily Loan
+        if self.loan_type and 'Type 4' in self.loan_type and 'Daily' in self.loan_type and self.duration_days and self.duration_months:
+            # Type 4 Daily: Full Interest = Interest Rate * Months
+            # Days = Months * 25
+            # Installment = LA * ((Full Interest + 100) / 100) / Days
+            full_interest = interest_rate * Decimal(str(self.duration_months))
+            installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_days))
             return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         
         # Standard calculation methods
