@@ -9,10 +9,10 @@ class LoanForm(FlaskForm):
     customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
-        ('type1_9weeks', 'Type 1 - 9 Week Loan'),
+        ('type1_9weeks', '9 Week Loan'),
         ('54_daily', '54 Daily Loan'),
-        ('type4_micro', 'Type 4 - Micro Loan (Weekly)'),
-        ('type4_daily', 'Type 4 - Daily Loan'),
+        ('type4_micro', 'Micro Loan (Weekly Installment)'),
+        ('type4_daily', 'Daily Loan (Daily Installment)'),
         ('monthly_loan', 'Monthly Loan'),
     ], validators=[DataRequired()])
     loan_purpose = SelectField('Loan Purpose', choices=[
