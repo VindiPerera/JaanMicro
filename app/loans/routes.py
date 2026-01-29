@@ -89,9 +89,9 @@ def add_loan():
                 flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form)
         elif form.loan_type.data == '54_daily':
-            # For 54 Daily loans, validate months
-            if not form.duration_months_54daily.data:
-                flash('Duration (Months) is required for 54 Daily Loan!', 'error')
+            # For 54 Daily loans, validate days instead of months
+            if not form.duration_days.data:
+                flash('Duration (Days) is required for 54 Daily Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form)
         else:
             # For other loan types, validate months, interest type, and installment frequency
@@ -136,16 +136,15 @@ def add_loan():
             emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == '54_daily':
-            # Get duration in months, convert to weeks (4 weeks per month)
-            months = Decimal(str(form.duration_months_54daily.data))
-            duration_weeks = int(months * 4)  # Convert months to weeks
-            duration_months = 0  # Not used for this calculation
-            # Formula: Full Interest = Interest Rate × Months
-            # Weekly Installment = Amount × ((Full Interest + 100) / 100) ÷ Weeks
-            full_interest = interest_rate * months
-            emi = loan_amount * ((full_interest + Decimal('100')) / Decimal('100')) / Decimal(str(duration_weeks))
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            duration_days = form.duration_days.data or 54
+            duration_months = 0  # Not used for daily loans
+            # Same formula as Type 1 but using days instead of weeks
+            # Installment = ((100 + Interest) * Loan Amount) / (100 * days)
+            interest = interest_rate * Decimal('2')
+            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_days)))
+            # Floor to whole number to get exact total
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             # Standard monthly calculation
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
@@ -196,7 +195,7 @@ def add_loan():
             duration_weeks=duration_weeks,
             duration_days=duration_days,
             installment_amount=emi,
-            installment_frequency='weekly' if duration_weeks else form.installment_frequency.data,
+            installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
             disbursed_amount=form.loan_amount.data if form.status.data == 'active' else None,
             total_payable=total_payable,
             outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
@@ -214,7 +213,10 @@ def add_loan():
         if form.status.data == 'active':
             loan.approval_date = datetime.utcnow().date()
             loan.disbursement_date = datetime.utcnow().date()
-            if duration_weeks:
+            if duration_days:
+                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=1)
+                loan.maturity_date = datetime.utcnow().date() + timedelta(days=duration_days)
+            elif duration_weeks:
                 loan.first_installment_date = datetime.utcnow().date() + timedelta(days=7)
                 loan.maturity_date = datetime.utcnow().date() + timedelta(weeks=duration_weeks)
             else:

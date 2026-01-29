@@ -328,14 +328,13 @@ class Loan(db.Model):
             return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
         
         # Check if this is a 54 Daily loan
-        if self.loan_type and '54' in self.loan_type and self.duration_weeks:
-            # Full Interest = Interest Rate × Duration (in months of 4 weeks each)
-            # Weeks = calculated from duration_weeks field
-            # Weekly Installment = Amount × ((Full Interest + 100) / 100) ÷ Weeks
-            months = Decimal(str(self.duration_weeks)) / Decimal('4')  # Reverse calculate months
-            full_interest = interest_rate * months
-            installment = loan_amount * ((full_interest + Decimal('100')) / Decimal('100')) / Decimal(str(self.duration_weeks))
-            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        if self.loan_type and '54' in self.loan_type and self.duration_days:
+            # Same formula as Type 1 but using days instead of weeks
+            # Installment = ((100 + Interest) * Loan Amount) / (100 * days)
+            interest = interest_rate * Decimal('2')
+            installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_days)))
+            # Floor to whole number to get exact total
+            return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
         
         # Standard calculation methods
         if self.interest_type == 'reducing_balance':
