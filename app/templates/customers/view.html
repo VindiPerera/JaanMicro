@@ -213,7 +213,7 @@
     </div>
 </div>
 
-<!-- Tabs for Loans, Investments, Pawnings -->
+<!-- Tabs for Loans, Borrowers, Pawnings -->
 <div class="card">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" role="tablist">
@@ -224,7 +224,7 @@
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="investments-tab" data-bs-toggle="tab" data-bs-target="#investments" type="button" role="tab">
-                    <i class="bi bi-piggy-bank me-2"></i>Investments ({{ customer.investments|list|length }})
+                    <i class="bi bi-piggy-bank me-2"></i>Borrowers ({{ customer.investments|list|length }})
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -274,7 +274,7 @@
                 </div>
             </div>
             
-            <!-- Investments Tab -->
+            <!-- Borrowers Tab -->
             <div class="tab-pane fade" id="investments" role="tabpanel">
                 <div class="table-responsive">
                     <table class="table table-hover">
@@ -305,7 +305,7 @@
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="7" class="text-center text-muted">No investments found</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted">No borrowers found</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>

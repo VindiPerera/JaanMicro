@@ -1,4 +1,4 @@
-"""Investment management routes"""
+"""Borrower management routes"""
 from flask import render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
 from datetime import datetime
@@ -14,7 +14,7 @@ from app.utils.helpers import generate_investment_number, get_current_branch_id,
 @login_required
 @permission_required('manage_investments')
 def list_investments():
-    """List all investments"""
+    """List all borrowers"""
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
     status = request.args.get('status', '')
@@ -48,7 +48,7 @@ def list_investments():
     )
     
     return render_template('investments/list.html',
-                         title='Investments',
+                         title='Borrowers',
                          investments=investments,
                          search=search,
                          status=status,
@@ -58,7 +58,7 @@ def list_investments():
 @login_required
 @permission_required('manage_investments')
 def add_investment():
-    """Add new investment"""
+    """Add new borrower"""
     form = InvestmentForm()
     
     # Get customers for dropdown
@@ -82,7 +82,7 @@ def add_investment():
         # Validate customer selection
         if form.customer_id.data == 0:
             flash('Please select a customer!', 'error')
-            return render_template('investments/add.html', title='Add Investment', form=form)
+            return render_template('investments/add.html', title='Add Borrower', form=form)
         
         settings = SystemSettings.get_settings()
         investment_number = generate_investment_number(settings.investment_number_prefix)
@@ -150,15 +150,15 @@ def add_investment():
         
         db.session.commit()
         
-        flash(f'Investment {investment.investment_number} created successfully!', 'success')
+        flash(f'Borrower {investment.investment_number} created successfully!', 'success')
         return redirect(url_for('investments.view_investment', id=investment.id))
-    
-    return render_template('investments/add.html', title='Add Investment', form=form)
+
+    return render_template('investments/add.html', title='Add Borrower', form=form)
 
 @investments_bp.route('/<int:id>')
 @login_required
 def view_investment(id):
-    """View investment details"""
+    """View borrower details"""
     investment = Investment.query.get_or_404(id)
     
     # Check branch access
@@ -171,7 +171,7 @@ def view_investment(id):
     transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
     
     return render_template('investments/view.html',
-                         title=f'Investment: {investment.investment_number}',
+                         title=f'Borrower: {investment.investment_number}',
                          investment=investment,
                          transactions=transactions)
 
@@ -179,18 +179,18 @@ def view_investment(id):
 @login_required
 @permission_required('manage_investments')
 def add_transaction(id):
-    """Add investment transaction"""
+    """Add borrower transaction"""
     investment = Investment.query.get_or_404(id)
     
     # Check branch access
     if should_filter_by_branch():
         current_branch_id = get_current_branch_id()
         if current_branch_id and investment.branch_id != current_branch_id:
-            flash('Access denied: Investment not found in current branch.', 'danger')
+            flash('Access denied: Borrower not found in current branch.', 'danger')
             return redirect(url_for('investments.list_investments'))
-    
+
     if investment.status not in ['active']:
-        flash('Cannot add transaction for this investment!', 'warning')
+        flash('Cannot add transaction for this borrower!', 'warning')
         return redirect(url_for('investments.view_investment', id=id))
     
     form = InvestmentTransactionForm()
@@ -231,7 +231,7 @@ def add_transaction(id):
             action='add_investment_transaction',
             entity_type='investment',
             entity_id=investment.id,
-            description=f'Added {transaction_type} for investment: {investment.investment_number}',
+            description=f'Added {transaction_type} for borrower: {investment.investment_number}',
             ip_address=request.remote_addr
         )
         db.session.add(log)
