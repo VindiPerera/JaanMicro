@@ -290,6 +290,7 @@ class Loan(db.Model):
     # Purpose and Security
     purpose = db.Column(db.Text)
     security_details = db.Column(db.Text)  # Collateral information
+    document_path = db.Column(db.String(255))  # Uploaded document (PDF)
     
     # Metadata
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)

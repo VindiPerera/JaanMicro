@@ -7,9 +7,9 @@
         <a href="{{ url_for('customers.edit_customer', id=customer.id) }}" class="btn btn-warning">
             <i class="bi bi-pencil me-2"></i>Edit
         </a>
-        <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">
+        <button type="button" onclick="history.back()" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Back
-        </a>
+        </button>
     </div>
 </div>
 

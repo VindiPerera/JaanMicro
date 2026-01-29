@@ -3,6 +3,12 @@
 {% block content %}
 <div class="row">
     <div class="col-lg-8 mx-auto">
+        <div class="d-flex justify-content-end mb-2">
+            <button type="button" onclick="history.back()" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-2"></i>Back
+            </button>
+        </div>
+        
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">Loan Payment Collection</h5>
@@ -111,7 +117,7 @@
                     
                     <div class="mt-4">
                         {{ form.submit(class="btn btn-success btn-lg") }}
-                        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">Cancel</a>
+                        <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
                     </div>
                 </form>
             </div>

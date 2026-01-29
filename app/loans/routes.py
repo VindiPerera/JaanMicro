@@ -1,8 +1,10 @@
 """Loan management routes"""
-from flask import render_template, redirect, url_for, flash, request, current_app
+from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
@@ -77,6 +79,7 @@ def add_loan():
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_loan_interest_rate
+        form.application_date.data = datetime.now().date()
     
     if form.validate_on_submit():
         # Validate customer selection
@@ -107,6 +110,26 @@ def add_loan():
         emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
+        # Handle document upload
+        document_filename = None
+        if form.document.data:
+            file = form.document.data
+            filename = secure_filename(file.filename)
+            # Create unique filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            document_filename = f"{timestamp}_{filename}"
+            
+            # Create upload directory if it doesn't exist
+            upload_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], 'loans')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            # Save the file
+            file_path = os.path.join(upload_folder, document_filename)
+            file.save(file_path)
+            
+            # Store relative path
+            document_filename = f"loans/{document_filename}"
+        
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
@@ -124,6 +147,7 @@ def add_loan():
             application_date=form.application_date.data,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
+            document_path=document_filename,
             status=form.status.data,
             created_by=current_user.id,
             notes=form.notes.data
@@ -410,3 +434,124 @@ def add_payment(id):
                          loan=loan,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest)
+
+@loans_bp.route('/search')
+@login_required
+@permission_required('manage_loans')
+def search_loans():
+    """Search loans page"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    loan_type = request.args.get('loan_type', '', type=str)
+    status = request.args.get('status', '', type=str)
+    interest_type = request.args.get('interest_type', '', type=str)
+    min_amount = request.args.get('min_amount', '', type=str)
+    max_amount = request.args.get('max_amount', '', type=str)
+    
+    loans = None
+    searched = False
+    
+    if search or loan_type or status or interest_type or min_amount or max_amount:
+        searched = True
+        query = Loan.query
+        
+        # Filter by current branch if needed
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                query = query.filter_by(branch_id=current_branch_id)
+        
+        if search:
+            query = query.join(Customer).filter(
+                db.or_(
+                    Loan.loan_number.ilike(f'%{search}%'),
+                    Customer.full_name.ilike(f'%{search}%'),
+                    Customer.customer_id.ilike(f'%{search}%')
+                )
+            )
+        
+        if loan_type:
+            query = query.filter_by(loan_type=loan_type)
+        
+        if status:
+            query = query.filter_by(status=status)
+        
+        if interest_type:
+            query = query.filter_by(interest_type=interest_type)
+        
+        if min_amount:
+            try:
+                query = query.filter(Loan.loan_amount >= float(min_amount))
+            except ValueError:
+                pass
+        
+        if max_amount:
+            try:
+                query = query.filter(Loan.loan_amount <= float(max_amount))
+            except ValueError:
+                pass
+        
+        loans = query.order_by(Loan.created_at.desc()).paginate(
+            page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+        )
+    
+    return render_template('loans/search.html',
+                         title='Search Loans',
+                         loans=loans,
+                         search=search,
+                         loan_type=loan_type,
+                         status=status,
+                         interest_type=interest_type,
+                         min_amount=min_amount,
+                         max_amount=max_amount,
+                         searched=searched)
+
+# API endpoint for fetching guarantors
+@loans_bp.route('/api/guarantors')
+@login_required
+@permission_required('manage_loans')
+def get_guarantors():
+    """Get KYC approved guarantors and family guarantors"""
+    # Get the member ID to exclude (loan borrower cannot be their own guarantor)
+    exclude_customer_id = request.args.get('exclude_customer_id', type=int)
+    
+    # Query customers who are guarantors or family guarantors and have KYC verified
+    query = Customer.query.filter(
+        Customer.customer_type.in_(['guarantor', 'family_guarantor']),
+        Customer.kyc_verified == True
+    )
+    
+    # Exclude the selected loan member
+    if exclude_customer_id:
+        query = query.filter(Customer.id != exclude_customer_id)
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    guarantors = query.order_by(Customer.full_name).all()
+    
+    # Format guarantor data
+    guarantor_list = []
+    for guarantor in guarantors:
+        guarantor_list.append({
+            'id': guarantor.id,
+            'full_name': guarantor.full_name,
+            'nic_number': guarantor.nic_number,
+            'phone_primary': guarantor.phone_primary,
+            'customer_type': guarantor.customer_type,
+            'customer_type_display': 'Family Guarantor' if guarantor.customer_type == 'family_guarantor' else 'Guarantor',
+            'address_line1': guarantor.address_line1,
+            'address_line2': guarantor.address_line2 or '',
+            'city': guarantor.city,
+            'district': guarantor.district,
+            'email': guarantor.email or ''
+        })
+    
+    return jsonify({
+        'success': True,
+        'guarantors': guarantor_list
+    })
+

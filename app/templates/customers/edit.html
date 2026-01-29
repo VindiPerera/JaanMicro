@@ -166,7 +166,7 @@
                     
                     <div class="mt-4">
                         {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-secondary">Cancel</a>
+                        <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
                     </div>
                 </form>
             </div>

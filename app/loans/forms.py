@@ -1,5 +1,6 @@
 """Loan forms"""
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, SelectField, DecimalField, IntegerField, DateField, TextAreaField, BooleanField, SubmitField
 from wtforms.validators import DataRequired, Optional, NumberRange, Length
 
@@ -39,6 +40,7 @@ class LoanForm(FlaskForm):
         ('active', 'Active')
     ], validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
+    document = FileField('Upload Document (PDF)', validators=[Optional(), FileAllowed(['pdf'], 'PDF files only!')])
     
     submit = SubmitField('Save Loan')
 

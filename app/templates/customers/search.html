@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4>Search Members</h4>
+    </div>
+    <div>
+        <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Members
+        </a>
+    </div>
+</div>
+
+<!-- Advanced Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-funnel me-2"></i>Search Criteria</h6>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Search Text</label>
+                    <input type="text" name="search" class="form-control" placeholder="Name, Member ID, NIC, Phone, Email..." value="{{ search }}" autofocus>
+                    <small class="text-muted">Search across name, ID, NIC, phone, and email</small>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Member Type</label>
+                    <select name="customer_type" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="customer" {% if customer_type == 'customer' %}selected{% endif %}>Customer</option>
+                        <option value="loan_borrower" {% if customer_type == 'loan_borrower' %}selected{% endif %}>Loan Borrower</option>
+                        <option value="guarantor" {% if customer_type == 'guarantor' %}selected{% endif %}>Guarantor</option>
+                        <option value="family_guarantor" {% if customer_type == 'family_guarantor' %}selected{% endif %}>Family Guarantor</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">KYC Status</label>
+                    <select name="kyc_status" class="form-select">
+                        <option value="">All KYC Status</option>
+                        <option value="verified" {% if kyc_status == 'verified' %}selected{% endif %}>Verified</option>
+                        <option value="pending" {% if kyc_status == 'pending' %}selected{% endif %}>Pending</option>
+                    </select>
+                </div>
+                <div class="col-md-9">
+                    <label class="form-label">&nbsp;</label>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search me-2"></i>Search
+                        </button>
+                        <a href="{{ url_for('customers.search_members') }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Clear Filters
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Search Results -->
+{% if searched %}
+<div class="card">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="bi bi-list-ul me-2"></i>Search Results
+            {% if customers %}
+                <span class="badge bg-primary">{{ customers.total }} member(s) found</span>
+            {% endif %}
+        </h6>
+    </div>
+    <div class="card-body">
+        {% if customers and customers.items %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Member ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>NIC</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>City</th>
+                        <th>KYC</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers.items %}
+                    <tr>
+                        <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
+                        <td>{{ customer.full_name }}</td>
+                        <td>
+                            {% if customer.customer_type == 'family_guarantor' %}
+                                <span class="badge bg-info">Family Guarantor</span>
+                            {% else %}
+                                {{ customer.customer_type|title if customer.customer_type else 'Customer' }}
+                            {% endif %}
+                        </td>
+                        <td>{{ customer.nic_number }}</td>
+                        <td>{{ customer.phone_primary }}</td>
+                        <td>{{ customer.email or '-' }}</td>
+                        <td>{{ customer.city }}</td>
+                        <td>
+                            {% if customer.kyc_verified %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pending</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge status-{{ customer.status }}">{{ customer.status|title }}</span></td>
+                        <td>
+                            <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-sm btn-info" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{{ url_for('customers.edit_customer', id=customer.id) }}" class="btn btn-sm btn-warning" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if customers.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination justify-content-center">
+                {% if customers.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ customers.prev_num }}&search={{ search }}&customer_type={{ customer_type }}&status={{ status }}&kyc_status={{ kyc_status }}">Previous</a></li>
+                {% endif %}
+                
+                {% for page_num in customers.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == customers.page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&customer_type={{ customer_type }}&status={{ status }}&kyc_status={{ kyc_status }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if customers.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ customers.next_num }}&search={{ search }}&customer_type={{ customer_type }}&status={{ status }}&kyc_status={{ kyc_status }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>No members found matching your search criteria. Try adjusting your filters.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>Enter search criteria above to find members.
+</div>
+{% endif %}
+{% endblock %}
