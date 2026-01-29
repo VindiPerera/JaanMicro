@@ -40,12 +40,13 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">Loan Type</label>
-                <select name="loan_type" class="form-select">
+                <label class="form-label">Loan Purpose</label>
+                <select name="loan_purpose" class="form-select">
                     <option value="">All</option>
-                    <option value="personal" {% if loan_type == 'personal' %}selected{% endif %}>Personal</option>
-                    <option value="business" {% if loan_type == 'business' %}selected{% endif %}>Business</option>
-                    <option value="education" {% if loan_type == 'education' %}selected{% endif %}>Education</option>
+                    <option value="personal" {% if loan_purpose == 'personal' %}selected{% endif %}>Personal</option>
+                    <option value="business" {% if loan_purpose == 'business' %}selected{% endif %}>Business</option>
+                    <option value="education" {% if loan_purpose == 'education' %}selected{% endif %}>Education</option>
+                    <option value="other" {% if loan_purpose == 'other' %}selected{% endif %}>Other</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -137,7 +138,7 @@
                     <tr>
                         <td>{{ loan.loan_number }}</td>
                         <td>{{ loan.customer.full_name }}</td>
-                        <td>{{ loan.loan_type|title }}</td>
+                        <td>{{ loan.loan_purpose|title if loan.loan_purpose else 'N/A' }}</td>
                         <td>
                             <span class="badge bg-{% if loan.interest_type == 'flat' %}warning{% else %}info{% endif %}">
                                 {{ loan.interest_type|replace('_', ' ')|title }}

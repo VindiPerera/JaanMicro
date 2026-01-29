@@ -61,8 +61,16 @@
                             <div class="col-md-6 mb-3">
                                 {{ form.loan_type.label(class="form-label") }}
                                 {{ form.loan_type(class="form-select", id="loan_type") }}
+                                <small class="text-muted">Calculation type for this loan</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.loan_purpose.label(class="form-label") }}
+                                {{ form.loan_purpose(class="form-select", id="loan_purpose") }}
                                 <small class="text-muted">Purpose/category of the loan</small>
                             </div>
+                        </div>
+                        
+                        <div class="row">
                             <div class="col-md-6 mb-3">
                                 {{ form.application_date.label(class="form-label") }}
                                 {{ form.application_date(class="form-control", type="date") }}
@@ -75,7 +83,12 @@
                                 {{ form.loan_amount.label(class="form-label") }}
                                 {{ form.loan_amount(class="form-control", id="loan_amount") }}
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-6 mb-3" id="durationWeeksField" style="display: none;">
+                                {{ form.duration_weeks.label(class="form-label") }}
+                                {{ form.duration_weeks(class="form-control", id="duration_weeks", value="9") }}
+                                <small class="text-muted">Repayment period in weeks</small>
+                            </div>
+                            <div class="col-md-6 mb-3" id="durationMonthsField">
                                 {{ form.duration_months.label(class="form-label") }}
                                 {{ form.duration_months(class="form-control", id="duration_months") }}
                                 <small class="text-muted">Repayment period in months</small>
@@ -86,16 +99,16 @@
                             <div class="col-md-6 mb-3">
                                 {{ form.interest_rate.label(class="form-label") }}
                                 {{ form.interest_rate(class="form-control", id="interest_rate") }}
-                                <small class="text-muted">Annual percentage rate</small>
+                                <small class="text-muted" id="interestRateHelp">Annual percentage rate</small>
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="col-md-6 mb-3" id="interestTypeField">
                                 {{ form.interest_type.label(class="form-label") }}
                                 {{ form.interest_type(class="form-select", id="interest_type") }}
                                 <small class="text-muted">Flat Rate: Simple interest. Reducing Balance: EMI with compound interest</small>
                             </div>
                         </div>
                         
-                        <div class="mb-3">
+                        <div class="mb-3" id="installmentFrequencyField">
                             {{ form.installment_frequency.label(class="form-label") }}
                             {{ form.installment_frequency(class="form-select", id="installment_frequency") }}
                             <small class="text-muted">How often payments are made</small>
@@ -282,6 +295,49 @@
 <script>
 $(document).ready(function() {
     var addedGuarantors = [];
+    
+    // Handle loan type change to show/hide appropriate fields
+    $('#loan_type').on('change', function() {
+        var loanType = $(this).val();
+        
+        if (loanType === 'type1_9weeks') {
+            // Show weeks field, hide months
+            $('#durationWeeksField').show();
+            $('#durationMonthsField').hide();
+            $('#duration_weeks').val(9); // Default to 9 weeks
+            $('#duration_weeks').prop('required', true);
+            $('#duration_months').val('');
+            $('#duration_months').prop('required', false);
+            
+            // Hide interest type and installment frequency (fixed for this type)
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false);
+            $('#installment_frequency').prop('required', false);
+            
+            // Update interest rate help text
+            $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
+        } else {
+            // Show months field, hide weeks
+            $('#durationWeeksField').hide();
+            $('#durationMonthsField').show();
+            $('#duration_weeks').val('');
+            $('#duration_weeks').prop('required', false);
+            $('#duration_months').prop('required', true);
+            
+            // Show interest type and installment frequency
+            $('#interestTypeField').show();
+            $('#installmentFrequencyField').show();
+            $('#interest_type').prop('required', true);
+            $('#installment_frequency').prop('required', true);
+            
+            // Reset interest rate help text
+            $('#interestRateHelp').text('Annual percentage rate');
+        }
+    });
+    
+    // Trigger change on page load
+    $('#loan_type').trigger('change');
     
     // Step navigation
     $('#nextToStep2').on('click', function() {
@@ -476,43 +532,78 @@ $(document).ready(function() {
     });
     
     // Auto-calculate EMI on field change
-    $('#loan_amount, #interest_rate, #duration_months, #interest_type').on('change', function() {
+    $('#loan_amount, #interest_rate, #duration_months, #duration_weeks, #interest_type, #loan_type').on('change keyup', function() {
         calculateEMI();
     });
     
     function calculateEMI() {
         var principal = parseFloat($('#loan_amount').val()) || 0;
         var rate = parseFloat($('#interest_rate').val()) || 0;
-        var months = parseInt($('#duration_months').val()) || 1;
-        var type = $('#interest_type').val();
+        var loanType = $('#loan_type').val();
+        var emi;
+        var totalPayable;
         
-        if (principal > 0 && rate > 0 && months > 0) {
-            var monthlyRate = rate / (12 * 100);
-            var emi;
+        // Check if Type 1 - 9 Week Loan
+        if (loanType === 'type1_9weeks') {
+            var weeks = parseInt($('#duration_weeks').val()) || 9;
             
-            if (type === 'reducing_balance' && monthlyRate > 0) {
-                emi = principal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
-            } else {
-                var totalInterest = principal * rate * months / (12 * 100);
-                emi = (principal + totalInterest) / months;
+            if (principal > 0 && rate > 0 && weeks > 0) {
+                // Type 1 formula: Interest = rate * 2
+                // Installment = ((100 + Interest) * Amount) / (100 * weeks)
+                var interest = rate * 2;
+                emi = ((100 + interest) * principal) / (100 * weeks);
+                // Floor to whole number to get exact total
+                emi = Math.floor(emi);
+                totalPayable = emi * weeks;
+                
+                // Show calculated values
+                if ($('#emi-display').length === 0) {
+                    $('#duration_weeks').parent().after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
             }
+        } else {
+            // Standard loan types
+            var months = parseInt($('#duration_months').val()) || 1;
+            var type = $('#interest_type').val();
             
-            var totalPayable = emi * months;
-            
-            // Show calculated values
-            if ($('#emi-display').length === 0) {
-                $('#duration_months').parent().after(
-                    '<div id="emi-display" class="col-md-12 mb-3">' +
-                    '<div class="alert alert-info">' +
-                    '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
-                    '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
-                    '</div></div>'
-                );
-            } else {
-                $('#emi-display .alert').html(
-                    '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
-                    '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
-                );
+            if (principal > 0 && rate > 0 && months > 0) {
+                var monthlyRate = rate / (12 * 100);
+                
+                if (type === 'reducing_balance' && monthlyRate > 0) {
+                    emi = principal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+                } else {
+                    var totalInterest = principal * rate * months / (12 * 100);
+                    emi = (principal + totalInterest) / months;
+                }
+                
+                totalPayable = emi * months;
+                
+                // Show calculated values
+                if ($('#emi-display').length === 0) {
+                    $('#duration_months').parent().after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
             }
         }
     }

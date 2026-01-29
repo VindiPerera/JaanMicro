@@ -121,7 +121,7 @@ def loan_report():
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     status = request.args.get('status', '')
-    loan_type = request.args.get('loan_type', '')
+    loan_purpose = request.args.get('loan_purpose', '')
     
     query = Loan.query
     
@@ -136,8 +136,8 @@ def loan_report():
         query = query.filter(Loan.created_at <= datetime.strptime(end_date, '%Y-%m-%d'))
     if status:
         query = query.filter_by(status=status)
-    if loan_type:
-        query = query.filter_by(loan_type=loan_type)
+    if loan_purpose:
+        query = query.filter_by(loan_purpose=loan_purpose)
     
     loans = query.all()
     
@@ -195,12 +195,12 @@ def loan_report():
         func.sum(Loan.outstanding_amount)
     ).group_by(Loan.status).all()
     
-    # Loan by type
-    type_breakdown = db.session.query(
-        Loan.loan_type,
+    # Loan by purpose
+    purpose_breakdown = db.session.query(
+        Loan.loan_purpose,
         func.count(Loan.id),
         func.sum(Loan.loan_amount)
-    ).group_by(Loan.loan_type).all()
+    ).group_by(Loan.loan_purpose).all()
     
     return render_template('reports/loan_report.html',
                          title='Loan Report',
@@ -208,11 +208,11 @@ def loan_report():
                          loan_payments=loan_payments,
                          summary=summary,
                          status_breakdown=status_breakdown,
-                         type_breakdown=type_breakdown,
+                         purpose_breakdown=purpose_breakdown,
                          start_date=start_date,
                          end_date=end_date,
                          status=status,
-                         loan_type=loan_type)
+                         loan_purpose=loan_purpose)
 
 @reports_bp.route('/collections')
 @login_required
@@ -577,18 +577,27 @@ def export_loans():
     writer = csv.writer(output)
     
     # Write header
-    writer.writerow(['Loan Number', 'Customer', 'Loan Type', 'Loan Amount', 'Interest Rate', 
+    writer.writerow(['Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type', 'Loan Amount', 'Interest Rate', 
                     'Duration', 'Outstanding Amount', 'Status', 'Created Date'])
     
     # Write data
     for loan in loans:
+        # Handle duration display
+        if loan.duration_weeks:
+            duration = f"{loan.duration_weeks} weeks"
+        elif loan.duration_months:
+            duration = f"{loan.duration_months} months"
+        else:
+            duration = "N/A"
+            
         writer.writerow([
             loan.loan_number,
             loan.customer.full_name,
-            loan.loan_type,
+            loan.loan_purpose or 'N/A',
+            loan.loan_type or 'N/A',
             loan.loan_amount,
             loan.interest_rate,
-            loan.duration_months,
+            duration,
             loan.outstanding_amount,
             loan.status,
             loan.created_at.strftime('%Y-%m-%d')
