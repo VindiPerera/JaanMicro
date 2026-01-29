@@ -283,6 +283,7 @@ class Loan(db.Model):
     paid_amount = db.Column(db.Numeric(15, 2), default=0)
     outstanding_amount = db.Column(db.Numeric(15, 2))
     penalty_amount = db.Column(db.Numeric(15, 2), default=0)
+    documentation_fee = db.Column(db.Numeric(15, 2), default=0)  # 1% documentation cost
     
     # Dates
     application_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)

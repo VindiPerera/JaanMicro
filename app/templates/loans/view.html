@@ -41,6 +41,15 @@
                     <span class="fs-4 text-primary">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</span>
                 </div>
                 <div class="mb-3">
+                    <strong>Documentation Fee (1%):</strong><br>
+                    <span class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.documentation_fee|float) }}</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Disbursed Amount:</strong><br>
+                    <span class="fs-5 text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.disbursed_amount|float) }}</span>
+                    <br><small class="text-muted">Net amount given to customer</small>
+                </div>
+                <div class="mb-3">
                     <strong>Outstanding Amount:</strong><br>
                     <span class="fs-4 text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(current_outstanding|float) }}</span>
                     {% if accrued_interest > 0 %}

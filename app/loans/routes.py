@@ -214,6 +214,14 @@ def add_loan():
             # Store relative path
             document_filename = f"loans/{document_filename}"
         
+        # Calculate documentation fee (1% of loan amount)
+        documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        
+        # Calculate disbursed amount (loan amount minus documentation fee)
+        actual_disbursed_amount = None
+        if form.status.data == 'active':
+            actual_disbursed_amount = (loan_amount - documentation_fee).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
@@ -228,9 +236,10 @@ def add_loan():
             duration_days=duration_days,
             installment_amount=emi,
             installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
-            disbursed_amount=form.loan_amount.data if form.status.data == 'active' else None,
+            disbursed_amount=actual_disbursed_amount,
             total_payable=total_payable,
             outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
+            documentation_fee=documentation_fee,
             application_date=form.application_date.data,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
