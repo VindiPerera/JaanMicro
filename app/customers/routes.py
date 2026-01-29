@@ -7,7 +7,7 @@ import os
 import json
 from app import db
 from app.customers import customers_bp
-from app.models import Customer, ActivityLog, SystemSettings
+from app.models import Customer, ActivityLog
 from app.customers.forms import CustomerForm, KYCForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
@@ -65,8 +65,7 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
-        settings = SystemSettings.get_settings()
-        customer_id = generate_customer_id(settings.customer_id_prefix)
+        customer_id = generate_customer_id(form.customer_type.data, get_current_branch_id())
         
         # Handle profile picture upload
         profile_picture_path = None
