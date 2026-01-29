@@ -233,8 +233,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% if loan.payment_schedule %}
-                                {% for schedule in loan.payment_schedule %}
+                            {% if payment_schedule %}
+                                {% for schedule in payment_schedule %}
                                 <tr>
                                     <td>{{ schedule.due_date.strftime('%Y-%m-%d') if schedule.due_date else 'N/A' }}</td>
                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(schedule.amount|float) }}</td>

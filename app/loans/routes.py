@@ -297,6 +297,9 @@ def view_loan(id):
     # Update the loan's stored outstanding amount to reflect current calculation
     loan.update_outstanding_amount()
     
+    # Generate payment schedule
+    payment_schedule = loan.generate_payment_schedule()
+    
     # Get guarantors
     guarantors = []
     if loan.guarantor_ids:
@@ -310,7 +313,8 @@ def view_loan(id):
                          payments=payments,
                          guarantors=guarantors,
                          current_outstanding=current_outstanding,
-                         accrued_interest=accrued_interest)
+                         accrued_interest=accrued_interest,
+                         payment_schedule=payment_schedule)
 
 @loans_bp.route('/<int:id>/approve', methods=['GET', 'POST'])
 @login_required
