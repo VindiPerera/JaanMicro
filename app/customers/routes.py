@@ -328,3 +328,132 @@ def delete_customer(id):
     
     flash('Customer deleted successfully!', 'success')
     return redirect(url_for('customers.list_customers'))
+
+@customers_bp.route('/edit-member-select')
+@login_required
+@permission_required('add_customers')
+def edit_member_select():
+    """Select member to edit"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    
+    query = Customer.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                Customer.full_name.ilike(f'%{search}%'),
+                Customer.customer_id.ilike(f'%{search}%'),
+                Customer.nic_number.ilike(f'%{search}%'),
+                Customer.phone_primary.ilike(f'%{search}%')
+            )
+        )
+    
+    customers = query.order_by(Customer.full_name).paginate(
+        page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+    )
+    
+    return render_template('customers/edit_select.html',
+                         title='Edit Member',
+                         customers=customers,
+                         search=search)
+
+@customers_bp.route('/search')
+@login_required
+@permission_required('add_customers')
+def search_members():
+    """Search members page"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    customer_type = request.args.get('customer_type', '', type=str)
+    status = request.args.get('status', '', type=str)
+    kyc_status = request.args.get('kyc_status', '', type=str)
+    
+    customers = []
+    searched = False
+    
+    if search or customer_type or status or kyc_status:
+        searched = True
+        query = Customer.query
+        
+        # Filter by current branch if needed
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                query = query.filter_by(branch_id=current_branch_id)
+        
+        if search:
+            query = query.filter(
+                db.or_(
+                    Customer.full_name.ilike(f'%{search}%'),
+                    Customer.customer_id.ilike(f'%{search}%'),
+                    Customer.nic_number.ilike(f'%{search}%'),
+                    Customer.phone_primary.ilike(f'%{search}%'),
+                    Customer.email.ilike(f'%{search}%')
+                )
+            )
+        
+        if customer_type:
+            query = query.filter_by(customer_type=customer_type)
+        
+        if status:
+            query = query.filter_by(status=status)
+        
+        if kyc_status:
+            if kyc_status == 'verified':
+                query = query.filter_by(kyc_verified=True)
+            elif kyc_status == 'pending':
+                query = query.filter_by(kyc_verified=False)
+        
+        customers = query.order_by(Customer.full_name).paginate(
+            page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+        )
+    
+    return render_template('customers/search.html',
+                         title='Search Members',
+                         customers=customers if searched else None,
+                         search=search,
+                         customer_type=customer_type,
+                         status=status,
+                         kyc_status=kyc_status,
+                         searched=searched)
+
+@customers_bp.route('/verify-kyc')
+@login_required
+@permission_required('verify_kyc')
+def verify_kyc_members():
+    """List members pending KYC verification"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    
+    query = Customer.query.filter_by(kyc_verified=False)
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                Customer.full_name.ilike(f'%{search}%'),
+                Customer.customer_id.ilike(f'%{search}%'),
+                Customer.nic_number.ilike(f'%{search}%')
+            )
+        )
+    
+    customers = query.order_by(Customer.created_at.desc()).paginate(
+        page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+    )
+    
+    return render_template('customers/verify_kyc.html',
+                         title='Verify KYC Members',
+                         customers=customers,
+                         search=search)

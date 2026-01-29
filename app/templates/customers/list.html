@@ -2,10 +2,15 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4>Members</h4>
-    <a href="{{ url_for('customers.add_customer') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-2"></i>Add New Member
-    </a>
+    <div>
+        <h4>All Members</h4>
+        <p class="text-muted mb-0">Complete list of all registered members in the system</p>
+    </div>
+    <div>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+        </a>
+    </div>
 </div>
 
 <!-- Search and Filter -->
@@ -54,7 +59,6 @@
                         <th>City</th>
                         <th>KYC</th>
                         <th>Status</th>
-                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,20 +78,9 @@
                             {% endif %}
                         </td>
                         <td><span class="badge status-{{ customer.status }}">{{ customer.status|title }}</span></td>
-                        <td>
-                            <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-sm btn-info">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                            <a href="{{ url_for('customers.edit_customer', id=customer.id) }}" class="btn btn-sm btn-warning">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{{ url_for('customers.customer_kyc', id=customer.id) }}" class="btn btn-sm btn-success" title="KYC Documents">
-                                <i class="bi bi-shield-check"></i>
-                            </a>
-                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="8" class="text-center text-muted">No Members found</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">No Members found</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

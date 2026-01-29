@@ -77,6 +77,42 @@
             font-size: 1.1rem;
         }
         
+        /* Dropdown submenu */
+        .sidebar-menu .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .sidebar-menu .submenu li a {
+            padding: 0.625rem 1.5rem 0.625rem 3.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .sidebar-menu .submenu li a i {
+            width: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .sidebar-menu .submenu li a.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            font-weight: 500;
+        }
+        
+        .sidebar-menu .dropdown-toggle {
+            position: relative;
+        }
+        
+        .sidebar-menu .dropdown-toggle .bi-chevron-down {
+            transition: transform 0.3s;
+        }
+        
+        .sidebar-menu .dropdown-toggle[aria-expanded="true"] .bi-chevron-down {
+            transform: rotate(180deg);
+        }
+        
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width);
@@ -279,11 +315,19 @@
             </li>
             
             {% if current_user.has_permission('add_customers') %}
-            <li>
-                <a href="{{ url_for('customers.list_customers') }}" class="{% if 'customers' in request.endpoint %}active{% endif %}">
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle {% if 'customers' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#membersSubmenu" aria-expanded="false">
                     <i class="bi bi-people"></i>
                     <span>Members</span>
+                    <i class="bi bi-chevron-down ms-auto"></i>
                 </a>
+                <ul class="collapse submenu" id="membersSubmenu">
+                    <li><a href="{{ url_for('customers.list_customers') }}"><i class="bi bi-list-ul"></i> List Members</a></li>
+                    <li><a href="{{ url_for('customers.add_customer') }}"><i class="bi bi-plus-circle"></i> Add Member</a></li>
+                    <li><a href="{{ url_for('customers.edit_member_select') }}"><i class="bi bi-pencil"></i> Edit Member</a></li>
+                    <li><a href="{{ url_for('customers.search_members') }}"><i class="bi bi-search"></i> Search Member</a></li>
+                    <li><a href="{{ url_for('customers.verify_kyc_members') }}"><i class="bi bi-shield-check"></i> Verify KYC Member</a></li>
+                </ul>
             </li>
             {% endif %}
             
@@ -477,6 +521,15 @@
                             }
                         }
                     });
+                }
+            });
+            
+            // Keep dropdown menu expanded if on a submenu page
+            $('.submenu a').each(function() {
+                if ($(this).attr('href') === window.location.pathname) {
+                    $(this).addClass('active');
+                    $(this).closest('.submenu').addClass('show');
+                    $(this).closest('.submenu').prev('.dropdown-toggle').attr('aria-expanded', 'true');
                 }
             });
         });
