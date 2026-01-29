@@ -109,7 +109,7 @@ def add_loan():
         loan_number = generate_loan_number(settings.loan_number_prefix)
         
         # Calculate EMI using Decimal arithmetic
-        from decimal import Decimal, ROUND_HALF_UP
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
         
         loan_amount = Decimal(str(form.loan_amount.data))
         interest_rate = Decimal(str(form.interest_rate.data))
@@ -126,7 +126,8 @@ def add_loan():
             # Installment = ((100 + Interest) * Loan Amount) / (100 * weeks)
             interest = interest_rate * Decimal('2')
             emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # Floor to whole number to get exact total
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             # Standard monthly calculation

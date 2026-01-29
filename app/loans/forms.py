@@ -10,6 +10,7 @@ class LoanForm(FlaskForm):
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
         ('type1_9weeks', 'Type 1 - 9 Week Loan'),
+        ('monthly_loan', 'Monthly Loan'),
     ], validators=[DataRequired()])
     loan_purpose = SelectField('Loan Purpose', choices=[
         ('', 'Select'),
