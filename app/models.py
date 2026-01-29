@@ -272,6 +272,7 @@ class Loan(db.Model):
     interest_type = db.Column(db.String(30), default='reducing_balance')  # flat, reducing_balance
     duration_months = db.Column(db.Integer, nullable=False)
     duration_weeks = db.Column(db.Integer)  # For weekly loan types
+    duration_days = db.Column(db.Integer)  # For daily loan types
     installment_amount = db.Column(db.Numeric(15, 2), nullable=False)
     installment_frequency = db.Column(db.String(20), default='monthly')  # weekly, monthly, quarterly
     
@@ -324,6 +325,33 @@ class Loan(db.Model):
             installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_weeks)))
             # Floor to whole number to get exact total
             return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+        
+        # Check if this is a 54 Daily loan
+        if self.loan_type and '54' in self.loan_type and self.duration_days:
+            # Same formula as Type 1 but using days instead of weeks
+            # Installment = ((100 + Interest) * Loan Amount) / (100 * days)
+            interest = interest_rate * Decimal('2')
+            installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_days)))
+            # Floor to whole number to get exact total
+            return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+        
+        # Check if this is a Type 4 Micro Loan (weekly)
+        if self.loan_type and 'Micro' in self.loan_type and self.duration_weeks and self.duration_months:
+            # Type 4 Micro: Full Interest = Interest Rate * Months
+            # Weeks = Months * 4
+            # Installment = LA * ((Full Interest + 100) / 100) / Weeks
+            full_interest = interest_rate * Decimal(str(self.duration_months))
+            installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_weeks))
+            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        
+        # Check if this is a Type 4 Daily Loan
+        if self.loan_type and 'Type 4' in self.loan_type and 'Daily' in self.loan_type and self.duration_days and self.duration_months:
+            # Type 4 Daily: Full Interest = Interest Rate * Months
+            # Days = Months * 25
+            # Installment = LA * ((Full Interest + 100) / 100) / Days
+            full_interest = interest_rate * Decimal(str(self.duration_months))
+            installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_days))
+            return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         
         # Standard calculation methods
         if self.interest_type == 'reducing_balance':
