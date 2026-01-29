@@ -147,8 +147,12 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <strong>Loan Type:</strong><br>
-                        {{ loan.loan_type|title }}
+                        <strong>Loan Purpose:</strong><br>
+                        {{ loan.loan_purpose|title if loan.loan_purpose else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Calculation Type:</strong><br>
+                        {{ loan.loan_type|replace('_', ' ')|title if loan.loan_type else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">
                         <strong>Application Date:</strong><br>
@@ -164,7 +168,19 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <strong>Duration:</strong><br>
-                        {{ loan.duration_months }} months
+                        {% if loan.duration_days and loan.duration_months %}
+                            {{ loan.duration_months }} months ({{ loan.duration_days }} days)
+                        {% elif loan.duration_days %}
+                            {{ loan.duration_days }} days
+                        {% elif loan.duration_weeks and loan.duration_months %}
+                            {{ loan.duration_months }} months ({{ loan.duration_weeks }} weeks)
+                        {% elif loan.duration_weeks %}
+                            {{ loan.duration_weeks }} weeks
+                        {% elif loan.duration_months %}
+                            {{ loan.duration_months }} months
+                        {% else %}
+                            N/A
+                        {% endif %}
                     </div>
                     <div class="col-md-6 mb-3">
                         <strong>Interest Rate:</strong><br>

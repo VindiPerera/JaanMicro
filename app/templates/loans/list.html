@@ -67,7 +67,7 @@
                     <tr>
                         <td><a href="{{ url_for('loans.view_loan', id=loan.id) }}">{{ loan.loan_number }}</a></td>
                         <td>{{ loan.customer.full_name }}</td>
-                        <td>{{ loan.loan_type|title }}</td>
+                        <td>{{ loan.loan_purpose|title if loan.loan_purpose else 'N/A' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                         <td>{{ loan.interest_rate }}%</td>
                         <td>

@@ -9,6 +9,14 @@ class LoanForm(FlaskForm):
     customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
+        ('type1_9weeks', '9 Week Loan'),
+        ('54_daily', '54 Daily Loan'),
+        ('type4_micro', 'Micro Loan (Weekly Installment)'),
+        ('type4_daily', 'Daily Loan (Daily Installment)'),
+        ('monthly_loan', 'Monthly Loan'),
+    ], validators=[DataRequired()])
+    loan_purpose = SelectField('Loan Purpose', choices=[
+        ('', 'Select'),
         ('personal', 'Personal Loan'),
         ('business', 'Business Loan'),
         ('education', 'Education Loan'),
@@ -16,21 +24,23 @@ class LoanForm(FlaskForm):
         ('home', 'Home Loan'),
         ('agriculture', 'Agriculture Loan'),
         ('other', 'Other')
-    ], validators=[DataRequired()])
+    ], validators=[Optional()])
     
     loan_amount = DecimalField('Loan Amount', validators=[DataRequired(), NumberRange(min=0)], places=2)
+    duration_weeks = IntegerField('Duration (Weeks)', validators=[Optional(), NumberRange(min=1, max=52)])
+    duration_days = IntegerField('Duration (Days)', validators=[Optional(), NumberRange(min=1, max=365)])
     interest_rate = DecimalField('Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0, max=100)], places=2)
     interest_type = SelectField('Interest Type', choices=[
         ('reducing_balance', 'Reducing Balance'),
         ('flat', 'Flat Rate')
-    ], validators=[DataRequired()])
+    ], validators=[Optional()])
     
-    duration_months = IntegerField('Duration (Months)', validators=[DataRequired(), NumberRange(min=1, max=360)])
+    duration_months = IntegerField('Duration (Months)', validators=[Optional(), NumberRange(min=1, max=360)])
     installment_frequency = SelectField('Installment Frequency', choices=[
         ('monthly', 'Monthly'),
         ('weekly', 'Weekly'),
         ('quarterly', 'Quarterly')
-    ], validators=[DataRequired()])
+    ], validators=[Optional()])
     
     application_date = DateField('Application Date', validators=[DataRequired()])
     purpose = TextAreaField('Purpose of Loan', validators=[Optional()])
