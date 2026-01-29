@@ -1,6 +1,6 @@
 """Reports routes"""
 from flask import render_template, request, make_response, current_app, send_from_directory, abort
-from flask_login import login_required
+from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from sqlalchemy import func, extract
 import os
@@ -14,9 +14,12 @@ import csv
 
 @reports_bp.route('/')
 @login_required
-@permission_required('view_reports')
 def index():
     """Reports dashboard"""
+    # Allow access if user has either view_reports or view_collection_reports permission
+    if not (current_user.has_permission('view_reports') or current_user.has_permission('view_collection_reports')):
+        abort(403)
+    
     # Calculate quick statistics
     from decimal import Decimal
     
@@ -213,7 +216,7 @@ def loan_report():
 
 @reports_bp.route('/collections')
 @login_required
-@permission_required('view_reports')
+@permission_required('view_collection_reports')
 def collection_report():
     """Collection reports"""
     start_date = request.args.get('start_date', '')

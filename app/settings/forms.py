@@ -80,6 +80,7 @@ class UserForm(FlaskForm):
     can_manage_investments = BooleanField('Can Manage Investments')
     can_manage_pawnings = BooleanField('Can Manage Pawnings')
     can_view_reports = BooleanField('Can View Reports')
+    can_view_collection_reports = BooleanField('Can View Collection Reports')
     can_manage_settings = BooleanField('Can Manage Settings')
     can_collect_payments = BooleanField('Can Collect Payments')
     can_verify_kyc = BooleanField('Can Verify KYC')
@@ -117,6 +118,7 @@ class UserForm(FlaskForm):
                 'can_manage_investments': False,
                 'can_manage_pawnings': True,
                 'can_view_reports': False,
+                'can_view_collection_reports': False,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -130,6 +132,7 @@ class UserForm(FlaskForm):
                 'can_manage_investments': False,
                 'can_manage_pawnings': False,
                 'can_view_reports': True,
+                'can_view_collection_reports': True,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -143,6 +146,7 @@ class UserForm(FlaskForm):
                 'can_manage_investments': True,
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
+                'can_view_collection_reports': True,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -156,6 +160,7 @@ class UserForm(FlaskForm):
                 'can_manage_investments': True,
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
+                'can_view_collection_reports': True,
                 'can_manage_settings': True,
                 'can_collect_payments': True,
                 'can_verify_kyc': True
@@ -169,6 +174,7 @@ class UserForm(FlaskForm):
                 'can_manage_investments': True,
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
+                'can_view_collection_reports': True,
                 'can_manage_settings': True,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -215,6 +221,7 @@ class UserEditForm(FlaskForm):
     can_manage_investments = BooleanField('Can Manage Investments')
     can_manage_pawnings = BooleanField('Can Manage Pawnings')
     can_view_reports = BooleanField('Can View Reports')
+    can_view_collection_reports = BooleanField('Can View Collection Reports')
     can_manage_settings = BooleanField('Can Manage Settings')
     can_collect_payments = BooleanField('Can Collect Payments')
     can_verify_kyc = BooleanField('Can Verify KYC')
