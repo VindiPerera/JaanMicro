@@ -1,4 +1,4 @@
-"""Investments blueprint"""
+"""Borrowers blueprint"""
 from flask import Blueprint
 
 investments_bp = Blueprint('investments', __name__)

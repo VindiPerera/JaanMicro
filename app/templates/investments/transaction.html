@@ -5,17 +5,17 @@
     <div class="col-lg-8 mx-auto">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Add Investment Transaction</h5>
+                <h5 class="mb-0">Add Borrower Transaction</h5>
             </div>
             <div class="card-body">
                 <!-- Investment Summary -->
                 <div class="alert alert-info">
-                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Investment Details</h6>
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Borrower Details</h6>
                     <div class="row">
                         <div class="col-md-6">
                             <strong>Account Number:</strong> {{ investment.account_number }}<br>
                             <strong>Member:</strong> {{ investment.customer.full_name }}<br>
-                            <strong>Investment Type:</strong> {{ investment.investment_type|title }}
+                            <strong>Borrower Type:</strong> {{ investment.investment_type|title }}
                         </div>
                         <div class="col-md-6">
                             <strong>Current Balance:</strong> <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_balance|float) if investment.current_balance else investment.principal_amount }}</span><br>

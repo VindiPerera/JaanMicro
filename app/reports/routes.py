@@ -391,7 +391,7 @@ def customer_report():
 @login_required
 @permission_required('view_reports')
 def investment_report():
-    """Investment reports"""
+    """Borrower reports"""
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     investment_type = request.args.get('investment_type', '')
@@ -458,7 +458,7 @@ def investment_report():
     maturing_soon = maturing_query.all()
     
     return render_template('reports/investment_report.html',
-                         title='Investment Report',
+                         title='Borrower Report',
                          investments=investments,
                          summary=summary,
                          type_breakdown=type_breakdown,

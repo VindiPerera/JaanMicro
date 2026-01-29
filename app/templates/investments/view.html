@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4>Investment Details</h4>
+    <h4>Borrower Details</h4>
     <div>
         {% if investment.status == 'active' %}
         <a href="{{ url_for('investments.add_transaction', id=investment.id) }}" class="btn btn-success">

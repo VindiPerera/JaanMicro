@@ -21,7 +21,7 @@ def create_app(config_name='default'):
         os.makedirs(upload_folder, exist_ok=True)
         os.makedirs(os.path.join(upload_folder, 'customers'), exist_ok=True)
         os.makedirs(os.path.join(upload_folder, 'loans'), exist_ok=True)
-        os.makedirs(os.path.join(upload_folder, 'investments'), exist_ok=True)
+        os.makedirs(os.path.join(upload_folder, 'borrower'), exist_ok=True)
         os.makedirs(os.path.join(upload_folder, 'pawnings'), exist_ok=True)
     
     # Initialize extensions
@@ -64,7 +64,7 @@ def create_app(config_name='default'):
     app.register_blueprint(main_bp, url_prefix='/')
     app.register_blueprint(customers_bp, url_prefix='/customers')
     app.register_blueprint(loans_bp, url_prefix='/loans')
-    app.register_blueprint(investments_bp, url_prefix='/investments')
+    app.register_blueprint(investments_bp, url_prefix='/borrower')
     app.register_blueprint(pawnings_bp, url_prefix='/pawnings')
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(settings_bp, url_prefix='/settings')

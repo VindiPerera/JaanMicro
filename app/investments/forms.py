@@ -1,12 +1,12 @@
-"""Investment forms"""
+"""Borrower forms"""
 from flask_wtf import FlaskForm
 from wtforms import SelectField, DecimalField, IntegerField, DateField, TextAreaField, StringField, SubmitField
 from wtforms.validators import DataRequired, Optional, NumberRange, Length
 
 class InvestmentForm(FlaskForm):
-    """Investment form"""
+    """Borrower form"""
     customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
-    investment_type = SelectField('Investment Type', choices=[
+    investment_type = SelectField('Borrower Type', choices=[
         ('', 'Select'),
         ('fixed_deposit', 'Fixed Deposit'),
         ('savings', 'Savings Account'),
@@ -28,10 +28,10 @@ class InvestmentForm(FlaskForm):
     ], validators=[Optional()])
     
     notes = TextAreaField('Notes', validators=[Optional()])
-    submit = SubmitField('Save Investment')
+    submit = SubmitField('Save Borrower')
 
 class InvestmentTransactionForm(FlaskForm):
-    """Investment transaction form"""
+    """Borrower transaction form"""
     transaction_date = DateField('Transaction Date', validators=[DataRequired()])
     transaction_type = SelectField('Transaction Type', choices=[
         ('deposit', 'Deposit'),
