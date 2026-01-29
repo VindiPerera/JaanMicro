@@ -1,8 +1,10 @@
 """Loan management routes"""
 from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
@@ -108,6 +110,26 @@ def add_loan():
         emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
+        # Handle document upload
+        document_filename = None
+        if form.document.data:
+            file = form.document.data
+            filename = secure_filename(file.filename)
+            # Create unique filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            document_filename = f"{timestamp}_{filename}"
+            
+            # Create upload directory if it doesn't exist
+            upload_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], 'loans')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            # Save the file
+            file_path = os.path.join(upload_folder, document_filename)
+            file.save(file_path)
+            
+            # Store relative path
+            document_filename = f"loans/{document_filename}"
+        
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
@@ -125,6 +147,7 @@ def add_loan():
             application_date=form.application_date.data,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
+            document_path=document_filename,
             status=form.status.data,
             created_by=current_user.id,
             notes=form.notes.data

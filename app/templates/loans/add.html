@@ -44,7 +44,7 @@
                 </div>
                 {% endif %}
                 
-                <form method="POST" action="" id="loanForm">
+                <form method="POST" action="" id="loanForm" enctype="multipart/form-data">
                     {{ form.hidden_tag() }}
                     
                     <!-- Step 1: Loan Details -->
@@ -122,6 +122,12 @@
                         <div class="mb-3">
                             {{ form.notes.label(class="form-label") }}
                             {{ form.notes(class="form-control", rows="2") }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.document.label(class="form-label") }}
+                            {{ form.document(class="form-control") }}
+                            <small class="text-muted">Upload loan agreement, application form, or related documents (PDF only, max 10MB)</small>
                         </div>
                         
                         <div class="mt-4">

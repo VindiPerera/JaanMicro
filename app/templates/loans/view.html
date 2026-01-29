@@ -131,6 +131,14 @@
                         <strong>Security/Collateral:</strong><br>
                         {{ loan.security_details or 'N/A' }}
                     </div>
+                    {% if loan.document_path %}
+                    <div class="col-md-12 mb-3">
+                        <strong>Uploaded Document:</strong><br>
+                        <a href="{{ url_for('static', filename='uploads/' + loan.document_path) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-file-earmark-pdf me-2"></i>View Document (PDF)
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
