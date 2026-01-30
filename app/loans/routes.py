@@ -8,7 +8,7 @@ import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
-from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm
+from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
 
@@ -219,7 +219,6 @@ def add_loan():
             customer_id=form.customer_id.data,
             branch_id=get_current_branch_id(),
             loan_type=form.loan_type.data,
-            loan_purpose=form.loan_purpose.data,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
             interest_type=form.interest_type.data,
@@ -228,33 +227,18 @@ def add_loan():
             duration_days=duration_days,
             installment_amount=emi,
             installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
-            disbursed_amount=form.loan_amount.data if form.status.data == 'active' else None,
             total_payable=total_payable,
-            outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
             application_date=form.application_date.data,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
             guarantor_ids=request.form.get('guarantor_ids', ''),
-            status=form.status.data,
+            status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
             notes=form.notes.data
         )
         
-        # Set initial outstanding amount with interest consideration
-        if form.status.data == 'active':
-            loan.approval_date = datetime.utcnow().date()
-            loan.disbursement_date = datetime.utcnow().date()
-            if duration_days:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=1)
-                loan.maturity_date = datetime.utcnow().date() + timedelta(days=duration_days)
-            elif duration_weeks:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=7)
-                loan.maturity_date = datetime.utcnow().date() + timedelta(weeks=duration_weeks)
-            else:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=30)
-                loan.maturity_date = datetime.utcnow().date() + relativedelta(months=duration_months)
-            loan.approved_by = current_user.id
+        # Note: Disbursement details will be set during admin approval stage
         
         db.session.add(loan)
         
@@ -381,6 +365,251 @@ def approve_loan(id):
     
     return render_template('loans/approve.html',
                          title=f'Approve Loan: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-staff', methods=['GET', 'POST'])
+@login_required
+@permission_required('manage_loans')
+def approve_loan_staff(id):
+    """Staff approval (First stage)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'pending':
+        flash('Only pending loans can be approved by staff!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is staff (not manager or admin)
+    if current_user.role not in ['staff', 'loan_collector']:
+        flash('Only staff members can perform first-stage approval!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = StaffApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'pending_manager_approval'
+            loan.staff_approved_by = current_user.id
+            loan.staff_approval_date = form.approval_date.data
+            loan.staff_approval_notes = form.approval_notes.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='staff_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Staff approved loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved by staff! Awaiting manager approval.', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='staff_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Staff rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by staff!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    
+    return render_template('loans/approve_staff.html',
+                         title=f'Staff Approval: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-manager', methods=['GET', 'POST'])
+@login_required
+def approve_loan_manager(id):
+    """Manager approval (Second stage)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'pending_manager_approval':
+        flash('Only loans approved by staff can be approved by manager!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is manager
+    if current_user.role not in ['manager', 'accountant']:
+        flash('Only managers can perform second-stage approval!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = ManagerApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'initiated'
+            loan.manager_approved_by = current_user.id
+            loan.manager_approval_date = form.approval_date.data
+            loan.manager_approval_notes = form.approval_notes.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='manager_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Manager approved loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved by manager! Loan is now initiated. Awaiting admin approval for disbursement.', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='manager_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Manager rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by manager!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    
+    return render_template('loans/approve_manager.html',
+                         title=f'Manager Approval: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-admin', methods=['GET', 'POST'])
+@login_required
+def approve_loan_admin(id):
+    """Admin approval (Final stage - Disburse loan)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'initiated':
+        flash('Only initiated loans can be approved by admin!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is admin
+    if current_user.role != 'admin':
+        flash('Only admins can perform final approval and disbursement!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = AdminApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'active'
+            loan.admin_approved_by = current_user.id
+            loan.admin_approval_date = form.approval_date.data
+            loan.admin_approval_notes = form.approval_notes.data
+            
+            # Set approved_by for legacy compatibility
+            loan.approved_by = current_user.id
+            loan.approval_date = form.approval_date.data
+            loan.approval_notes = form.approval_notes.data
+            
+            # Set disbursement details
+            loan.approved_amount = form.approved_amount.data or loan.loan_amount
+            loan.disbursed_amount = loan.approved_amount or loan.loan_amount
+            loan.disbursement_date = form.disbursement_date.data
+            loan.disbursement_method = form.disbursement_method.data
+            loan.disbursement_reference = form.disbursement_reference.data
+            loan.first_installment_date = form.first_installment_date.data
+            
+            # Calculate maturity date based on loan type
+            if loan.duration_days:
+                loan.maturity_date = loan.disbursement_date + timedelta(days=loan.duration_days) if loan.disbursement_date else None
+            elif loan.duration_weeks:
+                loan.maturity_date = loan.disbursement_date + timedelta(weeks=loan.duration_weeks) if loan.disbursement_date else None
+            else:
+                loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
+            
+            # Set initial outstanding amount to disbursed amount
+            loan.outstanding_amount = loan.approved_amount or loan.loan_amount
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='admin_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Admin approved and disbursed loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved and disbursed successfully!', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='admin_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Admin rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by admin!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    form.approved_amount.data = loan.loan_amount
+    form.disbursement_date.data = datetime.now().date()
+    
+    # Calculate first installment date based on loan type
+    if loan.duration_days:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=1)
+    elif loan.duration_weeks:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=7)
+    else:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=30)
+    
+    return render_template('loans/approve_admin.html',
+                         title=f'Admin Approval: {loan.loan_number}',
                          form=form,
                          loan=loan)
 

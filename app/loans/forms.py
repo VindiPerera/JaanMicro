@@ -45,10 +45,7 @@ class LoanForm(FlaskForm):
     application_date = DateField('Application Date', validators=[DataRequired()])
     purpose = TextAreaField('Purpose of Loan', validators=[Optional()])
     security_details = TextAreaField('Security/Collateral Details', validators=[Optional()])
-    status = SelectField('Status', choices=[
-        ('pending', 'Pending'),
-        ('active', 'Active')
-    ], validators=[DataRequired()])
+    # Status field removed - all new loans start as 'pending' and go through approval workflow
     notes = TextAreaField('Notes', validators=[Optional()])
     document = FileField('Upload Document (PDF)', validators=[Optional(), FileAllowed(['pdf'], 'PDF files only!')])
     
@@ -95,3 +92,56 @@ class LoanPaymentForm(FlaskForm):
     notes = TextAreaField('Notes', validators=[Optional()])
     send_receipt = BooleanField('Send Payment Receipt', default=True)
     submit = SubmitField('Add Payment')
+
+class StaffApprovalForm(FlaskForm):
+    """Staff approval form (First stage)"""
+    approval_status = SelectField('Approval Decision', choices=[
+        ('', 'Select'),
+        ('approve', 'Approve'),
+        ('reject', 'Reject')
+    ], validators=[DataRequired()])
+    approval_date = DateField('Approval Date', validators=[DataRequired()])
+    approval_notes = TextAreaField('Approval Notes', validators=[Optional()])
+    rejection_reason = TextAreaField('Rejection Reason', validators=[Optional()])
+    submit = SubmitField('Submit')
+
+class ManagerApprovalForm(FlaskForm):
+    """Manager approval form (Second stage)"""
+    approval_status = SelectField('Approval Decision', choices=[
+        ('', 'Select'),
+        ('approve', 'Approve'),
+        ('reject', 'Reject')
+    ], validators=[DataRequired()])
+    approval_date = DateField('Approval Date', validators=[DataRequired()])
+    approval_notes = TextAreaField('Approval Notes', validators=[Optional()])
+    rejection_reason = TextAreaField('Rejection Reason', validators=[Optional()])
+    submit = SubmitField('Submit')
+
+class InitiateLoanForm(FlaskForm):
+    """Form to initiate loan (Move to initiated status)"""
+    initiation_date = DateField('Initiation Date', validators=[DataRequired()])
+    initiation_notes = TextAreaField('Initiation Notes', validators=[Optional()])
+    submit = SubmitField('Initiate Loan')
+
+class AdminApprovalForm(FlaskForm):
+    """Admin approval form (Final stage - Disburse loan)"""
+    approval_status = SelectField('Approval Decision', choices=[
+        ('', 'Select'),
+        ('approve', 'Approve & Disburse'),
+        ('reject', 'Reject')
+    ], validators=[DataRequired()])
+    approval_date = DateField('Approval Date', validators=[DataRequired()])
+    approved_amount = DecimalField('Approved Amount', validators=[Optional(), NumberRange(min=0)], places=2)
+    disbursement_date = DateField('Disbursement Date', validators=[Optional()])
+    disbursement_method = SelectField('Disbursement Method', choices=[
+        ('', 'Select'),
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('cheque', 'Cheque')
+    ], validators=[Optional()])
+    disbursement_reference = StringField('Disbursement Reference', validators=[Optional(), Length(max=100)])
+    first_installment_date = DateField('First Installment Date', validators=[Optional()])
+    approval_notes = TextAreaField('Approval Notes', validators=[Optional()])
+    rejection_reason = TextAreaField('Rejection Reason', validators=[Optional()])
+    send_notification = BooleanField('Send SMS/Email Notification', default=True)
+    submit = SubmitField('Submit')

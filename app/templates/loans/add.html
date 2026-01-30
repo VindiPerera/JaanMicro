@@ -131,10 +131,15 @@
                             <small class="text-muted">Collateral or guarantee details</small>
                         </div>
                         
-                        <div class="mb-3">
-                            {{ form.status.label(class="form-label") }}
-                            {{ form.status(class="form-select") }}
-                            <small class="text-muted">Select 'Active' to approve and disburse immediately</small>
+                        <!-- Status field removed: All loans start as 'pending' and go through multi-stage approval -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Note:</strong> All new loans will start with "Pending" status and must go through the approval workflow:
+                            <ol class="mb-0 mt-2">
+                                <li>Staff Approval</li>
+                                <li>Manager Approval</li>
+                                <li>Admin Approval & Disbursement</li>
+                            </ol>
                         </div>
                         
                         <div class="mb-3">
