@@ -287,6 +287,14 @@
                         {{ loan.application_date.strftime('%Y-%m-%d') if loan.application_date else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">
+                        <strong>Referred By:</strong><br>
+                        {% if loan.referrer %}
+                            {{ loan.referrer.full_name }} ({{ loan.referrer.username }})
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
                         <strong>Approval Date:</strong><br>
                         {{ loan.approval_date.strftime('%Y-%m-%d') if loan.approval_date else 'N/A' }}
                     </div>

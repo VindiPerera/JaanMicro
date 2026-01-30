@@ -57,6 +57,15 @@
                             {% endif %}
                         </div>
                         
+                        <div class="mb-3">
+                            {{ form.referred_by.label(class="form-label") }}
+                            {{ form.referred_by(class="form-select") }}
+                            <small class="text-muted">Select the user who brought/sourced this loan (optional)</small>
+                            {% if form.referred_by.errors %}
+                            <div class="text-danger small">{{ form.referred_by.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 {{ form.loan_type.label(class="form-label") }}

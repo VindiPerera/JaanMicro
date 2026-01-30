@@ -7,6 +7,7 @@ from wtforms.validators import DataRequired, Optional, NumberRange, Length
 class LoanForm(FlaskForm):
     """Loan application form"""
     customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
+    referred_by = SelectField('Referred By (User)', coerce=int, choices=[], validators=[Optional()])
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
         ('type1_9weeks', '9 Week Loan'),

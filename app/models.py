@@ -325,6 +325,7 @@ class Loan(db.Model):
     
     # Metadata
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    referred_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User who brought/sourced this loan
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = db.Column(db.Text)
@@ -334,6 +335,7 @@ class Loan(db.Model):
     staff_approver = db.relationship('User', foreign_keys=[staff_approved_by], backref='staff_approved_loans')
     manager_approver = db.relationship('User', foreign_keys=[manager_approved_by], backref='manager_approved_loans')
     admin_approver = db.relationship('User', foreign_keys=[admin_approved_by], backref='admin_approved_loans')
+    referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""

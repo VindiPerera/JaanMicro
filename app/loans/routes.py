@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 import os
 from app import db
 from app.loans import loans_bp
-from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
+from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
 from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
@@ -74,6 +74,16 @@ def add_loan():
     
     customers = customer_query.order_by(Customer.full_name).all()
     form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
+    
+    # Get users for referred_by dropdown
+    user_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            user_query = user_query.filter_by(branch_id=current_branch_id)
+    
+    users = user_query.order_by(User.full_name).all()
+    form.referred_by.choices = [(0, 'Select User (Optional)')] + [(u.id, f'{u.full_name} ({u.username})') for u in users]
     
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
@@ -236,6 +246,7 @@ def add_loan():
             guarantor_ids=request.form.get('guarantor_ids', ''),
             status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
+            referred_by=form.referred_by.data if form.referred_by.data != 0 else None,
             notes=form.notes.data
         )
         
