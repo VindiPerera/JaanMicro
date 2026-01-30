@@ -101,15 +101,15 @@
             font-weight: 500;
         }
         
-        .sidebar-menu .dropdown-toggle {
+        .sidebar-menu .dropdown a {
             position: relative;
         }
         
-        .sidebar-menu .dropdown-toggle .bi-chevron-down {
+        .sidebar-menu .dropdown a .bi-chevron-down {
             transition: transform 0.3s;
         }
         
-        .sidebar-menu .dropdown-toggle[aria-expanded="true"] .bi-chevron-down {
+        .sidebar-menu .dropdown a[aria-expanded="true"] .bi-chevron-down {
             transform: rotate(180deg);
         }
         
@@ -319,7 +319,7 @@
             
             {% if current_user.has_permission('add_customers') %}
             <li class="dropdown">
-                <a href="#" class="dropdown-toggle {% if 'customers' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#membersSubmenu" aria-expanded="false">
+                <a href="#" class="{% if 'customers' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#membersSubmenu" aria-expanded="false">
                     <i class="bi bi-people"></i>
                     <span>Members</span>
                     <i class="bi bi-chevron-down ms-auto"></i>
@@ -336,7 +336,7 @@
             
             {% if current_user.has_permission('manage_loans') %}
             <li class="dropdown">
-                <a href="#" class="dropdown-toggle {% if 'loans' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#loansSubmenu" aria-expanded="false">
+                <a href="#" class="{% if 'loans' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#loansSubmenu" aria-expanded="false">
                     <i class="bi bi-cash-coin"></i>
                     <span>Loans</span>
                     <i class="bi bi-chevron-down ms-auto"></i>
