@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Arrears Report</h4>
+    <div>
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Product Type</label>
+                <select name="product_type" class="form-select">
+                    <option value="">All</option>
+                    <option value="loan" {% if product_type == 'loan' %}selected{% endif %}>Loan</option>
+                    <option value="pawning" {% if product_type == 'pawning' %}selected{% endif %}>Pawning</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Accounts</div>
+                <div class="stats-value">{{ summary.total_accounts }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-danger">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-exclamation-triangle me-1"></i>Total Arrears</div>
+                <div class="stats-value text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Principal Outstanding</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Interest Outstanding</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Penalties</div>
+                <div class="stats-value text-warning">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-warning">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-clock-history me-1"></i>Overdue</div>
+                <div class="stats-value text-warning">{{ summary.overdue_accounts }}</div>
+                <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.overdue_amount|float) if summary.overdue_amount else '0.00' }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product Breakdown -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Arrears by Product Type</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product Type</th>
+                                <th>Count</th>
+                                <th>Total Arrears</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in product_breakdown %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-{% if item.product_type == 'Loan' %}primary{% else %}danger{% endif %}">
+                                        {{ item.product_type }}
+                                    </span>
+                                </td>
+                                <td>{{ item.count }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.total_arrears|float) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>About Arrears</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-2"><strong>Arrears:</strong> The total amount that remains to be paid by customers.</p>
+                <p class="mb-2"><strong>Principal Outstanding:</strong> Original loan/pawning amount not yet repaid.</p>
+                <p class="mb-2"><strong>Interest Outstanding:</strong> 
+                    <ul class="mb-0 mt-1">
+                        <li><small>Flat rate loans (Type 1, Type 4 Micro, 54 Daily): Total fixed interest minus interest paid</small></li>
+                        <li><small>Reducing balance loans: Accrued interest plus estimated future interest on remaining principal</small></li>
+                    </ul>
+                </p>
+                <p class="mb-2"><strong>Penalties:</strong> Additional charges for late payments.</p>
+                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-1"></i><strong>Overdue:</strong> Accounts past their maturity date.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Arrears Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Detailed Arrears</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="arrears-report-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Reference #</th>
+                        <th>Member</th>
+                        <th>Member ID</th>
+                        <th>Disbursement</th>
+                        <th>Maturity</th>
+                        <th>Original Amount</th>
+                        <th>Principal Outstanding</th>
+                        <th>Interest Outstanding</th>
+                        <th>Penalty</th>
+                        <th>Total Arrears</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in arrears_data %}
+                    <tr class="{% if item.is_overdue %}table-warning{% endif %}">
+                        <td>
+                            <span class="badge bg-{% if item.product_type == 'Loan' %}primary{% else %}danger{% endif %}">
+                                {{ item.product_type }}
+                            </span>
+                        </td>
+                        <td>{{ item.reference_number }}</td>
+                        <td>{{ item.customer_name }}</td>
+                        <td>{{ item.customer_id }}</td>
+                        <td>{{ item.disbursement_date.strftime('%Y-%m-%d') if item.disbursement_date else 'N/A' }}</td>
+                        <td>
+                            {{ item.maturity_date.strftime('%Y-%m-%d') if item.maturity_date else 'N/A' }}
+                            {% if item.is_overdue %}
+                                <br><small class="text-danger"><i class="bi bi-exclamation-circle"></i> {{ item.overdue_days }} days overdue</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.original_amount|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.principal_outstanding|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.interest_outstanding|float) }}</td>
+                        <td>
+                            {% if item.penalty > 0 %}
+                                <span class="text-warning">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.penalty|float) }}</span>
+                            {% else %}
+                                {{ system_settings.currency_symbol }} 0.00
+                            {% endif %}
+                        </td>
+                        <td class="fw-bold text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.total_arrears|float) }}</td>
+                        <td>
+                            {% if item.is_overdue %}
+                                <span class="badge bg-danger">Overdue</span>
+                            {% else %}
+                                <span class="badge bg-success">Current</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="12" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-danger fw-bold">
+                        <td colspan="6">TOTAL</td>
+                        <td>-</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
+                        <td>-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var table = document.getElementById('arrears-report-table');
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Arrears Report"});
+    XLSX.writeFile(wb, 'arrears_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+// Print styles
+window.onbeforeprint = function() {
+    document.body.classList.add('print-mode');
+}
+
+window.onafterprint = function() {
+    document.body.classList.remove('print-mode');
+}
+</script>
+
+<style>
+@media print {
+    .btn, .card-header button, .sidebar {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+        page-break-inside: avoid;
+    }
+    
+    .table {
+        font-size: 10px;
+    }
+    
+    .stats-card {
+        margin-bottom: 10px;
+    }
+}
+
+.stats-card {
+    border: 1px solid #dee2e6;
+    transition: transform 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.stats-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.table-warning {
+    background-color: #fff3cd !important;
+}
+
+.badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+</style>
+{% endblock %}
+
+{% endblock %}
