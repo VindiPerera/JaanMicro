@@ -120,8 +120,9 @@ def add_loan():
             flash('Please select a customer!', 'error')
             return render_template('loans/add.html', title='Add Loan', form=form)
         
-        settings = SystemSettings.get_settings()
-        loan_number = generate_loan_number(settings.loan_number_prefix)
+        # Generate loan number with new format: YY/B##/TYPE/#####
+        branch_id = get_current_branch_id()
+        loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=branch_id)
         
         # Calculate EMI using Decimal arithmetic
         from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN

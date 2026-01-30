@@ -56,16 +56,82 @@ def generate_customer_id(customer_type='customer', branch_id=None):
     
     return f"{branch_code}/{prefix}/{new_number:04d}"
 
-def generate_loan_number(prefix='LN'):
-    """Generate unique loan number"""
-    last_loan = Loan.query.order_by(Loan.id.desc()).first()
-    if last_loan:
-        last_number = int(last_loan.loan_number.replace(prefix, ''))
-        new_number = last_number + 1
+def get_loan_type_code(loan_type):
+    """Map loan type to its code
+    
+    Args:
+        loan_type: Loan type string from form (e.g., 'type1_9weeks', '54_daily', etc.)
+    
+    Returns:
+        Loan type code (e.g., 'WS', 'DLS', 'MF', 'DL', 'ML')
+    """
+    loan_type_mapping = {
+        'type1_9weeks': 'WS',      # 9 Week Loan - Weekly Short
+        '54_daily': 'DLS',         # 54 Daily Loan - Daily Long Short
+        'type4_micro': 'MF',       # Micro Loan - Micro Finance
+        'type4_daily': 'DL',       # Daily Loan - Daily
+        'monthly_loan': 'ML'       # Monthly Loan - Monthly
+    }
+    
+    return loan_type_mapping.get(loan_type, 'ML')  # Default to ML if type not found
+
+def generate_loan_number(loan_type=None, branch_id=None):
+    """Generate unique loan number in format YY/B##/TYPE/#####
+    
+    Args:
+        loan_type: Type of loan (e.g., 'type1_9weeks', '54_daily', etc.)
+        branch_id: Branch ID for the loan
+    
+    Returns:
+        Loan number in format: 26/B01/WL/00001
+        - YY: 2-digit year (e.g., 26 for 2026)
+        - B##: Branch code (e.g., B01)
+        - TYPE: Loan type code (WS, DLS, MF, DL, ML)
+        - #####: 5-digit sequential number
+    """
+    # Get current year (last 2 digits)
+    year = datetime.now().strftime('%y')
+    
+    # Get branch code
+    if branch_id:
+        try:
+            branch = Branch.query.get(branch_id)
+            branch_code = branch.branch_code if branch else 'B01'
+        except:
+            branch_code = f'B{branch_id:02d}'
     else:
+        branch_code = 'B01'
+    
+    # Get loan type code
+    type_code = get_loan_type_code(loan_type) if loan_type else 'ML'
+    
+    # Find the last loan with the same year, branch, and type
+    # This ensures sequential numbering per branch, type, and year
+    try:
+        # Query pattern: "26/B01/WS/%"
+        pattern = f"{year}/{branch_code}/{type_code}/%"
+        last_loan = Loan.query.filter(
+            Loan.loan_number.like(pattern)
+        ).order_by(Loan.id.desc()).first()
+        
+        if last_loan:
+            # Extract the sequential number from the loan_number
+            try:
+                parts = last_loan.loan_number.split('/')
+                if len(parts) == 4:
+                    last_number = int(parts[3])
+                    new_number = last_number + 1
+                else:
+                    new_number = 1
+            except (ValueError, IndexError):
+                new_number = 1
+        else:
+            new_number = 1
+    except:
+        # Handle case where database is not available (e.g., testing)
         new_number = 1
     
-    return f"{prefix}{new_number:06d}"
+    return f"{year}/{branch_code}/{type_code}/{new_number:05d}"
 
 def generate_investment_number(prefix='INV'):
     """Generate unique investment number"""
