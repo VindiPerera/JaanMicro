@@ -228,10 +228,9 @@ def add_loan():
         # Calculate documentation fee (1% of loan amount)
         documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
-        # Calculate disbursed amount (loan amount minus documentation fee)
+        # Disbursed amount will be calculated during approval (loan amount minus documentation fee)
+        # For pending loans, these remain None until approved
         actual_disbursed_amount = None
-        if form.status.data == 'active':
-            actual_disbursed_amount = (loan_amount - documentation_fee).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         loan = Loan(
             loan_number=loan_number,
@@ -248,7 +247,7 @@ def add_loan():
             installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
             disbursed_amount=actual_disbursed_amount,
             total_payable=total_payable,
-            outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
+            outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
             application_date=form.application_date.data,
             purpose=form.purpose.data,
