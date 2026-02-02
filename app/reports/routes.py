@@ -563,7 +563,7 @@ def pawning_report():
 @login_required
 @permission_required('view_reports')
 def arrears_report():
-    """Arrears report - what's left to pay"""
+    """Arrears report - overdue amounts that customers need to pay"""
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     status = request.args.get('status', 'active')  # Default to active
@@ -573,10 +573,14 @@ def arrears_report():
     current_branch_id = get_current_branch_id()
     should_filter = should_filter_by_branch()
     
+    from datetime import date
+    today = date.today()
+    
     arrears_data = []
     
-    # Loan arrears - only active loans have arrears
+    # Loan arrears - only active loans past maturity date
     if product_type in ['', 'loan']:
+        # Temporarily show all active loans for debugging
         loan_query = Loan.query.filter_by(status='active')
         
         if should_filter and current_branch_id:
@@ -588,6 +592,14 @@ def arrears_report():
             loan_query = loan_query.filter(Loan.disbursement_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
         
         loans = loan_query.all()
+        
+        # Filter loans that are actually overdue (past maturity date)
+        overdue_loans = []
+        for loan in loans:
+            if loan.maturity_date and loan.maturity_date < today:
+                overdue_loans.append(loan)
+        
+        loans = overdue_loans
         
         for loan in loans:
             from decimal import Decimal, ROUND_HALF_UP
@@ -601,20 +613,29 @@ def arrears_report():
             interest_paid = loan.get_total_paid_interest()
             
             # Handle special loan types that use flat interest calculations
-            if loan.loan_type and ('Type 1' in loan.loan_type or 'Type 4' in loan.loan_type or 'Micro' in loan.loan_type or '54' in loan.loan_type):
-                # For Type 1, Type 4 Micro, and 54 Daily loans - they use flat interest
-                # Calculate total interest for these special types
+            if loan.loan_type in ['type1_9weeks', '54_daily', 'type4_micro', 'type4_daily']:
+                # For these special types, calculate total expected interest based on the original calculation
+                from decimal import Decimal, ROUND_HALF_UP
+                
+                disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
                 interest_rate = Decimal(str(loan.interest_rate))
                 
-                if 'Type 1' in loan.loan_type or '54' in loan.loan_type:
-                    # Type 1 & 54 Daily: Interest = Interest rate * 2
-                    total_interest = (disbursed * interest_rate * Decimal('2')) / Decimal('100')
-                elif 'Micro' in loan.loan_type or 'Type 4' in loan.loan_type:
-                    # Type 4 Micro & Daily: Full Interest = Interest Rate * Months
-                    duration = Decimal(str(loan.duration_months))
-                    total_interest = (disbursed * interest_rate * duration) / Decimal('100')
+                if loan.loan_type == 'type1_9weeks':
+                    # Type 1: Interest = Interest rate * 2, Total Interest = (Interest * disbursed) / 100
+                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
+                elif loan.loan_type == '54_daily':
+                    # 54 Daily: Same as Type 1
+                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
+                elif loan.loan_type == 'type4_micro':
+                    # Type 4 Micro: Full Interest = Interest Rate * Months
+                    months = Decimal(str(loan.duration_months))
+                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
+                elif loan.loan_type == 'type4_daily':
+                    # Type 4 Daily: Same as Type 4 Micro
+                    months = Decimal(str(loan.duration_months))
+                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
                 else:
-                    # Fallback to standard flat calculation
+                    # Fallback
                     total_interest = loan.get_total_expected_interest()
                 
                 remaining_interest = total_interest - interest_paid
@@ -654,15 +675,13 @@ def arrears_report():
             penalty = Decimal(str(loan.penalty_amount or 0))
             total_arrears = outstanding_principal + remaining_interest + penalty
             
-            # Calculate overdue status
+            # Calculate overdue status (all arrears are overdue by definition)
             from datetime import date
             overdue_days = 0
-            is_overdue = False
+            is_overdue = True  # All arrears are overdue
             if loan.maturity_date:
                 days_diff = (date.today() - loan.maturity_date).days
-                if days_diff > 0:
-                    overdue_days = days_diff
-                    is_overdue = True
+                overdue_days = max(0, days_diff)  # Ensure non-negative
             
             arrears_data.append({
                 'product_type': 'Loan',
@@ -682,8 +701,9 @@ def arrears_report():
                 'interest_type': loan.interest_type
             })
     
-    # Pawning arrears - only active pawnings have arrears
+    # Pawning arrears - only active pawnings past maturity date
     if product_type in ['', 'pawning']:
+        # Temporarily show all active pawnings for debugging
         pawning_query = Pawning.query.filter_by(status='active')
         
         if should_filter and current_branch_id:
@@ -695,6 +715,15 @@ def arrears_report():
             pawning_query = pawning_query.filter(Pawning.pawning_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
         
         pawnings = pawning_query.all()
+        
+        # Filter pawnings that are actually overdue (past maturity date)
+        overdue_pawnings = []
+        for pawning in pawnings:
+            maturity_date = pawning.extended_date or pawning.maturity_date
+            if maturity_date and maturity_date < today:
+                overdue_pawnings.append(pawning)
+        
+        pawnings = overdue_pawnings
         
         for pawning in pawnings:
             from decimal import Decimal
@@ -710,16 +739,14 @@ def arrears_report():
             
             total_arrears = outstanding_principal + interest_due + penalty
             
-            # Calculate overdue status
+            # Calculate overdue status (all arrears are overdue by definition)
             from datetime import date
             overdue_days = 0
-            is_overdue = False
+            is_overdue = True  # All arrears are overdue
             maturity_date = pawning.extended_date or pawning.maturity_date
             if maturity_date:
                 days_diff = (date.today() - maturity_date).days
-                if days_diff > 0:
-                    overdue_days = days_diff
-                    is_overdue = True
+                overdue_days = max(0, days_diff)  # Ensure non-negative
             
             arrears_data.append({
                 'product_type': 'Pawning',
