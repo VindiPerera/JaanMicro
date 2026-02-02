@@ -291,10 +291,32 @@ class Loan(db.Model):
     first_installment_date = db.Column(db.Date)
     maturity_date = db.Column(db.Date)
     
-    # Status and Approval
-    status = db.Column(db.String(20), default='pending')  # pending, approved, active, completed, defaulted, rejected
+    # Status and Approval (Multi-stage workflow)
+    # Status flow: pending -> pending_staff_approval -> pending_manager_approval -> initiated -> active
+    status = db.Column(db.String(30), default='pending')  # pending, pending_staff_approval, pending_manager_approval, initiated, active, completed, defaulted, rejected
+    
+    # Staff approval (first stage)
+    staff_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    staff_approval_date = db.Column(db.Date)
+    staff_approval_notes = db.Column(db.Text)
+    
+    # Manager approval (second stage)
+    manager_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    manager_approval_date = db.Column(db.Date)
+    manager_approval_notes = db.Column(db.Text)
+    
+    # Admin approval (final stage)
+    admin_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    admin_approval_date = db.Column(db.Date)
+    admin_approval_notes = db.Column(db.Text)
+    
+    # Legacy fields (kept for backward compatibility)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approval_notes = db.Column(db.Text)
+    approval_date = db.Column(db.Date)
+    
+    # Rejection
+    rejection_reason = db.Column(db.Text)
     
     # Purpose and Security
     purpose = db.Column(db.Text)
@@ -304,12 +326,17 @@ class Loan(db.Model):
     
     # Metadata
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    referred_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User who brought/sourced this loan
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = db.Column(db.Text)
     
     # Relationships
     payments = db.relationship('LoanPayment', backref='loan', lazy='dynamic', cascade='all, delete-orphan')
+    staff_approver = db.relationship('User', foreign_keys=[staff_approved_by], backref='staff_approved_loans')
+    manager_approver = db.relationship('User', foreign_keys=[manager_approved_by], backref='manager_approved_loans')
+    admin_approver = db.relationship('User', foreign_keys=[admin_approved_by], backref='admin_approved_loans')
+    referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""

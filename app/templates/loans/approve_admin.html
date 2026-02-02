@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="d-flex justify-content-end mb-2">
+            <button type="button" onclick="history.back()" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-2"></i>Back
+            </button>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Admin Final Approval & Disbursement (Stage 3 of 3)</h5>
+            </div>
+            <div class="card-body">
+                <!-- Loan Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Loan Application Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Loan Number:</strong> {{ loan.loan_number }}<br>
+                            <strong>Customer:</strong> {{ loan.customer.full_name }}<br>
+                            <strong>Customer ID:</strong> {{ loan.customer.customer_id }}<br>
+                            <strong>Loan Type:</strong> {{ loan.loan_type|replace('_', ' ')|title }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
+                            <strong>Duration:</strong> 
+                            {% if loan.duration_days %}
+                                {{ loan.duration_days }} days
+                            {% elif loan.duration_weeks %}
+                                {{ loan.duration_weeks }} weeks
+                            {% else %}
+                                {{ loan.duration_months }} months
+                            {% endif %}<br>
+                            <strong>Interest Rate:</strong> {{ loan.interest_rate }}%<br>
+                            <strong>Application Date:</strong> {{ loan.application_date.strftime('%d-%m-%Y') }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Previous Approvals -->
+                <div class="row">
+                    {% if loan.staff_approved_by %}
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6 class="mb-2"><i class="bi bi-check-circle me-2"></i>Staff Approval</h6>
+                            <p class="mb-0 small">
+                                <strong>Approved by:</strong> {{ loan.staff_approver.full_name }}<br>
+                                <strong>Date:</strong> {{ loan.staff_approval_date.strftime('%d-%m-%Y') if loan.staff_approval_date else 'N/A' }}<br>
+                                {% if loan.staff_approval_notes %}
+                                <strong>Notes:</strong> {{ loan.staff_approval_notes }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if loan.manager_approved_by %}
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <h6 class="mb-2"><i class="bi bi-check-circle me-2"></i>Manager Approval</h6>
+                            <p class="mb-0 small">
+                                <strong>Approved by:</strong> {{ loan.manager_approver.full_name }}<br>
+                                <strong>Date:</strong> {{ loan.manager_approval_date.strftime('%d-%m-%Y') if loan.manager_approval_date else 'N/A' }}<br>
+                                {% if loan.manager_approval_notes %}
+                                <strong>Notes:</strong> {{ loan.manager_approval_notes }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Approval Workflow Status -->
+                <div class="alert alert-light border">
+                    <h6 class="mb-2">Approval Workflow Progress</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-center text-success">
+                            <div class="badge bg-success mb-1">Completed</div>
+                            <div><i class="bi bi-check-circle fs-4"></i></div>
+                            <small>Staff</small>
+                        </div>
+                        <div class="flex-grow-1 mx-2"><hr></div>
+                        <div class="text-center text-success">
+                            <div class="badge bg-success mb-1">Completed</div>
+                            <div><i class="bi bi-check-circle fs-4"></i></div>
+                            <small>Manager</small>
+                        </div>
+                        <div class="flex-grow-1 mx-2"><hr></div>
+                        <div class="text-center">
+                            <div class="badge bg-danger mb-1">Current</div>
+                            <div><i class="bi bi-person-badge fs-4"></i></div>
+                            <small>Admin</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Admin Final Approval & Disbursement</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_status.label(class="form-label required") }}
+                            {{ form.approval_status(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_date.label(class="form-label required") }}
+                            {{ form.approval_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div id="disbursement-fields">
+                        <h6 class="border-bottom pb-2 mb-3">Disbursement Details</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.approved_amount.label(class="form-label") }}
+                                {{ form.approved_amount(class="form-control") }}
+                                <small class="text-muted">Can be different from requested amount</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.disbursement_date.label(class="form-label") }}
+                                {{ form.disbursement_date(class="form-control", type="date") }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.disbursement_method.label(class="form-label") }}
+                                {{ form.disbursement_method(class="form-select") }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.disbursement_reference.label(class="form-label") }}
+                                {{ form.disbursement_reference(class="form-control", placeholder="Check/Transfer number") }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.first_installment_date.label(class="form-label") }}
+                                {{ form.first_installment_date(class="form-control", type="date") }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="approval-notes-field">
+                        {{ form.approval_notes.label(class="form-label") }}
+                        {{ form.approval_notes(class="form-control", rows="3", placeholder="Enter your approval notes...") }}
+                    </div>
+                    
+                    <div class="mb-3" id="rejection-field" style="display: none;">
+                        {{ form.rejection_reason.label(class="form-label required") }}
+                        {{ form.rejection_reason(class="form-control", rows="3", placeholder="Enter reason for rejection...") }}
+                    </div>
+                    
+                    <div class="form-check mb-3" id="notification-field">
+                        {{ form.send_notification(class="form-check-input") }}
+                        {{ form.send_notification.label(class="form-check-label") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-danger") }}
+                        <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#approval_status').on('change', function() {
+        if ($(this).val() === 'approve') {
+            $('#disbursement-fields').show();
+            $('#approval-notes-field').show();
+            $('#notification-field').show();
+            $('#rejection-field').hide();
+        } else if ($(this).val() === 'reject') {
+            $('#disbursement-fields').hide();
+            $('#approval-notes-field').hide();
+            $('#notification-field').hide();
+            $('#rejection-field').show();
+        } else {
+            $('#disbursement-fields').hide();
+            $('#approval-notes-field').hide();
+            $('#notification-field').hide();
+            $('#rejection-field').hide();
+        }
+    });
+    
+    // Trigger change event on page load
+    $('#approval_status').trigger('change');
+});
+</script>
+{% endblock %}
+{% endblock %}

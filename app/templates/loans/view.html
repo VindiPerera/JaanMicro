@@ -9,11 +9,33 @@
             <i class="bi bi-cash me-2"></i>Add Payment
         </a>
         {% endif %}
-        {% if loan.status == 'pending' %}
-        <a href="{{ url_for('loans.approve_loan', id=loan.id) }}" class="btn btn-primary">
-            <i class="bi bi-check-circle me-2"></i>Approve
+        
+        {# Multi-stage approval buttons #}
+        {% if loan.status == 'pending' and current_user.role in ['staff', 'loan_collector'] %}
+        <a href="{{ url_for('loans.approve_loan_staff', id=loan.id) }}" class="btn btn-primary">
+            <i class="bi bi-check-circle me-2"></i>Staff Approval
         </a>
         {% endif %}
+        
+        {% if loan.status == 'pending_manager_approval' and current_user.role in ['manager', 'accountant'] %}
+        <a href="{{ url_for('loans.approve_loan_manager', id=loan.id) }}" class="btn btn-success">
+            <i class="bi bi-check-circle me-2"></i>Manager Approval
+        </a>
+        {% endif %}
+        
+        {% if loan.status == 'initiated' and current_user.role == 'admin' %}
+        <a href="{{ url_for('loans.approve_loan_admin', id=loan.id) }}" class="btn btn-danger">
+            <i class="bi bi-shield-check me-2"></i>Admin Approval & Disburse
+        </a>
+        {% endif %}
+        
+        {# Legacy single-stage approval (kept for backward compatibility) #}
+        {% if loan.status == 'pending' and current_user.role == 'admin' %}
+        <a href="{{ url_for('loans.approve_loan', id=loan.id) }}" class="btn btn-warning">
+            <i class="bi bi-lightning-fill me-2"></i>Quick Approve (Admin)
+        </a>
+        {% endif %}
+        
         <button type="button" onclick="history.back()" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Back
         </button>
@@ -148,6 +170,112 @@
     
     <!-- Loan Details -->
     <div class="col-lg-8 mb-4">
+        <!-- Approval Workflow Status -->
+        {% if loan.status in ['pending', 'pending_manager_approval', 'initiated', 'rejected'] or (loan.staff_approved_by or loan.manager_approved_by or loan.admin_approved_by) %}
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Approval Workflow Status</h5>
+            </div>
+            <div class="card-body">
+                {% if loan.status == 'rejected' %}
+                <div class="alert alert-danger">
+                    <h6><i class="bi bi-x-circle me-2"></i>Loan Rejected</h6>
+                    {% if loan.rejection_reason %}
+                    <p class="mb-0"><strong>Reason:</strong> {{ loan.rejection_reason }}</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <!-- Staff Approval -->
+                    <div class="text-center flex-fill">
+                        {% if loan.staff_approved_by %}
+                        <div class="badge bg-success mb-2">Completed</div>
+                        <div><i class="bi bi-check-circle-fill text-success fs-3"></i></div>
+                        <div class="small mt-1"><strong>Staff Approval</strong></div>
+                        <div class="small text-muted">{{ loan.staff_approver.full_name }}</div>
+                        <div class="small text-muted">{{ loan.staff_approval_date.strftime('%d-%m-%Y') if loan.staff_approval_date else '' }}</div>
+                        {% elif loan.status == 'pending' %}
+                        <div class="badge bg-warning text-dark mb-2">Pending</div>
+                        <div><i class="bi bi-clock fs-3 text-warning"></i></div>
+                        <div class="small mt-1"><strong>Staff Approval</strong></div>
+                        {% else %}
+                        <div><i class="bi bi-circle fs-3 text-muted"></i></div>
+                        <div class="small mt-1 text-muted"><strong>Staff Approval</strong></div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex-shrink-0 mx-2">
+                        <i class="bi bi-arrow-right text-muted"></i>
+                    </div>
+                    
+                    <!-- Manager Approval -->
+                    <div class="text-center flex-fill">
+                        {% if loan.manager_approved_by %}
+                        <div class="badge bg-success mb-2">Completed</div>
+                        <div><i class="bi bi-check-circle-fill text-success fs-3"></i></div>
+                        <div class="small mt-1"><strong>Manager Approval</strong></div>
+                        <div class="small text-muted">{{ loan.manager_approver.full_name }}</div>
+                        <div class="small text-muted">{{ loan.manager_approval_date.strftime('%d-%m-%Y') if loan.manager_approval_date else '' }}</div>
+                        {% elif loan.status == 'pending_manager_approval' %}
+                        <div class="badge bg-warning text-dark mb-2">Pending</div>
+                        <div><i class="bi bi-clock fs-3 text-warning"></i></div>
+                        <div class="small mt-1"><strong>Manager Approval</strong></div>
+                        {% else %}
+                        <div><i class="bi bi-circle fs-3 text-muted"></i></div>
+                        <div class="small mt-1 text-muted"><strong>Manager Approval</strong></div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex-shrink-0 mx-2">
+                        <i class="bi bi-arrow-right text-muted"></i>
+                    </div>
+                    
+                    <!-- Admin Approval -->
+                    <div class="text-center flex-fill">
+                        {% if loan.admin_approved_by or loan.status == 'active' %}
+                        <div class="badge bg-success mb-2">Completed</div>
+                        <div><i class="bi bi-check-circle-fill text-success fs-3"></i></div>
+                        <div class="small mt-1"><strong>Admin Approval</strong></div>
+                        {% if loan.admin_approver %}
+                        <div class="small text-muted">{{ loan.admin_approver.full_name }}</div>
+                        <div class="small text-muted">{{ loan.admin_approval_date.strftime('%d-%m-%Y') if loan.admin_approval_date else '' }}</div>
+                        {% endif %}
+                        {% elif loan.status == 'initiated' %}
+                        <div class="badge bg-warning text-dark mb-2">Pending</div>
+                        <div><i class="bi bi-clock fs-3 text-warning"></i></div>
+                        <div class="small mt-1"><strong>Admin Approval</strong></div>
+                        {% else %}
+                        <div><i class="bi bi-circle fs-3 text-muted"></i></div>
+                        <div class="small mt-1 text-muted"><strong>Admin Approval</strong></div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Approval Notes -->
+                {% if loan.staff_approval_notes or loan.manager_approval_notes or loan.admin_approval_notes %}
+                <hr>
+                <h6>Approval Notes:</h6>
+                {% if loan.staff_approval_notes %}
+                <div class="mb-2">
+                    <strong>Staff:</strong> {{ loan.staff_approval_notes }}
+                </div>
+                {% endif %}
+                {% if loan.manager_approval_notes %}
+                <div class="mb-2">
+                    <strong>Manager:</strong> {{ loan.manager_approval_notes }}
+                </div>
+                {% endif %}
+                {% if loan.admin_approval_notes %}
+                <div class="mb-2">
+                    <strong>Admin:</strong> {{ loan.admin_approval_notes }}
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
         <!-- Loan Information -->
         <div class="card mb-3">
             <div class="card-header">
@@ -166,6 +294,14 @@
                     <div class="col-md-6 mb-3">
                         <strong>Application Date:</strong><br>
                         {{ loan.application_date.strftime('%Y-%m-%d') if loan.application_date else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Referred By:</strong><br>
+                        {% if loan.referrer %}
+                            {{ loan.referrer.full_name }} ({{ loan.referrer.username }})
+                        {% else %}
+                            N/A
+                        {% endif %}
                     </div>
                     <div class="col-md-6 mb-3">
                         <strong>Approval Date:</strong><br>
