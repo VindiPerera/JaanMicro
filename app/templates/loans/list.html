@@ -97,9 +97,6 @@
                                     {{ loan.status|title }}
                                 {% endif %}
                             </span>
-                            {% if loan.status == 'deactivated' %}
-                                <br><span class="badge bg-danger mt-1">Deactivated</span>
-                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
