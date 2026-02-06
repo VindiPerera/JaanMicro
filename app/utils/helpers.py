@@ -204,7 +204,22 @@ def get_current_branch():
 
 def get_current_branch_id():
     """Get the current branch ID for filtering queries"""
-    return session.get('current_branch_id')
+    from flask_login import current_user
+    
+    # First try to get from session (for admin users who can switch branches)
+    branch_id = session.get('current_branch_id')
+    
+    # If not in session and user is logged in, use user's branch
+    if branch_id is None and current_user.is_authenticated:
+        branch_id = current_user.branch_id
+    
+    # If still None, get the default branch (MAIN)
+    if branch_id is None:
+        default_branch = Branch.query.filter_by(branch_code='MAIN').first()
+        if default_branch:
+            branch_id = default_branch.id
+    
+    return branch_id
 
 def should_filter_by_branch():
     """Check if current user should have branch filtering applied"""
