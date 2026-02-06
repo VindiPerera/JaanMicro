@@ -51,9 +51,18 @@
                     <div id="step1" class="form-step">
                         <div class="mb-3">
                             {{ form.customer_id.label(class="form-label", text="Member") }}
-                            {{ form.customer_id(class="form-select", required=true) }}
+                            {{ form.customer_id(class="form-select", required="required") }}
                             {% if form.customer_id.errors %}
                             <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.referred_by.label(class="form-label") }}
+                            {{ form.referred_by(class="form-select") }}
+                            <small class="text-muted">Select the user who brought/sourced this loan (optional)</small>
+                            {% if form.referred_by.errors %}
+                            <div class="text-danger small">{{ form.referred_by.errors[0] }}</div>
                             {% endif %}
                         </div>
                         
@@ -67,13 +76,6 @@
                                 {{ form.loan_purpose.label(class="form-label") }}
                                 {{ form.loan_purpose(class="form-select", id="loan_purpose") }}
                                 <small class="text-muted">Purpose/category of the loan</small>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                {{ form.application_date.label(class="form-label") }}
-                                {{ form.application_date(class="form-control", type="date") }}
                             </div>
                         </div>
                         
@@ -95,7 +97,7 @@
                             </div>
                             <div class="col-md-6 mb-3" id="durationMonthsField">
                                 {{ form.duration_months.label(class="form-label") }}
-                                {{ form.duration_months(class="form-control", id="duration_months") }}
+                                {{ form.duration_months(class="form-control", id="duration_months", required=false) }}
                                 <small class="text-muted">Repayment period in months</small>
                             </div>
                         </div>
@@ -131,10 +133,15 @@
                             <small class="text-muted">Collateral or guarantee details</small>
                         </div>
                         
-                        <div class="mb-3">
-                            {{ form.status.label(class="form-label") }}
-                            {{ form.status(class="form-select") }}
-                            <small class="text-muted">Select 'Active' to approve and disburse immediately</small>
+                        <!-- Status field removed: All loans start as 'pending' and go through multi-stage approval -->
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Note:</strong> All new loans will start with "Pending" status and must go through the approval workflow:
+                            <ol class="mb-0 mt-2">
+                                <li>Staff Approval</li>
+                                <li>Manager Approval</li>
+                                <li>Admin Approval & Disbursement</li>
+                            </ol>
                         </div>
                         
                         <div class="mb-3">
@@ -305,23 +312,26 @@ $(document).ready(function() {
     $('#loan_type').on('change', function() {
         var loanType = $(this).val();
         
+        // First, remove required from all duration fields
+        $('#duration_weeks').prop('required', false).removeAttr('required');
+        $('#duration_days').prop('required', false).removeAttr('required');
+        $('#duration_months').prop('required', false).removeAttr('required');
+        
         if (loanType === 'type1_9weeks') {
             // Show weeks field, hide months and days
             $('#durationWeeksField').show();
             $('#durationDaysField').hide();
             $('#durationMonthsField').hide();
             $('#duration_weeks').val(9); // Default to 9 weeks
-            $('#duration_weeks').prop('required', true);
+            $('#duration_weeks').prop('required', true).attr('required', 'required');
             $('#duration_days').val('');
-            $('#duration_days').prop('required', false);
             $('#duration_months').val('');
-            $('#duration_months').prop('required', false);
             
             // Hide interest type and installment frequency (fixed for this type)
             $('#interestTypeField').hide();
             $('#installmentFrequencyField').hide();
-            $('#interest_type').prop('required', false);
-            $('#installment_frequency').prop('required', false);
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
             
             // Update interest rate help text
             $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
@@ -331,17 +341,15 @@ $(document).ready(function() {
             $('#durationWeeksField').hide();
             $('#durationMonthsField').hide();
             $('#duration_days').val(54); // Default to 54 days
-            $('#duration_days').prop('required', true);
+            $('#duration_days').prop('required', true).attr('required', 'required');
             $('#duration_weeks').val('');
-            $('#duration_weeks').prop('required', false);
             $('#duration_months').val('');
-            $('#duration_months').prop('required', false);
             
             // Hide interest type and installment frequency (fixed for this type)
             $('#interestTypeField').hide();
             $('#installmentFrequencyField').hide();
-            $('#interest_type').prop('required', false);
-            $('#installment_frequency').prop('required', false);
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
             
             // Update interest rate help text
             $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
@@ -351,16 +359,14 @@ $(document).ready(function() {
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
             $('#duration_weeks').val('');
-            $('#duration_weeks').prop('required', false);
             $('#duration_days').val('');
-            $('#duration_days').prop('required', false);
-            $('#duration_months').prop('required', true);
+            $('#duration_months').prop('required', true).attr('required', 'required');
             
             // Hide interest type and installment frequency (fixed for this type)
             $('#interestTypeField').hide();
             $('#installmentFrequencyField').hide();
-            $('#interest_type').prop('required', false);
-            $('#installment_frequency').prop('required', false);
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
             
             // Update interest rate help text
             $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
@@ -370,16 +376,14 @@ $(document).ready(function() {
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
             $('#duration_weeks').val('');
-            $('#duration_weeks').prop('required', false);
             $('#duration_days').val('');
-            $('#duration_days').prop('required', false);
-            $('#duration_months').prop('required', true);
+            $('#duration_months').prop('required', true).attr('required', 'required');
             
             // Hide interest type and installment frequency (fixed for this type)
             $('#interestTypeField').hide();
             $('#installmentFrequencyField').hide();
-            $('#interest_type').prop('required', false);
-            $('#installment_frequency').prop('required', false);
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
             
             // Update interest rate help text
             $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
@@ -389,16 +393,14 @@ $(document).ready(function() {
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
             $('#duration_weeks').val('');
-            $('#duration_weeks').prop('required', false);
             $('#duration_days').val('');
-            $('#duration_days').prop('required', false);
-            $('#duration_months').prop('required', true);
+            $('#duration_months').prop('required', true).attr('required', 'required');
             
             // Show interest type and installment frequency
             $('#interestTypeField').show();
             $('#installmentFrequencyField').show();
-            $('#interest_type').prop('required', true);
-            $('#installment_frequency').prop('required', true);
+            $('#interest_type').prop('required', true).attr('required', 'required');
+            $('#installment_frequency').prop('required', true).attr('required', 'required');
             
             // Reset interest rate help text
             $('#interestRateHelp').text('Annual percentage rate');
@@ -596,6 +598,39 @@ $(document).ready(function() {
         if (addedGuarantors.length !== 2) {
             e.preventDefault();
             alert('You must add exactly 2 guarantors before submitting the loan application.');
+            return false;
+        }
+        
+        // Validate duration fields based on loan type
+        var loanType = $('#loan_type').val();
+        var isValid = true;
+        var message = '';
+        
+        if (loanType === 'type1_9weeks') {
+            if (!$('#duration_weeks').val()) {
+                isValid = false;
+                message = 'Please enter duration in weeks.';
+            }
+        } else if (loanType === '54_daily') {
+            if (!$('#duration_days').val()) {
+                isValid = false;
+                message = 'Please enter duration in days.';
+            }
+        } else if (loanType === 'type4_micro' || loanType === 'type4_daily') {
+            if (!$('#duration_months').val()) {
+                isValid = false;
+                message = 'Please enter duration in months.';
+            }
+        } else {
+            if (!$('#duration_months').val()) {
+                isValid = false;
+                message = 'Please enter duration in months.';
+            }
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert(message);
             return false;
         }
     });

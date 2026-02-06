@@ -23,6 +23,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(20))
+    nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
     role = db.Column(db.String(50), nullable=False, default='staff')  # admin, manager, staff, loan_collector, accountant
     branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=True)  # Nullable for admin users who can access all branches
     is_active = db.Column(db.Boolean, default=True)
@@ -189,7 +190,7 @@ class Customer(db.Model):
     # Personal Information
     full_name = db.Column(db.String(200), nullable=False, index=True)
     nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
-    customer_type = db.Column(db.String(20), default='customer')  # customer, investor, guarantor
+    customer_type = db.Column(db.Text, default='["customer"]')  # JSON array of types: customer, investor, guarantor, family_guarantor
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))
     marital_status = db.Column(db.String(20))
@@ -252,6 +253,39 @@ class Customer(db.Model):
         """Get total investment amount"""
         return sum(inv.current_amount for inv in self.investments.filter_by(status='active').all())
     
+    @property
+    def customer_types(self):
+        """Get customer types as a list"""
+        try:
+            return json.loads(self.customer_type) if self.customer_type else ['customer']
+        except (json.JSONDecodeError, TypeError):
+            # Handle legacy string values
+            return [self.customer_type] if self.customer_type else ['customer']
+    
+    @customer_types.setter
+    def customer_types(self, value):
+        """Set customer types as JSON"""
+        if isinstance(value, list):
+            self.customer_type = json.dumps(value)
+        else:
+            self.customer_type = json.dumps([value] if value else ['customer'])
+    
+    @property
+    def customer_type_display(self):
+        """Get customer types as a readable string"""
+        type_names = {
+            'customer': 'Customer',
+            'investor': 'Loan Borrower',
+            'guarantor': 'Guarantor',
+            'family_guarantor': 'Family Guarantor'
+        }
+        types = self.customer_types
+        return ', '.join(type_names.get(t, t.title()) for t in types)
+    
+    def has_customer_type(self, customer_type):
+        """Check if customer has a specific type"""
+        return customer_type in self.customer_types
+    
     def __repr__(self):
         return f'<Customer {self.customer_id} - {self.full_name}>'
 
@@ -291,10 +325,32 @@ class Loan(db.Model):
     first_installment_date = db.Column(db.Date)
     maturity_date = db.Column(db.Date)
     
-    # Status and Approval
-    status = db.Column(db.String(20), default='pending')  # pending, approved, active, completed, defaulted, rejected
+    # Status and Approval (Multi-stage workflow)
+    # Status flow: pending -> pending_staff_approval -> pending_manager_approval -> initiated -> active
+    status = db.Column(db.String(30), default='pending')  # pending, pending_staff_approval, pending_manager_approval, initiated, active, completed, defaulted, rejected
+    
+    # Staff approval (first stage)
+    staff_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    staff_approval_date = db.Column(db.Date)
+    staff_approval_notes = db.Column(db.Text)
+    
+    # Manager approval (second stage)
+    manager_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    manager_approval_date = db.Column(db.Date)
+    manager_approval_notes = db.Column(db.Text)
+    
+    # Admin approval (final stage)
+    admin_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    admin_approval_date = db.Column(db.Date)
+    admin_approval_notes = db.Column(db.Text)
+    
+    # Legacy fields (kept for backward compatibility)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approval_notes = db.Column(db.Text)
+    approval_date = db.Column(db.Date)
+    
+    # Rejection
+    rejection_reason = db.Column(db.Text)
     
     # Purpose and Security
     purpose = db.Column(db.Text)
@@ -304,12 +360,17 @@ class Loan(db.Model):
     
     # Metadata
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    referred_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # User who brought/sourced this loan
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     notes = db.Column(db.Text)
     
     # Relationships
     payments = db.relationship('LoanPayment', backref='loan', lazy='dynamic', cascade='all, delete-orphan')
+    staff_approver = db.relationship('User', foreign_keys=[staff_approved_by], backref='staff_approved_loans')
+    manager_approver = db.relationship('User', foreign_keys=[manager_approved_by], backref='manager_approved_loans')
+    admin_approver = db.relationship('User', foreign_keys=[admin_approved_by], backref='admin_approved_loans')
+    referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""
@@ -603,6 +664,7 @@ class LoanPayment(db.Model):
     notes = db.Column(db.Text)
     
     collected_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    collected_by_user = db.relationship('User', foreign_keys=[collected_by], backref='collected_payments')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

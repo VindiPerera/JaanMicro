@@ -44,7 +44,8 @@ def list_customers():
         query = query.filter_by(status=status)
     
     if customer_type:
-        query = query.filter_by(customer_type=customer_type)
+        # Filter by customer type in JSON array
+        query = query.filter(Customer.customer_type.like(f'%{customer_type}%'))
     
     customers = query.order_by(Customer.created_at.desc()).paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
@@ -65,7 +66,20 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
-        customer_id = generate_customer_id(form.customer_type.data, get_current_branch_id())
+        # Get selected customer types
+        customer_types = []
+        if form.customer_type_customer.data:
+            customer_types.append('customer')
+        if form.customer_type_investor.data:
+            customer_types.append('investor')
+        if form.customer_type_guarantor.data:
+            customer_types.append('guarantor')
+        if form.customer_type_family_guarantor.data:
+            customer_types.append('family_guarantor')
+        
+        # Use the first selected type as primary for ID generation
+        primary_customer_type = customer_types[0] if customer_types else 'customer'
+        customer_id = generate_customer_id(primary_customer_type, get_current_branch_id())
         
         # Handle profile picture upload
         profile_picture_path = None
@@ -79,12 +93,58 @@ def add_customer():
                 file.save(file_path)
                 profile_picture_path = f"customers/{get_current_branch_id()}/{filename}"
         
+        # Handle KYC document uploads
+        nic_front_path = None
+        nic_back_path = None
+        photo_path = None
+        proof_of_address_path = None
+        
+        if form.nic_front_image.data:
+            file = form.nic_front_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_nic_front_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                nic_front_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+        
+        if form.nic_back_image.data:
+            file = form.nic_back_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_nic_back_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                nic_back_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+        
+        if form.photo.data:
+            file = form.photo.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_photo_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                photo_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+        
+        if form.proof_of_address.data:
+            file = form.proof_of_address.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_address_proof_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                proof_of_address_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+        
         customer = Customer(
             customer_id=customer_id,
             branch_id=get_current_branch_id(),
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
-            customer_type=form.customer_type.data,
+            customer_types=customer_types,  # Use the property setter
             date_of_birth=form.date_of_birth.data,
             gender=form.gender.data,
             marital_status=form.marital_status.data,
@@ -113,6 +173,10 @@ def add_customer():
             guarantor_phone=form.guarantor_phone.data,
             guarantor_address=form.guarantor_address.data,
             notes=form.notes.data,
+            nic_front_image=nic_front_path,
+            nic_back_image=nic_back_path,
+            photo=photo_path,
+            proof_of_address=proof_of_address_path,
             created_by=current_user.id
         )
         
@@ -188,9 +252,62 @@ def edit_customer(id):
                 file.save(file_path)
                 customer.profile_picture = f"customers/{customer.branch_id}/{filename}"
         
+        # Handle KYC document uploads
+        if form.nic_front_image.data:
+            file = form.nic_front_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_nic_front_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.nic_front_image = f"uploads/customers/{customer.branch_id}/{filename}"
+        
+        if form.nic_back_image.data:
+            file = form.nic_back_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_nic_back_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.nic_back_image = f"uploads/customers/{customer.branch_id}/{filename}"
+        
+        if form.photo.data:
+            file = form.photo.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_photo_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.photo = f"uploads/customers/{customer.branch_id}/{filename}"
+        
+        if form.proof_of_address.data:
+            file = form.proof_of_address.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_address_proof_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.proof_of_address = f"uploads/customers/{customer.branch_id}/{filename}"
+        
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data
-        customer.customer_type = form.customer_type.data
+        
+        # Update customer types
+        customer_types = []
+        if form.customer_type_customer.data:
+            customer_types.append('customer')
+        if form.customer_type_investor.data:
+            customer_types.append('investor')
+        if form.customer_type_guarantor.data:
+            customer_types.append('guarantor')
+        if form.customer_type_family_guarantor.data:
+            customer_types.append('family_guarantor')
+        customer.customer_types = customer_types  # Use the property setter
+        
         customer.date_of_birth = form.date_of_birth.data
         customer.gender = form.gender.data
         customer.marital_status = form.marital_status.data
@@ -249,43 +366,7 @@ def customer_kyc(id):
     form = KYCForm()
     
     if form.validate_on_submit():
-        # Handle file uploads
-        upload_folder = current_app.config['UPLOAD_FOLDER']
-        customer_folder = os.path.join(upload_folder, 'customers', str(customer.id))
-        os.makedirs(customer_folder, exist_ok=True)
-        
-        if form.nic_front_image.data:
-            file = form.nic_front_image.data
-            if allowed_file(file.filename):
-                filename = secure_filename(f'nic_front_{datetime.now().strftime("%Y%m%d_%H%M%S")}.{file.filename.rsplit(".", 1)[1].lower()}')
-                filepath = os.path.join(customer_folder, filename)
-                file.save(filepath)
-                customer.nic_front_image = f'uploads/customers/{customer.id}/{filename}'
-        
-        if form.nic_back_image.data:
-            file = form.nic_back_image.data
-            if allowed_file(file.filename):
-                filename = secure_filename(f'nic_back_{datetime.now().strftime("%Y%m%d_%H%M%S")}.{file.filename.rsplit(".", 1)[1].lower()}')
-                filepath = os.path.join(customer_folder, filename)
-                file.save(filepath)
-                customer.nic_back_image = f'uploads/customers/{customer.id}/{filename}'
-        
-        if form.photo.data:
-            file = form.photo.data
-            if allowed_file(file.filename):
-                filename = secure_filename(f'photo_{datetime.now().strftime("%Y%m%d_%H%M%S")}.{file.filename.rsplit(".", 1)[1].lower()}')
-                filepath = os.path.join(customer_folder, filename)
-                file.save(filepath)
-                customer.photo = f'uploads/customers/{customer.id}/{filename}'
-        
-        if form.proof_of_address.data:
-            file = form.proof_of_address.data
-            if allowed_file(file.filename):
-                filename = secure_filename(f'address_proof_{datetime.now().strftime("%Y%m%d_%H%M%S")}.{file.filename.rsplit(".", 1)[1].lower()}')
-                filepath = os.path.join(customer_folder, filename)
-                file.save(filepath)
-                customer.proof_of_address = f'uploads/customers/{customer.id}/{filename}'
-        
+        # Only handle KYC verification
         if form.kyc_verified.data:
             if not current_user.has_permission('verify_kyc'):
                 flash('You do not have permission to verify KYC.', 'danger')
@@ -423,7 +504,8 @@ def search_members():
             )
         
         if customer_type:
-            query = query.filter_by(customer_type=customer_type)
+            # Filter by customer type in JSON array
+            query = query.filter(Customer.customer_type.like(f'%{customer_type}%'))
         
         if status:
             query = query.filter_by(status=status)

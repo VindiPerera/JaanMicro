@@ -14,11 +14,11 @@
 </div>
 
 <!-- Search and Filter -->
-<!-- <div class="card mb-4">
+<div class="card mb-4">
     <div class="card-body">
-        <form method="GET" action="" class="row g-3">
+        <form method="GET" action="{{ url_for('settings.list_users') }}" class="row g-3">
             <div class="col-md-4">
-                <input type="text" name="search" class="form-control" placeholder="Search by name, email, username..." value="{{ search }}">
+                <input type="text" name="search" class="form-control" placeholder="Search by name, email, username, NIC..." value="{{ search }}">
             </div>
             <div class="col-md-3">
                 <select name="role" class="form-select">
@@ -26,6 +26,8 @@
                     <option value="admin" {% if role == 'admin' %}selected{% endif %}>Admin</option>
                     <option value="manager" {% if role == 'manager' %}selected{% endif %}>Manager</option>
                     <option value="staff" {% if role == 'staff' %}selected{% endif %}>Staff</option>
+                    <option value="loan_collector" {% if role == 'loan_collector' %}selected{% endif %}>Loan Collector</option>
+                    <option value="accountant" {% if role == 'accountant' %}selected{% endif %}>Accountant</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -42,17 +44,18 @@
             </div>
         </form>
     </div>
-</div> -->
+</div>
 
 <!-- Users Table -->
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover data-table">
+            <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>User ID</th>
                         <th>Full Name</th>
+                        <th>NIC Number</th>
                         <th>Username</th>
                         <th>Email</th>
                         <th>Role</th>
@@ -66,8 +69,9 @@
                 <tbody>
                     {% for user in users %}
                     <tr>
-                        <td>{{ user.user_id if user.user_id else 'N/A' }}</td>
+                        <td>{{ user.id }}</td>
                         <td>{{ user.full_name }}</td>
+                        <td>{{ user.nic_number or 'N/A' }}</td>
                         <td>{{ user.username }}</td>
                         <td>{{ user.email or 'N/A' }}</td>
                         <td><span class="badge bg-primary">{{ user.role|title }}</span></td>
@@ -93,7 +97,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="9" class="text-center text-muted">No users found</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted">No users found</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

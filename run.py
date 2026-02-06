@@ -60,7 +60,7 @@ def create_admin_user():
             print("Please change the password after first login!")
         except Exception as e:
             db.session.rollback()
-            print(f"Error: {e}")
+            print("Error: {}".format(e))
 
 if __name__ == '__main__':
     # Handle command-line arguments
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         elif command == 'init-db':
             init_database()
         else:
-            print(f"Unknown command: {command}")
+            print("Unknown command: {}".format(command))
             print("Available commands: create-admin, init-db")
             sys.exit(1)
     else:

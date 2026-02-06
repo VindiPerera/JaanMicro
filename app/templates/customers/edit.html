@@ -13,8 +13,33 @@
                     
                     <h6 class="border-bottom pb-2 mb-3">Personal Information</h6>
                     <div class="mb-3">
-                        {{ form.customer_type.label(class="form-label") }}
-                        {{ form.customer_type(class="form-select") }}
+                        <label class="form-label">Customer Type</label>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-check">
+                                    {{ form.customer_type_customer(class="form-check-input") }}
+                                    {{ form.customer_type_customer.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check">
+                                    {{ form.customer_type_investor(class="form-check-input") }}
+                                    {{ form.customer_type_investor.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check">
+                                    {{ form.customer_type_guarantor(class="form-check-input") }}
+                                    {{ form.customer_type_guarantor.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check">
+                                    {{ form.customer_type_family_guarantor(class="form-check-input") }}
+                                    {{ form.customer_type_family_guarantor.label(class="form-check-label") }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -164,6 +189,58 @@
                         {{ form.notes(class="form-control", rows="3") }}
                     </div>
                     
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">KYC Documents</h6>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Update KYC documents if needed. Leave blank to keep existing documents. These documents will be reviewed during the KYC verification process.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.nic_front_image.label(class="form-label") }}
+                            {{ form.nic_front_image(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">NIC front image (JPG, PNG, PDF)</div>
+                            {% if customer.nic_front_image %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current: <a href="/{{ customer.nic_front_image }}" target="_blank">View</a></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.nic_back_image.label(class="form-label") }}
+                            {{ form.nic_back_image(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">NIC back image (JPG, PNG, PDF)</div>
+                            {% if customer.nic_back_image %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current: <a href="/{{ customer.nic_back_image }}" target="_blank">View</a></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.photo.label(class="form-label") }}
+                            {{ form.photo(class="form-control", accept="image/*") }}
+                            <div class="form-text">Customer photo (JPG, PNG)</div>
+                            {% if customer.photo %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current: <a href="/{{ customer.photo }}" target="_blank">View</a></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.proof_of_address.label(class="form-label") }}
+                            {{ form.proof_of_address(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">Proof of address (utility bill, etc.)</div>
+                            {% if customer.proof_of_address %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current: <a href="/{{ customer.proof_of_address }}" target="_blank">View</a></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
                     <div class="mt-4">
                         {{ form.submit(class="btn btn-primary") }}
                         <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
@@ -201,6 +278,17 @@ function calculateDOB(nic) {
                         date.getDate().toString().padStart(2, '0');
     
     return { date: formattedDate, gender: gender };
+}
+
+function calculateAge(dob) {
+    let today = new Date();
+    let birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    let monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
 }
 
 document.getElementById('nic_number').addEventListener('input', function() {

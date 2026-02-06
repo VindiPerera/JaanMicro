@@ -7,8 +7,8 @@ from dateutil.relativedelta import relativedelta
 import os
 from app import db
 from app.loans import loans_bp
-from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings
-from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm
+from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
+from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
 
@@ -75,11 +75,23 @@ def add_loan():
     customers = customer_query.order_by(Customer.full_name).all()
     form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
     
+    # Get users for referred_by dropdown
+    user_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            user_query = user_query.filter_by(branch_id=current_branch_id)
+    
+    users = user_query.order_by(User.full_name).all()
+    form.referred_by.choices = [(0, 'Select User (Optional)')] + [(u.id, f'{u.full_name} ({u.username})') for u in users]
+    
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_loan_interest_rate
-        form.application_date.data = datetime.now().date()
+        form.interest_type.data = settings.interest_calculation_method
+        form.duration_months.data = settings.default_loan_duration
+        form.installment_frequency.data = 'monthly'  # Default for monthly loans
     
     if form.validate_on_submit():
         # Custom validation based on loan type
@@ -120,8 +132,9 @@ def add_loan():
             flash('Please select a customer!', 'error')
             return render_template('loans/add.html', title='Add Loan', form=form)
         
-        settings = SystemSettings.get_settings()
-        loan_number = generate_loan_number(settings.loan_number_prefix)
+        # Generate loan number with new format: YY/B##/TYPE/#####
+        branch_id = get_current_branch_id()
+        loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=branch_id)
         
         # Calculate EMI using Decimal arithmetic
         from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
@@ -217,17 +230,15 @@ def add_loan():
         # Calculate documentation fee (1% of loan amount)
         documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
-        # Calculate disbursed amount (loan amount minus documentation fee)
+        # Disbursed amount will be calculated during approval (loan amount minus documentation fee)
+        # For pending loans, these remain None until approved
         actual_disbursed_amount = None
-        if form.status.data == 'active':
-            actual_disbursed_amount = (loan_amount - documentation_fee).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
             branch_id=get_current_branch_id(),
             loan_type=form.loan_type.data,
-            loan_purpose=form.loan_purpose.data,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
             interest_type=form.interest_type.data,
@@ -238,32 +249,20 @@ def add_loan():
             installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
             disbursed_amount=actual_disbursed_amount,
             total_payable=total_payable,
-            outstanding_amount=form.loan_amount.data if form.status.data == 'active' else None,
+            outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
-            application_date=form.application_date.data,
+            application_date=datetime.now().date(),
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
             guarantor_ids=request.form.get('guarantor_ids', ''),
-            status=form.status.data,
+            status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
+            referred_by=form.referred_by.data if form.referred_by.data != 0 else None,
             notes=form.notes.data
         )
         
-        # Set initial outstanding amount with interest consideration
-        if form.status.data == 'active':
-            loan.approval_date = datetime.utcnow().date()
-            loan.disbursement_date = datetime.utcnow().date()
-            if duration_days:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=1)
-                loan.maturity_date = datetime.utcnow().date() + timedelta(days=duration_days)
-            elif duration_weeks:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=7)
-                loan.maturity_date = datetime.utcnow().date() + timedelta(weeks=duration_weeks)
-            else:
-                loan.first_installment_date = datetime.utcnow().date() + timedelta(days=30)
-                loan.maturity_date = datetime.utcnow().date() + relativedelta(months=duration_months)
-            loan.approved_by = current_user.id
+        # Note: Disbursement details will be set during admin approval stage
         
         db.session.add(loan)
         
@@ -297,17 +296,12 @@ def view_loan(id):
             flash('Access denied: Loan not found in current branch.', 'danger')
             return redirect(url_for('loans.list_loans'))
     
-    payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
-    
     # Calculate current outstanding amount with accrued interest
     current_outstanding = loan.calculate_current_outstanding()
     accrued_interest = loan.calculate_accrued_interest()
     
     # Update the loan's stored outstanding amount to reflect current calculation
     loan.update_outstanding_amount()
-    
-    # Generate payment schedule
-    payment_schedule = loan.generate_payment_schedule()
     
     # Get guarantors
     guarantors = []
@@ -319,11 +313,9 @@ def view_loan(id):
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
-                         payments=payments,
                          guarantors=guarantors,
                          current_outstanding=current_outstanding,
-                         accrued_interest=accrued_interest,
-                         payment_schedule=payment_schedule)
+                         accrued_interest=accrued_interest)
 
 @loans_bp.route('/<int:id>/approve', methods=['GET', 'POST'])
 @login_required
@@ -394,6 +386,251 @@ def approve_loan(id):
     
     return render_template('loans/approve.html',
                          title=f'Approve Loan: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-staff', methods=['GET', 'POST'])
+@login_required
+@permission_required('manage_loans')
+def approve_loan_staff(id):
+    """Staff approval (First stage)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'pending':
+        flash('Only pending loans can be approved by staff!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is staff (not manager or admin)
+    if current_user.role not in ['staff', 'loan_collector']:
+        flash('Only staff members can perform first-stage approval!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = StaffApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'pending_manager_approval'
+            loan.staff_approved_by = current_user.id
+            loan.staff_approval_date = form.approval_date.data
+            loan.staff_approval_notes = form.approval_notes.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='staff_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Staff approved loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved by staff! Awaiting manager approval.', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='staff_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Staff rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by staff!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    
+    return render_template('loans/approve_staff.html',
+                         title=f'Staff Approval: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-manager', methods=['GET', 'POST'])
+@login_required
+def approve_loan_manager(id):
+    """Manager approval (Second stage)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'pending_manager_approval':
+        flash('Only loans approved by staff can be approved by manager!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is manager
+    if current_user.role not in ['manager', 'accountant']:
+        flash('Only managers can perform second-stage approval!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = ManagerApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'initiated'
+            loan.manager_approved_by = current_user.id
+            loan.manager_approval_date = form.approval_date.data
+            loan.manager_approval_notes = form.approval_notes.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='manager_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Manager approved loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved by manager! Loan is now initiated. Awaiting admin approval for disbursement.', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='manager_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Manager rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by manager!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    
+    return render_template('loans/approve_manager.html',
+                         title=f'Manager Approval: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/approve-admin', methods=['GET', 'POST'])
+@login_required
+def approve_loan_admin(id):
+    """Admin approval (Final stage - Disburse loan)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if loan is in correct status
+    if loan.status != 'initiated':
+        flash('Only initiated loans can be approved by admin!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if user is admin
+    if current_user.role != 'admin':
+        flash('Only admins can perform final approval and disbursement!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = AdminApprovalForm()
+    
+    if form.validate_on_submit():
+        if form.approval_status.data == 'approve':
+            loan.status = 'active'
+            loan.admin_approved_by = current_user.id
+            loan.admin_approval_date = form.approval_date.data
+            loan.admin_approval_notes = form.approval_notes.data
+            
+            # Set approved_by for legacy compatibility
+            loan.approved_by = current_user.id
+            loan.approval_date = form.approval_date.data
+            loan.approval_notes = form.approval_notes.data
+            
+            # Set disbursement details
+            loan.approved_amount = form.approved_amount.data or loan.loan_amount
+            loan.disbursed_amount = loan.approved_amount or loan.loan_amount
+            loan.disbursement_date = form.disbursement_date.data
+            loan.disbursement_method = form.disbursement_method.data
+            loan.disbursement_reference = form.disbursement_reference.data
+            loan.first_installment_date = form.first_installment_date.data
+            
+            # Calculate maturity date based on loan type
+            if loan.duration_days:
+                loan.maturity_date = loan.disbursement_date + timedelta(days=loan.duration_days) if loan.disbursement_date else None
+            elif loan.duration_weeks:
+                loan.maturity_date = loan.disbursement_date + timedelta(weeks=loan.duration_weeks) if loan.disbursement_date else None
+            else:
+                loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
+            
+            # Set initial outstanding amount to disbursed amount
+            loan.outstanding_amount = loan.approved_amount or loan.loan_amount
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='admin_approve_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Admin approved and disbursed loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan approved and disbursed successfully!', 'success')
+        else:
+            loan.status = 'rejected'
+            loan.rejection_reason = form.rejection_reason.data
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='admin_reject_loan',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Admin rejected loan: {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            flash('Loan rejected by admin!', 'warning')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Pre-fill form
+    form.approval_date.data = datetime.now().date()
+    form.approved_amount.data = loan.loan_amount
+    form.disbursement_date.data = datetime.now().date()
+    
+    # Calculate first installment date based on loan type
+    if loan.duration_days:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=1)
+    elif loan.duration_weeks:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=7)
+    else:
+        form.first_installment_date.data = datetime.now().date() + timedelta(days=30)
+    
+    return render_template('loans/approve_admin.html',
+                         title=f'Admin Approval: {loan.loan_number}',
                          form=form,
                          loan=loan)
 
@@ -633,7 +870,10 @@ def get_guarantors():
     
     # Query customers who are guarantors or family guarantors and have KYC verified
     query = Customer.query.filter(
-        Customer.customer_type.in_(['guarantor', 'family_guarantor']),
+        db.or_(
+            Customer.customer_type.like('%guarantor%'),
+            Customer.customer_type.like('%family_guarantor%')
+        ),
         Customer.kyc_verified == True
     )
     
@@ -658,7 +898,7 @@ def get_guarantors():
             'nic_number': guarantor.nic_number,
             'phone_primary': guarantor.phone_primary,
             'customer_type': guarantor.customer_type,
-            'customer_type_display': 'Family Guarantor' if guarantor.customer_type == 'family_guarantor' else 'Guarantor',
+            'customer_type_display': guarantor.customer_type_display,
             'address_line1': guarantor.address_line1,
             'address_line2': guarantor.address_line2 or '',
             'city': guarantor.city,
@@ -671,3 +911,85 @@ def get_guarantors():
         'guarantors': guarantor_list
     })
 
+
+@loans_bp.route('/receipt-entry')
+@login_required
+@permission_required('collect_payments')
+def receipt_entry():
+    """Receipt entry page with weekly and daily loan payment tables"""
+    referrer = request.args.get('collector', type=int)
+    
+    # Get weekly loans (type1_9weeks and type4_micro)
+    weekly_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['type1_9weeks', 'type4_micro']),
+        Loan.status == 'active'
+    )
+    
+    # Get daily loans (54_daily and type4_daily)
+    daily_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['54_daily', 'type4_daily']),
+        Loan.status == 'active'
+    )
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            weekly_loans_query = weekly_loans_query.filter_by(branch_id=current_branch_id)
+            daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
+    
+    # Filter by referrer if specified
+    if referrer:
+        weekly_loans_query = weekly_loans_query.filter(Loan.referred_by == referrer)
+        daily_loans_query = daily_loans_query.filter(Loan.referred_by == referrer)
+    
+    weekly_loans = weekly_loans_query.order_by(Loan.created_at.desc()).all()
+    daily_loans = daily_loans_query.order_by(Loan.created_at.desc()).all()
+    
+    # Get recent payments for each loan with collector info
+    weekly_payments = []
+    for loan in weekly_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        weekly_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    daily_payments = []
+    for loan in daily_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        daily_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    # Get all payments for payment history
+    all_payments_query = LoanPayment.query.join(Loan)
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            all_payments_query = all_payments_query.filter(Loan.branch_id == current_branch_id)
+    
+    # Filter by referrer if specified
+    if referrer:
+        all_payments_query = all_payments_query.filter(Loan.referred_by == referrer)
+    
+    all_payments = all_payments_query.order_by(LoanPayment.payment_date.desc()).limit(100).all()
+    
+    # Get users for referrer dropdown
+    users_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            users_query = users_query.filter_by(branch_id=current_branch_id)
+    users = users_query.order_by(User.full_name).all()
+    
+    return render_template('loans/receipt_entry.html',
+                         title='Receipt Entry',
+                         weekly_payments=weekly_payments,
+                         daily_payments=daily_payments,
+                         all_payments=all_payments,
+                         users=users,
+                         collector=referrer)

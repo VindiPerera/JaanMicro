@@ -11,11 +11,11 @@
         </div>
 
         <div class="row">
-            <!-- Upload Form -->
+            <!-- KYC Verification Form -->
             <div class="col-lg-6">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload Documents</h5>
+                        <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>KYC Verification</h5>
                     </div>
                     <div class="card-body">
                         <div class="alert alert-info">
@@ -26,61 +26,16 @@
                         <form method="POST" action="" enctype="multipart/form-data">
                             {{ form.hidden_tag() }}
                             
-                            <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-card-heading me-2"></i>Identity Documents</h6>
-                            
-                            <div class="mb-3">
-                                {{ form.nic_front_image.label(class="form-label") }}
-                                {{ form.nic_front_image(class="form-control", accept="image/*,application/pdf") }}
-                                <small class="text-muted">JPG, PNG, PDF (Max 16MB)</small>
-                                {% if customer.nic_front_image %}
-                                <div class="mt-2">
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="mb-3">
-                                {{ form.nic_back_image.label(class="form-label") }}
-                                {{ form.nic_back_image(class="form-control", accept="image/*,application/pdf") }}
-                                <small class="text-muted">JPG, PNG, PDF (Max 16MB)</small>
-                                {% if customer.nic_back_image %}
-                                <div class="mt-2">
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-person-badge me-2"></i>Member Photo</h6>
-                            
-                            <div class="mb-3">
-                                {{ form.photo.label(class="form-label") }}
-                                {{ form.photo(class="form-control", accept="image/*") }}
-                                <small class="text-muted">Member photograph (Max 16MB)</small>
-                                {% if customer.photo %}
-                                <div class="mt-2">
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
-                                </div>
-                                {% endif %}
-                            </div>
-                            
-                            <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-house me-2"></i>Address Proof</h6>
-                            
-                            <div class="mb-3">
-                                {{ form.proof_of_address.label(class="form-label") }}
-                                {{ form.proof_of_address(class="form-control", accept="image/*,application/pdf") }}
-                                <small class="text-muted">Utility bill, bank statement (Max 16MB)</small>
-                                {% if customer.proof_of_address %}
-                                <div class="mt-2">
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>
-                                </div>
-                                {% endif %}
-                            </div>
-                            
                             {% if current_user.has_permission('verify_kyc') %}
                             <div class="form-check form-switch mb-3">
                                 {{ form.kyc_verified(class="form-check-input", id="kycVerified") }}
                                 {{ form.kyc_verified.label(class="form-check-label", for="kycVerified") }}
-                                <small class="d-block text-muted">Check this to mark KYC as verified</small>
+                                <small class="d-block text-muted">Check this to mark KYC as verified after reviewing documents</small>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                You do not have permission to verify KYC documents.
                             </div>
                             {% endif %}
                             
@@ -93,7 +48,7 @@
                 </div>
             </div>
 
-            <!-- Existing Documents Preview -->
+            <!-- Documents Preview -->
             <div class="col-lg-6">
                 <div class="card">
                     <div class="card-header bg-info text-white">

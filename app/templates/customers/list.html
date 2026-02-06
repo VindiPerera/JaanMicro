@@ -66,7 +66,7 @@
                     <tr>
                         <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
                         <td>{{ customer.full_name }}</td>
-                        <td>{{ customer.customer_type|title if customer.customer_type else 'Customer' }}</td>
+                        <td>{{ customer.customer_type_display }}</td>
                         <td>{{ customer.nic_number }}</td>
                         <td>{{ customer.phone_primary }}</td>
                         <td>{{ customer.city }}</td>

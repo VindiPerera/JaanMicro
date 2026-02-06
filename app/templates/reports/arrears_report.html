@@ -142,7 +142,12 @@
             <div class="card-body">
                 <p class="mb-2"><strong>Arrears:</strong> The total amount that remains to be paid by customers.</p>
                 <p class="mb-2"><strong>Principal Outstanding:</strong> Original loan/pawning amount not yet repaid.</p>
-                <p class="mb-2"><strong>Interest Outstanding:</strong> Interest due but not yet paid.</p>
+                <p class="mb-2"><strong>Interest Outstanding:</strong> 
+                    <ul class="mb-0 mt-1">
+                        <li><small>Flat rate loans (Type 1, Type 4 Micro, 54 Daily): Total fixed interest minus interest paid</small></li>
+                        <li><small>Reducing balance loans: Accrued interest plus estimated future interest on remaining principal</small></li>
+                    </ul>
+                </p>
                 <p class="mb-2"><strong>Penalties:</strong> Additional charges for late payments.</p>
                 <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-1"></i><strong>Overdue:</strong> Accounts past their maturity date.</p>
             </div>

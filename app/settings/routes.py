@@ -97,8 +97,31 @@ def system_settings():
 @admin_required
 def list_users():
     """List all users"""
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('settings/users.html', title='Users', users=users)
+    search = request.args.get('search', '')
+    role = request.args.get('role', '')
+    status = request.args.get('status', '')
+    
+    query = User.query
+    
+    if search:
+        query = query.filter(
+            db.or_(
+                User.full_name.contains(search),
+                User.username.contains(search),
+                User.email.contains(search),
+                User.nic_number.contains(search)
+            )
+        )
+    
+    if role:
+        query = query.filter(User.role == role)
+    
+    if status:
+        is_active = status == 'active'
+        query = query.filter(User.is_active == is_active)
+    
+    users = query.order_by(User.created_at.desc()).all()
+    return render_template('settings/users.html', title='Users', users=users, search=search, role=role, status=status)
 
 @settings_bp.route('/users/add', methods=['GET', 'POST'])
 @login_required
@@ -113,6 +136,7 @@ def add_user():
             email=form.email.data,
             full_name=form.full_name.data,
             phone=form.phone.data,
+            nic_number=form.nic_number.data,
             role=form.role.data,
             branch_id=form.branch_id.data if form.branch_id.data != 0 else None,
             is_active=form.is_active.data,
@@ -162,6 +186,7 @@ def edit_user(id):
         user.email = form.email.data
         user.full_name = form.full_name.data
         user.phone = form.phone.data
+        user.nic_number = form.nic_number.data
         user.role = form.role.data
         user.branch_id = form.branch_id.data if form.branch_id.data != 0 else None
         user.is_active = form.is_active.data

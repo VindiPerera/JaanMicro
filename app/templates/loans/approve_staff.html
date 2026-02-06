@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="d-flex justify-content-end mb-2">
+            <button type="button" onclick="history.back()" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-2"></i>Back
+            </button>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Staff Approval (Stage 1 of 3)</h5>
+            </div>
+            <div class="card-body">
+                <!-- Loan Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Loan Application Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Loan Number:</strong> {{ loan.loan_number }}<br>
+                            <strong>Customer:</strong> {{ loan.customer.full_name }}<br>
+                            <strong>Customer ID:</strong> {{ loan.customer.customer_id }}<br>
+                            <strong>Loan Type:</strong> {{ loan.loan_type|replace('_', ' ')|title }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
+                            <strong>Duration:</strong> 
+                            {% if loan.duration_days %}
+                                {{ loan.duration_days }} days
+                            {% elif loan.duration_weeks %}
+                                {{ loan.duration_weeks }} weeks
+                            {% else %}
+                                {{ loan.duration_months }} months
+                            {% endif %}<br>
+                            <strong>Interest Rate:</strong> {{ loan.interest_rate }}%<br>
+                            <strong>Application Date:</strong> {{ loan.application_date.strftime('%d-%m-%Y') }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Approval Workflow Status -->
+                <div class="alert alert-light border">
+                    <h6 class="mb-2">Approval Workflow Progress</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-center">
+                            <div class="badge bg-warning text-dark mb-1">Current</div>
+                            <div><i class="bi bi-person-check fs-4"></i></div>
+                            <small>Staff</small>
+                        </div>
+                        <div class="flex-grow-1 mx-2"><hr></div>
+                        <div class="text-center text-muted">
+                            <div><i class="bi bi-person-check fs-4"></i></div>
+                            <small>Manager</small>
+                        </div>
+                        <div class="flex-grow-1 mx-2"><hr></div>
+                        <div class="text-center text-muted">
+                            <div><i class="bi bi-person-badge fs-4"></i></div>
+                            <small>Admin</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST" action="">
+                    {{ form.hidden_tag() }}
+                    
+                    <h6 class="border-bottom pb-2 mb-3">Staff Approval Decision</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_status.label(class="form-label required") }}
+                            {{ form.approval_status(class="form-select") }}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.approval_date.label(class="form-label required") }}
+                            {{ form.approval_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="approval-notes-field">
+                        {{ form.approval_notes.label(class="form-label") }}
+                        {{ form.approval_notes(class="form-control", rows="3", placeholder="Enter your approval notes...") }}
+                    </div>
+                    
+                    <div class="mb-3" id="rejection-field" style="display: none;">
+                        {{ form.rejection_reason.label(class="form-label required") }}
+                        {{ form.rejection_reason(class="form-control", rows="3", placeholder="Enter reason for rejection...") }}
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#approval_status').on('change', function() {
+        if ($(this).val() === 'approve') {
+            $('#approval-notes-field').show();
+            $('#rejection-field').hide();
+        } else if ($(this).val() === 'reject') {
+            $('#approval-notes-field').hide();
+            $('#rejection-field').show();
+        } else {
+            $('#approval-notes-field').hide();
+            $('#rejection-field').hide();
+        }
+    });
+    
+    // Trigger change event on page load
+    $('#approval_status').trigger('change');
+});
+</script>
+{% endblock %}
+{% endblock %}

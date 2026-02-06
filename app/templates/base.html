@@ -101,15 +101,15 @@
             font-weight: 500;
         }
         
-        .sidebar-menu .dropdown-toggle {
+        .sidebar-menu .dropdown a {
             position: relative;
         }
         
-        .sidebar-menu .dropdown-toggle .bi-chevron-down {
+        .sidebar-menu .dropdown a .bi-chevron-down {
             transition: transform 0.3s;
         }
         
-        .sidebar-menu .dropdown-toggle[aria-expanded="true"] .bi-chevron-down {
+        .sidebar-menu .dropdown a[aria-expanded="true"] .bi-chevron-down {
             transform: rotate(180deg);
         }
         
@@ -284,6 +284,9 @@
         /* Status badges */
         .status-active { background-color: #28a745; }
         .status-pending { background-color: #ffc107; color: #000; }
+        .status-pending_staff_approval { background-color: #ffc107; color: #000; }
+        .status-pending_manager_approval { background-color: #fd7e14; color: #fff; }
+        .status-initiated { background-color: #17a2b8; color: #fff; }
         .status-completed { background-color: #17a2b8; }
         .status-rejected { background-color: #dc3545; }
         .status-inactive { background-color: #6c757d; }
@@ -316,7 +319,7 @@
             
             {% if current_user.has_permission('add_customers') %}
             <li class="dropdown">
-                <a href="#" class="dropdown-toggle {% if 'customers' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#membersSubmenu" aria-expanded="false">
+                <a href="#" class="{% if 'customers' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#membersSubmenu" aria-expanded="false">
                     <i class="bi bi-people"></i>
                     <span>Members</span>
                     <i class="bi bi-chevron-down ms-auto"></i>
@@ -333,7 +336,7 @@
             
             {% if current_user.has_permission('manage_loans') %}
             <li class="dropdown">
-                <a href="#" class="dropdown-toggle {% if 'loans' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#loansSubmenu" aria-expanded="false">
+                <a href="#" class="{% if 'loans' in request.endpoint %}active{% endif %}" data-bs-toggle="collapse" data-bs-target="#loansSubmenu" aria-expanded="false">
                     <i class="bi bi-cash-coin"></i>
                     <span>Loans</span>
                     <i class="bi bi-chevron-down ms-auto"></i>
@@ -342,6 +345,7 @@
                     <li><a href="{{ url_for('loans.list_loans') }}"><i class="bi bi-list-ul"></i> List Loans</a></li>
                     <li><a href="{{ url_for('loans.add_loan') }}"><i class="bi bi-plus-circle"></i> Add Loan</a></li>
                     <li><a href="{{ url_for('loans.search_loans') }}"><i class="bi bi-search"></i> Search Loan</a></li>
+                    <li><a href="{{ url_for('loans.receipt_entry') }}"><i class="bi bi-receipt"></i> Receipt Entry</a></li>
                 </ul>
             </li>
             {% endif %}
@@ -495,6 +499,8 @@
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery (required for DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
