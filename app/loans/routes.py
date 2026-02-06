@@ -8,7 +8,7 @@ import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
-from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm
+from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
 
@@ -623,6 +623,63 @@ def approve_loan_admin(id):
     
     return render_template('loans/approve_admin.html',
                          title=f'Admin Approval: {loan.loan_number}',
+                         form=form,
+                         loan=loan)
+
+@loans_bp.route('/<int:id>/deactivate', methods=['GET', 'POST'])
+@login_required
+@permission_required('manage_loans')
+def deactivate_loan(id):
+    """Deactivate loan"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Check if user has admin role for deactivation
+    if current_user.role != 'admin':
+        flash('Only administrators can deactivate loans.', 'danger')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if loan can be deactivated
+    if loan.status in ['completed', 'defaulted', 'rejected', 'deactivated']:
+        flash('This loan cannot be deactivated.', 'danger')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    form = LoanDeactivationForm()
+    if form.validate_on_submit():
+        if not form.confirm_deactivation.data:
+            flash('Please confirm deactivation.', 'warning')
+            return redirect(url_for('loans.deactivate_loan', id=id))
+        
+        # Deactivate the loan
+        loan.status = 'deactivated'
+        loan.deactivation_reason = form.deactivation_reason.data
+        loan.deactivation_date = form.deactivation_date.data
+        loan.deactivated_by = current_user.id
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='deactivate_loan',
+            entity_type='loan',
+            entity_id=loan.id,
+            description=f'Loan deactivated: {loan.loan_number} - Reason: {form.deactivation_reason.data}',
+            ip_address=request.remote_addr
+        )
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        flash('Loan deactivated successfully!', 'success')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    return render_template('loans/deactivate.html',
+                         title=f'Deactivate Loan: {loan.loan_number}',
                          form=form,
                          loan=loan)
 

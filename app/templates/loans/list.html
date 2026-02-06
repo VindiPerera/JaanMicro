@@ -27,6 +27,7 @@
                     <option value="approved" {% if status == 'approved' %}selected{% endif %}>Approved</option>
                     <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
                     <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="deactivated" {% if status == 'deactivated' %}selected{% endif %}>Deactivated</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -96,6 +97,9 @@
                                     {{ loan.status|title }}
                                 {% endif %}
                             </span>
+                            {% if loan.status == 'deactivated' %}
+                                <br><span class="badge bg-danger mt-1">Deactivated</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}

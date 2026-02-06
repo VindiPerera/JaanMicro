@@ -328,7 +328,7 @@ class Loan(db.Model):
     
     # Status and Approval (Multi-stage workflow)
     # Status flow: pending -> pending_staff_approval -> pending_manager_approval -> initiated -> active
-    status = db.Column(db.String(30), default='pending')  # pending, pending_staff_approval, pending_manager_approval, initiated, active, completed, defaulted, rejected
+    status = db.Column(db.String(30), default='pending')  # pending, pending_staff_approval, pending_manager_approval, initiated, active, completed, defaulted, rejected, deactivated
     
     # Staff approval (first stage)
     staff_approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -353,6 +353,11 @@ class Loan(db.Model):
     # Rejection
     rejection_reason = db.Column(db.Text)
     
+    # Deactivation
+    deactivation_reason = db.Column(db.Text)
+    deactivation_date = db.Column(db.Date)
+    deactivated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    
     # Purpose and Security
     purpose = db.Column(db.Text)
     security_details = db.Column(db.Text)  # Collateral information
@@ -372,6 +377,7 @@ class Loan(db.Model):
     manager_approver = db.relationship('User', foreign_keys=[manager_approved_by], backref='manager_approved_loans')
     admin_approver = db.relationship('User', foreign_keys=[admin_approved_by], backref='admin_approved_loans')
     referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
+    deactivator = db.relationship('User', foreign_keys=[deactivated_by], backref='deactivated_loans')
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""

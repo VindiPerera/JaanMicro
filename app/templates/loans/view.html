@@ -30,6 +30,13 @@
         </a>
         {% endif %}
         
+        {# Deactivation button for active loans #}
+        {% if loan.status == 'active' and current_user.role == 'admin' %}
+        <a href="{{ url_for('loans.deactivate_loan', id=loan.id) }}" class="btn btn-outline-danger">
+            <i class="bi bi-x-circle me-2"></i>Deactivate Loan
+        </a>
+        {% endif %}
+        
         <button type="button" onclick="history.back()" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Back
         </button>
@@ -282,6 +289,30 @@
                 {% endif %}
                 {% endif %}
                 {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Deactivation Information -->
+        {% if loan.status == 'deactivated' %}
+        <div class="card mb-3">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-x-circle me-2"></i>Loan Deactivated</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <h6><i class="bi bi-exclamation-triangle me-2"></i>This loan has been deactivated</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Deactivated By:</strong> {{ loan.deactivator.full_name }}<br>
+                            <strong>Deactivation Date:</strong> {{ loan.deactivation_date.strftime('%d-%m-%Y') if loan.deactivation_date else 'N/A' }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Reason:</strong><br>
+                            {{ loan.deactivation_reason if loan.deactivation_reason else 'No reason provided' }}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         {% endif %}

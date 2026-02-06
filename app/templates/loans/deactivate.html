@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="d-flex justify-content-end mb-2">
+            <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-2"></i>Back to Loan
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Deactivate Loan</h5>
+            </div>
+            <div class="card-body">
+                <!-- Warning Alert -->
+                <div class="alert alert-danger">
+                    <h6 class="mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Warning</h6>
+                    <p class="mb-0">Deactivating a loan is a serious action that cannot be undone. This will mark the loan as inactive and prevent any further payments or modifications. Only proceed if you are absolutely certain.</p>
+                </div>
+
+                <!-- Loan Summary -->
+                <div class="alert alert-info">
+                    <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Loan Details</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Loan Number:</strong> {{ loan.loan_number }}<br>
+                            <strong>Customer:</strong> {{ loan.customer.full_name }}<br>
+                            <strong>Customer ID:</strong> {{ loan.customer.customer_id }}<br>
+                            <strong>Loan Type:</strong> {{ loan.loan_type|replace('_', ' ')|title }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
+                            <strong>Outstanding Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) }}<br>
+                            <strong>Status:</strong>
+                            <span class="badge
+                                {% if loan.status == 'active' %}bg-success
+                                {% elif loan.status == 'pending' %}bg-warning
+                                {% elif loan.status == 'completed' %}bg-info
+                                {% elif loan.status == 'defaulted' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                                {{ loan.status|title }}
+                            </span><br>
+                            <strong>Application Date:</strong> {{ loan.application_date.strftime('%d-%m-%Y') }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deactivation Form -->
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.deactivation_date.label(class="form-label") }}
+                                {{ form.deactivation_date(class="form-control") }}
+                                {% if form.deactivation_date.errors %}
+                                    <div class="text-danger small">
+                                        {% for error in form.deactivation_date.errors %}
+                                            {{ error }}<br>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.deactivation_reason.label(class="form-label") }}
+                        {{ form.deactivation_reason(class="form-control", rows=4) }}
+                        {% if form.deactivation_reason.errors %}
+                            <div class="text-danger small">
+                                {% for error in form.deactivation_reason.errors %}
+                                    {{ error }}<br>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.confirm_deactivation(class="form-check-input") }}
+                            {{ form.confirm_deactivation.label(class="form-check-label text-danger") }}
+                            {% if form.confirm_deactivation.errors %}
+                                <div class="text-danger small">
+                                    {% for error in form.confirm_deactivation.errors %}
+                                        {{ error }}<br>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-circle me-2"></i>{{ form.submit.label.text }}
+                        </button>
+                        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">
+                            <i class="bi bi-x me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

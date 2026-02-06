@@ -3,6 +3,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, SelectField, DecimalField, IntegerField, DateField, TextAreaField, BooleanField, SubmitField, HiddenField
 from wtforms.validators import DataRequired, Optional, NumberRange, Length
+from datetime import datetime
 
 class LoanForm(FlaskForm):
     """Loan application form"""
@@ -146,3 +147,12 @@ class AdminApprovalForm(FlaskForm):
     rejection_reason = TextAreaField('Rejection Reason', validators=[Optional()])
     send_notification = BooleanField('Send SMS/Email Notification', default=True)
     submit = SubmitField('Submit')
+
+
+class LoanDeactivationForm(FlaskForm):
+    """Loan deactivation form"""
+    deactivation_reason = TextAreaField("Deactivation Reason", validators=[DataRequired()], 
+                                       render_kw={"placeholder": "Enter the reason for deactivating this loan (e.g., customer deceased, loan fraud, etc.)"})
+    deactivation_date = DateField("Deactivation Date", validators=[DataRequired()], default=datetime.utcnow().date)
+    confirm_deactivation = BooleanField("I confirm that I want to deactivate this loan", validators=[DataRequired()])
+    submit = SubmitField("Deactivate Loan")
