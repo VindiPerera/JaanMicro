@@ -23,6 +23,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(20))
+    nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
     role = db.Column(db.String(50), nullable=False, default='staff')  # admin, manager, staff, loan_collector, accountant
     branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=True)  # Nullable for admin users who can access all branches
     is_active = db.Column(db.Boolean, default=True)

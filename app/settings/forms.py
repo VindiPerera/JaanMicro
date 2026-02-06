@@ -4,6 +4,41 @@ from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, SelectField, DecimalField, IntegerField, TextAreaField, BooleanField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, Optional, NumberRange, Length, EqualTo, ValidationError
 from app.models import User
+from datetime import datetime, date, timedelta
+
+def calculate_dob_from_nic(nic):
+    """Calculate date of birth from Sri Lankan NIC"""
+    nic = nic.strip().upper()
+    
+    if len(nic) == 10 and nic[-1] in ['V', 'X'] and nic[:-1].isdigit():
+        # Old NIC: 9 digits + V/X
+        year = 1900 + int(nic[:2])
+        day_of_year = int(nic[2:5])
+    elif len(nic) == 12 and nic.isdigit():
+        # New NIC: 12 digits
+        year = int(nic[:4])
+        day_of_year = int(nic[4:7])
+    else:
+        return None
+    
+    # Adjust for gender (female days start from 500+)
+    if day_of_year > 500:
+        day_of_year -= 500
+    
+    # Create date from year and day of year
+    try:
+        dob = date(year, 1, 1) + timedelta(days=day_of_year - 1)
+        return dob
+    except ValueError:
+        return None
+
+def calculate_age(dob):
+    """Calculate age from date of birth"""
+    if not dob:
+        return None
+    today = date.today()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return age
 
 class SystemSettingsForm(FlaskForm):
     """System settings form"""
@@ -61,6 +96,7 @@ class UserForm(FlaskForm):
     ])
     full_name = StringField('Full Name', validators=[DataRequired(), Length(max=200)])
     phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    nic_number = StringField('NIC Number', validators=[DataRequired(), Length(max=20)])
     role = SelectField('Role', choices=[
         ('staff', 'Staff'),
         ('loan_collector', 'Loan Collector'),
@@ -191,6 +227,17 @@ class UserForm(FlaskForm):
     def validate_email(self, field):
         if User.query.filter_by(email=field.data).first():
             raise ValidationError('Email already registered.')
+    
+    def validate_nic_number(self, field):
+        if User.query.filter_by(nic_number=field.data).first():
+            raise ValidationError('NIC number already registered.')
+        
+        # Check age from NIC
+        dob = calculate_dob_from_nic(field.data)
+        if dob:
+            age = calculate_age(dob)
+            if age is not None and age < 18:
+                raise ValidationError('User must be 18 years or older to register.')
 
 class UserEditForm(FlaskForm):
     """User edit form"""
@@ -202,6 +249,7 @@ class UserEditForm(FlaskForm):
     ])
     full_name = StringField('Full Name', validators=[DataRequired(), Length(max=200)])
     phone = StringField('Phone', validators=[Optional(), Length(max=20)])
+    nic_number = StringField('NIC Number', validators=[DataRequired(), Length(max=20)])
     role = SelectField('Role', choices=[
         ('staff', 'Staff'),
         ('loan_collector', 'Loan Collector'),
@@ -230,9 +278,33 @@ class UserEditForm(FlaskForm):
     
     def __init__(self, *args, **kwargs):
         super(UserEditForm, self).__init__(*args, **kwargs)
+        self.original_nic = kwargs.get('obj').nic_number if kwargs.get('obj') else None
         # Set branch choices
         from app.models import Branch
         self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+    
+    def validate_username(self, field):
+        user = User.query.filter_by(username=field.data).first()
+        if user and user.id != self.obj.id:
+            raise ValidationError('Username already exists.')
+    
+    def validate_email(self, field):
+        user = User.query.filter_by(email=field.data).first()
+        if user and user.id != self.obj.id:
+            raise ValidationError('Email already registered.')
+    
+    def validate_nic_number(self, field):
+        if field.data != self.original_nic:
+            user = User.query.filter_by(nic_number=field.data).first()
+            if user:
+                raise ValidationError('NIC number already registered.')
+            
+            # Check age from NIC
+            dob = calculate_dob_from_nic(field.data)
+            if dob:
+                age = calculate_age(dob)
+                if age is not None and age < 18:
+                    raise ValidationError('User must be 18 years or older to register.')
     
     @staticmethod
     def get_role_permissions(role):
