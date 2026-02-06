@@ -44,7 +44,8 @@ def list_customers():
         query = query.filter_by(status=status)
     
     if customer_type:
-        query = query.filter_by(customer_type=customer_type)
+        # Filter by customer type in JSON array
+        query = query.filter(Customer.customer_type.like(f'%{customer_type}%'))
     
     customers = query.order_by(Customer.created_at.desc()).paginate(
         page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
@@ -65,7 +66,20 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
-        customer_id = generate_customer_id(form.customer_type.data, get_current_branch_id())
+        # Get selected customer types
+        customer_types = []
+        if form.customer_type_customer.data:
+            customer_types.append('customer')
+        if form.customer_type_investor.data:
+            customer_types.append('investor')
+        if form.customer_type_guarantor.data:
+            customer_types.append('guarantor')
+        if form.customer_type_family_guarantor.data:
+            customer_types.append('family_guarantor')
+        
+        # Use the first selected type as primary for ID generation
+        primary_customer_type = customer_types[0] if customer_types else 'customer'
+        customer_id = generate_customer_id(primary_customer_type, get_current_branch_id())
         
         # Handle profile picture upload
         profile_picture_path = None
@@ -130,7 +144,7 @@ def add_customer():
             branch_id=get_current_branch_id(),
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
-            customer_type=form.customer_type.data,
+            customer_types=customer_types,  # Use the property setter
             date_of_birth=form.date_of_birth.data,
             gender=form.gender.data,
             marital_status=form.marital_status.data,
@@ -281,7 +295,19 @@ def edit_customer(id):
         
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data
-        customer.customer_type = form.customer_type.data
+        
+        # Update customer types
+        customer_types = []
+        if form.customer_type_customer.data:
+            customer_types.append('customer')
+        if form.customer_type_investor.data:
+            customer_types.append('investor')
+        if form.customer_type_guarantor.data:
+            customer_types.append('guarantor')
+        if form.customer_type_family_guarantor.data:
+            customer_types.append('family_guarantor')
+        customer.customer_types = customer_types  # Use the property setter
+        
         customer.date_of_birth = form.date_of_birth.data
         customer.gender = form.gender.data
         customer.marital_status = form.marital_status.data
@@ -478,7 +504,8 @@ def search_members():
             )
         
         if customer_type:
-            query = query.filter_by(customer_type=customer_type)
+            # Filter by customer type in JSON array
+            query = query.filter(Customer.customer_type.like(f'%{customer_type}%'))
         
         if status:
             query = query.filter_by(status=status)

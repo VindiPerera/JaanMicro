@@ -875,7 +875,10 @@ def get_guarantors():
     
     # Query customers who are guarantors or family guarantors and have KYC verified
     query = Customer.query.filter(
-        Customer.customer_type.in_(['guarantor', 'family_guarantor']),
+        db.or_(
+            Customer.customer_type.like('%guarantor%'),
+            Customer.customer_type.like('%family_guarantor%')
+        ),
         Customer.kyc_verified == True
     )
     
@@ -900,7 +903,7 @@ def get_guarantors():
             'nic_number': guarantor.nic_number,
             'phone_primary': guarantor.phone_primary,
             'customer_type': guarantor.customer_type,
-            'customer_type_display': 'Family Guarantor' if guarantor.customer_type == 'family_guarantor' else 'Guarantor',
+            'customer_type_display': guarantor.customer_type_display,
             'address_line1': guarantor.address_line1,
             'address_line2': guarantor.address_line2 or '',
             'city': guarantor.city,

@@ -56,7 +56,7 @@
                     <tr>
                         <td>{{ customer.customer_id }}</td>
                         <td>{{ customer.full_name }}</td>
-                        <td>{{ customer.customer_type|title if customer.customer_type else 'Customer' }}</td>
+                        <td>{{ customer.customer_type_display }}</td>
                         <td>{{ customer.nic_number }}</td>
                         <td>{{ customer.phone_primary }}</td>
                         <td>{{ customer.city }}</td>

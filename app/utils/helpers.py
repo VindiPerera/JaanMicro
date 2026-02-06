@@ -37,7 +37,7 @@ def generate_customer_id(customer_type='customer', branch_id=None):
     # Find the last customer of this type in this branch
     try:
         last_customer = Customer.query.filter(
-            Customer.customer_type == customer_type,
+            Customer.customer_type.like(f'%{customer_type}%'),
             Customer.branch_id == branch_id
         ).order_by(Customer.id.desc()).first()
         

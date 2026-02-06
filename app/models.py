@@ -189,7 +189,7 @@ class Customer(db.Model):
     # Personal Information
     full_name = db.Column(db.String(200), nullable=False, index=True)
     nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
-    customer_type = db.Column(db.String(20), default='customer')  # customer, investor, guarantor
+    customer_type = db.Column(db.Text, default='["customer"]')  # JSON array of types: customer, investor, guarantor, family_guarantor
     date_of_birth = db.Column(db.Date)
     gender = db.Column(db.String(10))
     marital_status = db.Column(db.String(20))
@@ -251,6 +251,39 @@ class Customer(db.Model):
     def get_total_investment_amount(self):
         """Get total investment amount"""
         return sum(inv.current_amount for inv in self.investments.filter_by(status='active').all())
+    
+    @property
+    def customer_types(self):
+        """Get customer types as a list"""
+        try:
+            return json.loads(self.customer_type) if self.customer_type else ['customer']
+        except (json.JSONDecodeError, TypeError):
+            # Handle legacy string values
+            return [self.customer_type] if self.customer_type else ['customer']
+    
+    @customer_types.setter
+    def customer_types(self, value):
+        """Set customer types as JSON"""
+        if isinstance(value, list):
+            self.customer_type = json.dumps(value)
+        else:
+            self.customer_type = json.dumps([value] if value else ['customer'])
+    
+    @property
+    def customer_type_display(self):
+        """Get customer types as a readable string"""
+        type_names = {
+            'customer': 'Customer',
+            'investor': 'Loan Borrower',
+            'guarantor': 'Guarantor',
+            'family_guarantor': 'Family Guarantor'
+        }
+        types = self.customer_types
+        return ', '.join(type_names.get(t, t.title()) for t in types)
+    
+    def has_customer_type(self, customer_type):
+        """Check if customer has a specific type"""
+        return customer_type in self.customer_types
     
     def __repr__(self):
         return f'<Customer {self.customer_id} - {self.full_name}>'

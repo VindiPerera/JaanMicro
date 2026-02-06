@@ -70,10 +70,10 @@
                         <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
                         <td>{{ customer.full_name }}</td>
                         <td>
-                            {% if customer.customer_type == 'family_guarantor' %}
-                                <span class="badge bg-info">Family Guarantor</span>
-                            {% else %}
-                                {{ customer.customer_type|title if customer.customer_type else 'Customer' }}
+                            {% if 'family_guarantor' in customer.customer_types %}
+                                <span class="badge bg-warning">Family Guarantor</span>
+                            {% endif %}
+                                {{ customer.customer_type_display }}
                             {% endif %}
                         </td>
                         <td>{{ customer.nic_number }}</td>
