@@ -115,6 +115,14 @@ def add_loan():
             if not form.duration_months.data:
                 flash('Duration (Months) is required for Type 4 - Daily Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form)
+        elif form.loan_type.data == 'monthly_loan':
+            # For Monthly loans, validate months, interest type, and installment frequency
+            if not form.duration_months.data:
+                flash('Duration (Months) is required for Monthly Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
+            if not form.interest_type.data:
+                flash('Interest Type is required for Monthly Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form)
         else:
             # For other loan types, validate months, interest type, and installment frequency
             if not form.duration_months.data:
@@ -190,6 +198,23 @@ def add_loan():
             emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'monthly_loan':
+            # Monthly Loan: Standard monthly calculation
+            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
+            n = duration_months
+            
+            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
+                # EMI = [P x R x (1+R)^N]/[(1+R)^N-1]
+                mr_float = float(monthly_rate)
+                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
+                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
+            else:
+                # Flat rate calculation
+                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
+                emi = (loan_amount + total_interest) / Decimal(str(n))
+            
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         else:
             # Standard monthly calculation
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
@@ -916,7 +941,7 @@ def get_guarantors():
 @login_required
 @permission_required('collect_payments')
 def receipt_entry():
-    """Receipt entry page with weekly and daily loan payment tables"""
+    """Receipt entry page with weekly, daily, and monthly loan payment tables"""
     referrer = request.args.get('collector', type=int)
     
     # Get weekly loans (type1_9weeks and type4_micro)
@@ -931,20 +956,29 @@ def receipt_entry():
         Loan.status == 'active'
     )
     
+    # Get monthly loans (monthly_loan and other monthly types)
+    monthly_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['monthly_loan']),
+        Loan.status == 'active'
+    )
+    
     # Filter by branch if needed
     if should_filter_by_branch():
         current_branch_id = get_current_branch_id()
         if current_branch_id:
             weekly_loans_query = weekly_loans_query.filter_by(branch_id=current_branch_id)
             daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
+            monthly_loans_query = monthly_loans_query.filter_by(branch_id=current_branch_id)
     
     # Filter by referrer if specified
     if referrer:
         weekly_loans_query = weekly_loans_query.filter(Loan.referred_by == referrer)
         daily_loans_query = daily_loans_query.filter(Loan.referred_by == referrer)
+        monthly_loans_query = monthly_loans_query.filter(Loan.referred_by == referrer)
     
     weekly_loans = weekly_loans_query.order_by(Loan.created_at.desc()).all()
     daily_loans = daily_loans_query.order_by(Loan.created_at.desc()).all()
+    monthly_loans = monthly_loans_query.order_by(Loan.created_at.desc()).all()
     
     # Get recent payments for each loan with collector info
     weekly_payments = []
@@ -959,6 +993,14 @@ def receipt_entry():
     for loan in daily_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         daily_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    monthly_payments = []
+    for loan in monthly_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        monthly_payments.append({
             'loan': loan,
             'recent_payments': recent_payments
         })
@@ -990,6 +1032,7 @@ def receipt_entry():
                          title='Receipt Entry',
                          weekly_payments=weekly_payments,
                          daily_payments=daily_payments,
+                         monthly_payments=monthly_payments,
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
