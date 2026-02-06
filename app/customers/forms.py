@@ -19,6 +19,20 @@ class CustomerForm(FlaskForm):
         FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
     ])
     
+    # KYC Documents
+    nic_front_image = FileField('NIC Front Image', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
+    ])
+    nic_back_image = FileField('NIC Back Image', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
+    ])
+    photo = FileField('Customer Photo', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
+    ])
+    proof_of_address = FileField('Proof of Address', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
+    ])
+    
     # Contact Information
     phone_primary = StringField('Primary Phone', validators=[DataRequired(), Length(max=20)])
     phone_secondary = StringField('Secondary Phone', validators=[Optional(), Length(max=20)])
@@ -85,6 +99,21 @@ class CustomerForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)
         self.original_nic = kwargs.get('obj').nic_number if kwargs.get('obj') else None
+        
+        # Make KYC fields required only when adding new customer (obj is None)
+        # When editing (obj is provided), make them optional
+        is_edit = kwargs.get('obj') is not None
+        
+        if not is_edit:
+            # For new customers, make KYC documents required
+            self.nic_front_image.validators.insert(0, DataRequired('NIC Front Image is required'))
+            self.nic_back_image.validators.insert(0, DataRequired('NIC Back Image is required'))
+            self.photo.validators.insert(0, DataRequired('Customer Photo is required'))
+            self.proof_of_address.validators.insert(0, DataRequired('Proof of Address is required'))
+        else:
+            # For editing, make KYC documents optional (remove DataRequired if present)
+            for field in [self.nic_front_image, self.nic_back_image, self.photo, self.proof_of_address]:
+                field.validators = [v for v in field.validators if not isinstance(v, DataRequired)]
     
     def validate_nic_number(self, field):
         if field.data != self.original_nic:
@@ -94,17 +123,5 @@ class CustomerForm(FlaskForm):
 
 class KYCForm(FlaskForm):
     """KYC verification form"""
-    nic_front_image = FileField('NIC Front Image', validators=[
-        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
-    ])
-    nic_back_image = FileField('NIC Back Image', validators=[
-        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
-    ])
-    photo = FileField('Customer Photo', validators=[
-        FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
-    ])
-    proof_of_address = FileField('Proof of Address', validators=[
-        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
-    ])
     kyc_verified = BooleanField('Verify KYC')
     submit = SubmitField('Update KYC')

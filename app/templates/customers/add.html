@@ -157,6 +157,38 @@
                         {{ form.notes(class="form-control", rows="3") }}
                     </div>
                     
+                    <h6 class="border-bottom pb-2 mb-3 mt-4">KYC Documents <span class="text-danger">*</span></h6>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Upload KYC documents for verification. These documents will be reviewed during the KYC verification process.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.nic_front_image.label(class="form-label") }} <span class="text-danger">*</span>
+                            {{ form.nic_front_image(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">NIC front image (JPG, PNG, PDF)</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.nic_back_image.label(class="form-label") }} <span class="text-danger">*</span>
+                            {{ form.nic_back_image(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">NIC back image (JPG, PNG, PDF)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.photo.label(class="form-label") }} <span class="text-danger">*</span>
+                            {{ form.photo(class="form-control", accept="image/*") }}
+                            <div class="form-text">Customer photo (JPG, PNG)</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.proof_of_address.label(class="form-label") }} <span class="text-danger">*</span>
+                            {{ form.proof_of_address(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">Proof of address (utility bill, etc.)</div>
+                        </div>
+                    </div>
+                    
                     <div class="mt-4">
                         {{ form.submit(class="btn btn-primary") }}
                         <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>
