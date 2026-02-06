@@ -298,12 +298,16 @@ def view_loan(id):
         if guarantor_id_list:
             guarantors = Customer.query.filter(Customer.id.in_(guarantor_id_list)).all()
     
+    # Get arrears details
+    arrears_details = loan.get_arrears_details()
+    
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
                          guarantors=guarantors,
                          current_outstanding=current_outstanding,
-                         accrued_interest=accrued_interest)
+                         accrued_interest=accrued_interest,
+                         arrears_details=arrears_details)
 
 @loans_bp.route('/<int:id>/approve', methods=['GET', 'POST'])
 @login_required
@@ -743,6 +747,7 @@ def add_payment(id):
         if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences
             loan.status = 'completed'
             loan.outstanding_amount = Decimal('0')
+            loan.closing_date = form.payment_date.data  # Set closing date to payment date
             
         # Log activity
         log = ActivityLog(

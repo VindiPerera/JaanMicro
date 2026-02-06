@@ -324,6 +324,7 @@ class Loan(db.Model):
     disbursement_date = db.Column(db.Date)
     first_installment_date = db.Column(db.Date)
     maturity_date = db.Column(db.Date)
+    closing_date = db.Column(db.Date)  # Date when loan was actually closed/completed
     
     # Status and Approval (Multi-stage workflow)
     # Status flow: pending -> pending_staff_approval -> pending_manager_approval -> initiated -> active
@@ -640,6 +641,43 @@ class Loan(db.Model):
             })
         
         return schedule
+    
+    def get_arrears_details(self):
+        """Calculate arrears details for overdue payments"""
+        from decimal import Decimal
+        from datetime import date
+        
+        if self.status not in ['active', 'completed']:
+            return {
+                'total_overdue_amount': Decimal('0'),
+                'overdue_installments': 0,
+                'days_overdue': 0,
+                'oldest_overdue_date': None
+            }
+        
+        schedule = self.generate_payment_schedule()
+        total_overdue = Decimal('0')
+        overdue_count = 0
+        oldest_overdue_date = None
+        today = date.today()
+        
+        for installment in schedule:
+            if installment['status'] == 'overdue':
+                total_overdue += Decimal(str(installment['amount']))
+                overdue_count += 1
+                if oldest_overdue_date is None or installment['due_date'] < oldest_overdue_date:
+                    oldest_overdue_date = installment['due_date']
+        
+        days_overdue = 0
+        if oldest_overdue_date and oldest_overdue_date < today:
+            days_overdue = (today - oldest_overdue_date).days
+        
+        return {
+            'total_overdue_amount': total_overdue,
+            'overdue_installments': overdue_count,
+            'days_overdue': days_overdue,
+            'oldest_overdue_date': oldest_overdue_date
+        }
     
     def __repr__(self):
         return f'<Loan {self.loan_number}>'
