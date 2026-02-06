@@ -168,6 +168,9 @@
                         <th>Type</th>
                         <th>Reference #</th>
                         <th>Member</th>
+                        <th>Phone</th>
+                        <th>NIC</th>
+                        <th>Address</th>
                         <th>Member ID</th>
                         <th>Disbursement</th>
                         <th>Maturity</th>
@@ -189,6 +192,9 @@
                         </td>
                         <td>{{ item.reference_number }}</td>
                         <td>{{ item.customer_name }}</td>
+                        <td>{{ item.customer_phone or 'N/A' }}</td>
+                        <td>{{ item.customer_nic or 'N/A' }}</td>
+                        <td>{{ item.customer_address or 'N/A' }}</td>
                         <td>{{ item.customer_id }}</td>
                         <td>{{ item.disbursement_date.strftime('%Y-%m-%d') if item.disbursement_date else 'N/A' }}</td>
                         <td>
@@ -217,7 +223,7 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="12" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    <tr><td colspan="15" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
