@@ -84,6 +84,11 @@ def add_investment():
             flash('Please select a customer!', 'error')
             return render_template('investments/add.html', title='Add Borrower', form=form)
         
+        # Validate minimum investment amount
+        if form.principal_amount.data < settings.minimum_investment_amount:
+            flash(f'Principal amount cannot be less than Rs. {settings.minimum_investment_amount}!', 'error')
+            return render_template('investments/add.html', title='Add Borrower', form=form)
+        
         settings = SystemSettings.get_settings()
         investment_number = generate_investment_number(settings.investment_number_prefix)
         

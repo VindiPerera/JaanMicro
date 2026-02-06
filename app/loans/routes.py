@@ -89,6 +89,9 @@ def add_loan():
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_loan_interest_rate
+        form.interest_type.data = settings.interest_calculation_method
+        form.duration_months.data = settings.default_loan_duration
+        form.installment_frequency.data = 'monthly'  # Default for monthly loans
     
     if form.validate_on_submit():
         # Custom validation based on loan type
