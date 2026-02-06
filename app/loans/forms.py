@@ -43,7 +43,6 @@ class LoanForm(FlaskForm):
         ('quarterly', 'Quarterly')
     ], validators=[Optional()])
     
-    application_date = DateField('Application Date', validators=[DataRequired()])
     purpose = TextAreaField('Purpose of Loan', validators=[Optional()])
     security_details = TextAreaField('Security/Collateral Details', validators=[Optional()])
     # Status field removed - all new loans start as 'pending' and go through approval workflow

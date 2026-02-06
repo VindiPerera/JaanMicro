@@ -89,7 +89,6 @@ def add_loan():
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_loan_interest_rate
-        form.application_date.data = datetime.now().date()
     
     if form.validate_on_submit():
         # Custom validation based on loan type
@@ -249,7 +248,7 @@ def add_loan():
             total_payable=total_payable,
             outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
-            application_date=form.application_date.data,
+            application_date=datetime.now().date(),
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
