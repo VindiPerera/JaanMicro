@@ -61,7 +61,7 @@ def system_settings():
         settings.customer_id_prefix = form.customer_id_prefix.data
         
         # Handle logo upload
-        if form.logo.data:
+        if form.logo.data and hasattr(form.logo.data, 'filename') and form.logo.data.filename:
             file = form.logo.data
             if allowed_file(file.filename):
                 upload_folder = current_app.config['UPLOAD_FOLDER']

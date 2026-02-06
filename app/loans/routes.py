@@ -222,7 +222,7 @@ def add_loan():
         
         # Handle document upload
         document_filename = None
-        if form.document.data:
+        if form.document.data and hasattr(form.document.data, 'filename') and form.document.data.filename:
             file = form.document.data
             filename = secure_filename(file.filename)
             # Create unique filename with timestamp

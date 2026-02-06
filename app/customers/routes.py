@@ -83,7 +83,7 @@ def add_customer():
         
         # Handle profile picture upload
         profile_picture_path = None
-        if form.profile_picture.data:
+        if form.profile_picture.data and hasattr(form.profile_picture.data, 'filename') and form.profile_picture.data.filename:
             file = form.profile_picture.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_{file.filename}")
@@ -99,7 +99,7 @@ def add_customer():
         photo_path = None
         proof_of_address_path = None
         
-        if form.nic_front_image.data:
+        if form.nic_front_image.data and hasattr(form.nic_front_image.data, 'filename') and form.nic_front_image.data.filename:
             file = form.nic_front_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_nic_front_{file.filename}")
@@ -109,7 +109,7 @@ def add_customer():
                 file.save(file_path)
                 nic_front_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
         
-        if form.nic_back_image.data:
+        if form.nic_back_image.data and hasattr(form.nic_back_image.data, 'filename') and form.nic_back_image.data.filename:
             file = form.nic_back_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_nic_back_{file.filename}")
@@ -119,7 +119,7 @@ def add_customer():
                 file.save(file_path)
                 nic_back_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
         
-        if form.photo.data:
+        if form.photo.data and hasattr(form.photo.data, 'filename') and form.photo.data.filename:
             file = form.photo.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_photo_{file.filename}")
@@ -129,7 +129,7 @@ def add_customer():
                 file.save(file_path)
                 photo_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
         
-        if form.proof_of_address.data:
+        if form.proof_of_address.data and hasattr(form.proof_of_address.data, 'filename') and form.proof_of_address.data.filename:
             file = form.proof_of_address.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_address_proof_{file.filename}")
@@ -242,7 +242,7 @@ def edit_customer(id):
     
     if form.validate_on_submit():
         # Handle profile picture upload
-        if form.profile_picture.data:
+        if form.profile_picture.data and hasattr(form.profile_picture.data, 'filename') and form.profile_picture.data.filename:
             file = form.profile_picture.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer.customer_id}_{file.filename}")
@@ -253,7 +253,7 @@ def edit_customer(id):
                 customer.profile_picture = f"customers/{customer.branch_id}/{filename}"
         
         # Handle KYC document uploads
-        if form.nic_front_image.data:
+        if form.nic_front_image.data and hasattr(form.nic_front_image.data, 'filename') and form.nic_front_image.data.filename:
             file = form.nic_front_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer.customer_id}_nic_front_{file.filename}")
@@ -263,7 +263,7 @@ def edit_customer(id):
                 file.save(file_path)
                 customer.nic_front_image = f"uploads/customers/{customer.branch_id}/{filename}"
         
-        if form.nic_back_image.data:
+        if form.nic_back_image.data and hasattr(form.nic_back_image.data, 'filename') and form.nic_back_image.data.filename:
             file = form.nic_back_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer.customer_id}_nic_back_{file.filename}")
@@ -273,7 +273,7 @@ def edit_customer(id):
                 file.save(file_path)
                 customer.nic_back_image = f"uploads/customers/{customer.branch_id}/{filename}"
         
-        if form.photo.data:
+        if form.photo.data and hasattr(form.photo.data, 'filename') and form.photo.data.filename:
             file = form.photo.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer.customer_id}_photo_{file.filename}")
@@ -283,7 +283,7 @@ def edit_customer(id):
                 file.save(file_path)
                 customer.photo = f"uploads/customers/{customer.branch_id}/{filename}"
         
-        if form.proof_of_address.data:
+        if form.proof_of_address.data and hasattr(form.proof_of_address.data, 'filename') and form.proof_of_address.data.filename:
             file = form.proof_of_address.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer.customer_id}_address_proof_{file.filename}")
