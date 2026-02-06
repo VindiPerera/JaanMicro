@@ -4,6 +4,41 @@ from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, DateField, SelectField, TextAreaField, DecimalField, BooleanField, SubmitField
 from wtforms.validators import DataRequired, Email, Optional, Length, ValidationError
 from app.models import Customer
+from datetime import datetime, date, timedelta
+
+def calculate_dob_from_nic(nic):
+    """Calculate date of birth from Sri Lankan NIC"""
+    nic = nic.strip().upper()
+    
+    if len(nic) == 10 and nic[-1] in ['V', 'X'] and nic[:-1].isdigit():
+        # Old NIC: 9 digits + V/X
+        year = 1900 + int(nic[:2])
+        day_of_year = int(nic[2:5])
+    elif len(nic) == 12 and nic.isdigit():
+        # New NIC: 12 digits
+        year = int(nic[:4])
+        day_of_year = int(nic[4:7])
+    else:
+        return None
+    
+    # Adjust for gender (female days start from 500+)
+    if day_of_year > 500:
+        day_of_year -= 500
+    
+    # Create date from year and day of year
+    try:
+        dob = date(year, 1, 1) + timedelta(days=day_of_year - 1)
+        return dob
+    except ValueError:
+        return None
+
+def calculate_age(dob):
+    """Calculate age from date of birth"""
+    if not dob:
+        return None
+    today = date.today()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return age
 
 class CustomerForm(FlaskForm):
     """Customer registration form"""
@@ -120,6 +155,13 @@ class CustomerForm(FlaskForm):
             customer = Customer.query.filter_by(nic_number=field.data).first()
             if customer:
                 raise ValidationError('NIC number already registered.')
+            
+            # Check age from NIC
+            dob = calculate_dob_from_nic(field.data)
+            if dob:
+                age = calculate_age(dob)
+                if age is not None and age < 18:
+                    raise ValidationError('Customer must be 18 years or older to register.')
 
 class KYCForm(FlaskForm):
     """KYC verification form"""

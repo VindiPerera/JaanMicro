@@ -228,11 +228,40 @@ function calculateDOB(nic) {
     return { date: formattedDate, gender: gender };
 }
 
-document.getElementById('nic_number').addEventListener('input', function() {
-    let result = calculateDOB(this.value);
-    if (result) {
-        document.getElementById('date_of_birth').value = result.date;
-        document.getElementById('gender').value = result.gender;
+function calculateAge(dob) {
+    let today = new Date();
+    let birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    let monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('nic_number').addEventListener('input', function() {
+        let result = calculateDOB(this.value);
+        if (result) {
+            document.getElementById('date_of_birth').value = result.date;
+            document.getElementById('gender').value = result.gender;
+        }
+    });
+
+    // Check when save button is clicked
+    const saveButton = document.querySelector('.btn-primary[type="submit"]');
+    if (saveButton) {
+        saveButton.addEventListener('click', function(e) {
+            let dob = document.getElementById('date_of_birth').value;
+            if (dob) {
+                let age = calculateAge(dob);
+                if (age < 18) {
+                    alert('Customer must be 18 years or older to register.');
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
     }
 });
 </script>
