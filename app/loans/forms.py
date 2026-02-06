@@ -1,12 +1,13 @@
 """Loan forms"""
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
-from wtforms import StringField, SelectField, DecimalField, IntegerField, DateField, TextAreaField, BooleanField, SubmitField
+from wtforms import StringField, SelectField, DecimalField, IntegerField, DateField, TextAreaField, BooleanField, SubmitField, HiddenField
 from wtforms.validators import DataRequired, Optional, NumberRange, Length
 
 class LoanForm(FlaskForm):
     """Loan application form"""
-    customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
+    customer_id = HiddenField('Customer ID', validators=[DataRequired()])
+    customer_search = StringField('Customer Search', validators=[DataRequired()], render_kw={"placeholder": "Search by name, ID, or NIC number"})
     referred_by = SelectField('Referred By (User)', coerce=int, choices=[], validators=[Optional()])
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),

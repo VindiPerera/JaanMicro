@@ -50,11 +50,19 @@
                     <!-- Step 1: Loan Details -->
                     <div id="step1" class="form-step">
                         <div class="mb-3">
-                            {{ form.customer_id.label(class="form-label", text="Member") }}
-                            {{ form.customer_id(class="form-select", required="required") }}
+                            {{ form.customer_search.label(class="form-label", text="Member") }}
+                            <div class="position-relative">
+                                {{ form.customer_search(class="form-control", id="customer-search", autocomplete="off") }}
+                                {{ form.customer_id() }}
+                                <div id="customer-search-results" class="position-absolute top-100 start-0 w-100 bg-white border rounded shadow-sm d-none" style="z-index: 1000; max-height: 200px; overflow-y: auto;"></div>
+                            </div>
+                            {% if form.customer_search.errors %}
+                            <div class="text-danger small">{{ form.customer_search.errors[0] }}</div>
+                            {% endif %}
                             {% if form.customer_id.errors %}
                             <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
                             {% endif %}
+                            <small class="text-muted">Search by customer name, ID, or NIC number</small>
                         </div>
                         
                         <div class="mb-3">
@@ -307,6 +315,63 @@
 <script>
 $(document).ready(function() {
     var addedGuarantors = [];
+    var customerSearchTimeout;
+    
+    // Customer search functionality
+    $('#customer-search').on('input', function() {
+        var searchTerm = $(this).val().trim();
+        var resultsContainer = $('#customer-search-results');
+        
+        clearTimeout(customerSearchTimeout);
+        
+        if (searchTerm.length < 2) {
+            resultsContainer.addClass('d-none');
+            $('#customer_id').val('');
+            return;
+        }
+        
+        customerSearchTimeout = setTimeout(function() {
+            $.ajax({
+                url: '{{ url_for("loans.search_customers") }}',
+                method: 'GET',
+                data: { q: searchTerm },
+                success: function(response) {
+                    if (response.success && response.customers.length > 0) {
+                        var html = '';
+                        response.customers.forEach(function(customer) {
+                            html += '<div class="p-2 border-bottom customer-result" data-id="' + customer.id + '" data-text="' + customer.text + '" style="cursor: pointer;">';
+                            html += '<strong>' + customer.customer_id + '</strong> - ' + customer.full_name;
+                            html += '<br><small class="text-muted">NIC: ' + customer.nic_number + ' | Phone: ' + (customer.phone_primary || 'N/A') + '</small>';
+                            html += '</div>';
+                        });
+                        resultsContainer.html(html).removeClass('d-none');
+                    } else {
+                        resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                    }
+                },
+                error: function() {
+                    resultsContainer.html('<div class="p-2 text-danger">Error searching customers</div>').removeClass('d-none');
+                }
+            });
+        }, 300);
+    });
+    
+    // Handle customer selection
+    $(document).on('click', '.customer-result', function() {
+        var customerId = $(this).data('id');
+        var customerText = $(this).data('text');
+        
+        $('#customer_id').val(customerId);
+        $('#customer-search').val(customerText);
+        $('#customer-search-results').addClass('d-none');
+    });
+    
+    // Hide results when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#customer-search, #customer-search-results').length) {
+            $('#customer-search-results').addClass('d-none');
+        }
+    });
     
     // Handle loan type change to show/hide appropriate fields
     $('#loan_type').on('change', function() {
@@ -416,7 +481,7 @@ $(document).ready(function() {
         var memberId = $('#customer_id').val();
         if (!memberId) {
             alert('Please select a member before proceeding to add guarantors.');
-            $('#customer_id').focus();
+            $('#customer-search').focus();
             return;
         }
         

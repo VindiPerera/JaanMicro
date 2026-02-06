@@ -63,18 +63,6 @@ def add_loan():
     """Add new loan"""
     form = LoanForm()
     
-    # Get customers for dropdown
-    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
-    
-    # Apply branch filtering if needed
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            customer_query = customer_query.filter_by(branch_id=current_branch_id)
-    
-    customers = customer_query.order_by(Customer.full_name).all()
-    form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
-    
     # Get users for referred_by dropdown
     user_query = User.query.filter_by(is_active=True)
     if should_filter_by_branch():
@@ -909,6 +897,56 @@ def get_guarantors():
     return jsonify({
         'success': True,
         'guarantors': guarantor_list
+    })
+
+
+# API endpoint for searching customers
+@loans_bp.route('/api/search-customers')
+@login_required
+@permission_required('manage_loans')
+def search_customers():
+    """Search customers for loan assignment"""
+    search_term = request.args.get('q', '', type=str).strip()
+    
+    if not search_term or len(search_term) < 2:
+        return jsonify({'success': False, 'customers': []})
+    
+    # Query active and KYC verified customers
+    query = Customer.query.filter(
+        Customer.status == 'active',
+        Customer.kyc_verified == True
+    )
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    # Search by name, customer ID, or NIC number
+    customers = query.filter(
+        db.or_(
+            Customer.full_name.ilike(f'%{search_term}%'),
+            Customer.customer_id.ilike(f'%{search_term}%'),
+            Customer.nic_number.ilike(f'%{search_term}%')
+        )
+    ).order_by(Customer.full_name).limit(10).all()
+    
+    # Format customer data
+    customer_list = []
+    for customer in customers:
+        customer_list.append({
+            'id': customer.id,
+            'text': f'{customer.customer_id} - {customer.full_name} ({customer.nic_number})',
+            'customer_id': customer.customer_id,
+            'full_name': customer.full_name,
+            'nic_number': customer.nic_number,
+            'phone_primary': customer.phone_primary
+        })
+    
+    return jsonify({
+        'success': True,
+        'customers': customer_list
     })
 
 
