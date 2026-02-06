@@ -14,7 +14,7 @@
 </div>
 
 <!-- Search and Filter -->
-<!-- <div class="card mb-4">
+<div class="card mb-4">
     <div class="card-body">
         <form method="GET" action="" class="row g-3">
             <div class="col-md-3">
@@ -38,13 +38,21 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <select name="referred_by" class="form-select">
+                    <option value="">All Referrers</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if referred_by == user.id %}selected{% endif %}>{{ user.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
                 <button type="submit" class="btn btn-primary w-100">
                     <i class="bi bi-search me-2"></i>Search
                 </button>
             </div>
         </form>
     </div>
-</div> -->
+</div>
 
 <!-- Loans Table -->
 <div class="card">

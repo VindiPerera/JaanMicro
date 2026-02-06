@@ -4,12 +4,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Loan Details</h4>
     <div>
-        {% if loan.status == 'active' %}
-        <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-success">
-            <i class="bi bi-cash me-2"></i>Add Payment
-        </a>
-        {% endif %}
-        
         {# Multi-stage approval buttons #}
         {% if loan.status == 'pending' and current_user.role in ['staff', 'loan_collector'] %}
         <a href="{{ url_for('loans.approve_loan_staff', id=loan.id) }}" class="btn btn-primary">
@@ -397,49 +391,6 @@
             </div>
         </div>
         {% endif %}
-    </div>
-</div>
-
-<!-- Payment History -->
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover data-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Receipt #</th>
-                        <th>Amount</th>
-                        <th>Principal</th>
-                        <th>Interest</th>
-                        <th>Penalty</th>
-                        <th>Balance After</th>
-                        <th>Payment Method</th>
-                        <th>Collected By</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for payment in payments %}
-                    <tr>
-                        <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else 'N/A' }}</td>
-                        <td>{{ payment.receipt_number }}</td>
-                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}</strong></td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.penalty_amount|float) if payment.penalty_amount else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.balance_after|float) if payment.balance_after else '0.00' }}</td>
-                        <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
-                        <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="9" class="text-center text-muted">No payments recorded yet</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
     </div>
 </div>
 

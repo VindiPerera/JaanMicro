@@ -294,8 +294,6 @@ def view_loan(id):
             flash('Access denied: Loan not found in current branch.', 'danger')
             return redirect(url_for('loans.list_loans'))
     
-    payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
-    
     # Calculate current outstanding amount with accrued interest
     current_outstanding = loan.calculate_current_outstanding()
     accrued_interest = loan.calculate_accrued_interest()
@@ -316,7 +314,6 @@ def view_loan(id):
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
-                         payments=payments,
                          guarantors=guarantors,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
@@ -916,3 +913,85 @@ def get_guarantors():
         'guarantors': guarantor_list
     })
 
+
+@loans_bp.route('/receipt-entry')
+@login_required
+@permission_required('collect_payments')
+def receipt_entry():
+    """Receipt entry page with weekly and daily loan payment tables"""
+    referrer = request.args.get('collector', type=int)
+    
+    # Get weekly loans (type1_9weeks and type4_micro)
+    weekly_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['type1_9weeks', 'type4_micro']),
+        Loan.status == 'active'
+    )
+    
+    # Get daily loans (54_daily and type4_daily)
+    daily_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['54_daily', 'type4_daily']),
+        Loan.status == 'active'
+    )
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            weekly_loans_query = weekly_loans_query.filter_by(branch_id=current_branch_id)
+            daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
+    
+    # Filter by referrer if specified
+    if referrer:
+        weekly_loans_query = weekly_loans_query.filter(Loan.referred_by == referrer)
+        daily_loans_query = daily_loans_query.filter(Loan.referred_by == referrer)
+    
+    weekly_loans = weekly_loans_query.order_by(Loan.created_at.desc()).all()
+    daily_loans = daily_loans_query.order_by(Loan.created_at.desc()).all()
+    
+    # Get recent payments for each loan with collector info
+    weekly_payments = []
+    for loan in weekly_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        weekly_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    daily_payments = []
+    for loan in daily_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        daily_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    # Get all payments for payment history
+    all_payments_query = LoanPayment.query.join(Loan)
+    
+    # Filter by branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            all_payments_query = all_payments_query.filter(Loan.branch_id == current_branch_id)
+    
+    # Filter by referrer if specified
+    if referrer:
+        all_payments_query = all_payments_query.filter(Loan.referred_by == referrer)
+    
+    all_payments = all_payments_query.order_by(LoanPayment.payment_date.desc()).limit(100).all()
+    
+    # Get users for referrer dropdown
+    users_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            users_query = users_query.filter_by(branch_id=current_branch_id)
+    users = users_query.order_by(User.full_name).all()
+    
+    return render_template('loans/receipt_entry.html',
+                         title='Receipt Entry',
+                         weekly_payments=weekly_payments,
+                         daily_payments=daily_payments,
+                         all_payments=all_payments,
+                         users=users,
+                         collector=referrer)

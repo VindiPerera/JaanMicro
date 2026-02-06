@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4>Receipt Entry</h4>
+        <p class="text-muted mb-0">Manage loan payments by loan type</p>
+        {% if collector %}
+        <div class="mt-2">
+            <span class="badge bg-info">
+                <i class="bi bi-filter me-1"></i>
+                Filtered by referrer: {{ users|selectattr('id', 'equalto', collector)|map(attribute='full_name')|first }}
+            </span>
+        </div>
+        {% endif %}
+    </div>
+    <div>
+        <a href="{{ url_for('loans.list_loans') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Loans
+        </a>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-4">
+                <label for="collector" class="form-label">Filter by Referrer</label>
+                <select name="collector" id="collector" class="form-select">
+                    <option value="">All Referrers</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if collector and collector == user.id|string %}selected{% endif %}>
+                        {{ user.full_name }} ({{ user.username }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <a href="{{ url_for('loans.receipt_entry') }}" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-x-circle me-2"></i>Clear Filter
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabs for Weekly and Daily Loans -->
+<ul class="nav nav-tabs" id="receiptTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="weekly-tab" data-bs-toggle="tab" data-bs-target="#weekly" type="button" role="tab" aria-controls="weekly" aria-selected="true">
+            <i class="bi bi-calendar-week me-2"></i>Weekly Loans
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab" aria-controls="daily" aria-selected="false">
+            <i class="bi bi-calendar-day me-2"></i>Daily Loans
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">
+            <i class="bi bi-clock-history me-2"></i>Payment History
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content mt-4" id="receiptTabContent">
+    <!-- Weekly Loans Tab -->
+    <div class="tab-pane fade show active" id="weekly" role="tabpanel" aria-labelledby="weekly-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Weekly Loan Payments</h5>
+            </div>
+            <div class="card-body">
+                {% if weekly_payments %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Loan Number</th>
+                                <th>Customer</th>
+                                <th>Loan Amount</th>
+                                <th>Outstanding</th>
+                                <th>Next Payment</th>
+                                <th>Recent Payments</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in weekly_payments %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.loan.loan_number }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ item.loan.loan_type|replace('_', ' ')|title }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ item.loan.customer.full_name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ item.loan.customer.nic_number }}</small>
+                                </td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.loan_amount|float) }}</td>
+                                <td>
+                                    <span class="badge bg-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.outstanding_amount|float) }}</span>
+                                </td>
+                                <td>
+                                    {% if item.loan.next_payment_date %}
+                                        {{ item.loan.next_payment_date.strftime('%Y-%m-%d') }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.recent_payments %}
+                                        {% for payment in item.recent_payments[:3] %}
+                                        <div class="mb-1">
+                                            <small>
+                                                {{ payment.payment_date.strftime('%m/%d') }}:
+                                                {{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}
+                                                {% if payment.collected_by %}
+                                                <span class="text-muted">({{ payment.collected_by_user.full_name }})</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        {% endfor %}
+                                        {% if item.recent_payments|length > 3 %}
+                                        <small class="text-muted">+{{ item.recent_payments|length - 3 }} more</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">No payments</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
+                                        <i class="bi bi-plus-circle"></i> Add Payment
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-week fs-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">No Active Weekly Loans</h5>
+                    <p class="text-muted">There are no active weekly loans requiring payments at this time.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Loans Tab -->
+    <div class="tab-pane fade" id="daily" role="tabpanel" aria-labelledby="daily-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Daily Loan Payments</h5>
+            </div>
+            <div class="card-body">
+                {% if daily_payments %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Loan Number</th>
+                                <th>Customer</th>
+                                <th>Loan Amount</th>
+                                <th>Outstanding</th>
+                                <th>Next Payment</th>
+                                <th>Recent Payments</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in daily_payments %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.loan.loan_number }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ item.loan.loan_type|replace('_', ' ')|title }}</small>
+                                </td>
+                                <td>
+                                    <strong>{{ item.loan.customer.full_name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ item.loan.customer.nic_number }}</small>
+                                </td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.loan_amount|float) }}</td>
+                                <td>
+                                    <span class="badge bg-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.outstanding_amount|float) }}</span>
+                                </td>
+                                <td>
+                                    {% if item.loan.next_payment_date %}
+                                        {{ item.loan.next_payment_date.strftime('%Y-%m-%d') }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.recent_payments %}
+                                        {% for payment in item.recent_payments[:3] %}
+                                        <div class="mb-1">
+                                            <small>
+                                                {{ payment.payment_date.strftime('%m/%d') }}:
+                                                {{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}
+                                                {% if payment.collected_by %}
+                                                <span class="text-muted">({{ payment.collected_by_user.full_name }})</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        {% endfor %}
+                                        {% if item.recent_payments|length > 3 %}
+                                        <small class="text-muted">+{{ item.recent_payments|length - 3 }} more</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">No payments</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
+                                        <i class="bi bi-plus-circle"></i> Add Payment
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-calendar-day fs-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">No Active Daily Loans</h5>
+                    <p class="text-muted">There are no active daily loans requiring payments at this time.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Payment History Tab -->
+    <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Payment History</h5>
+            </div>
+            <div class="card-body">
+                {% if all_payments %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Loan #</th>
+                                <th>Customer</th>
+                                <th>Receipt #</th>
+                                <th>Amount</th>
+                                <th>Principal</th>
+                                <th>Interest</th>
+                                <th>Penalty</th>
+                                <th>Balance After</th>
+                                <th>Payment Method</th>
+                                <th>Collected By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in all_payments %}
+                            <tr>
+                                <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('loans.view_loan', id=payment.loan.id) }}">{{ payment.loan.loan_number }}</a>
+                                </td>
+                                <td>{{ payment.loan.customer.full_name }}</td>
+                                <td>{{ payment.receipt_number }}</td>
+                                <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}</strong></td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.penalty_amount|float) if payment.penalty_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.balance_after|float) if payment.balance_after else '0.00' }}</td>
+                                <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
+                                <td>{{ payment.collected_by_user.full_name if payment.collected_by else 'N/A' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-clock-history fs-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">No Payment History</h5>
+                    <p class="text-muted">There are no payments recorded in the system yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize DataTables for better table functionality
+$(document).ready(function() {
+    $('.table').DataTable({
+        "pageLength": 25,
+        "order": [[ 0, "desc" ]],
+        "columnDefs": [
+            { "orderable": false, "targets": [5, 6] }
+        ]
+    });
+});
+</script>
+
+{% endblock %}

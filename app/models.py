@@ -663,6 +663,7 @@ class LoanPayment(db.Model):
     notes = db.Column(db.Text)
     
     collected_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    collected_by_user = db.relationship('User', foreign_keys=[collected_by], backref='collected_payments')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
