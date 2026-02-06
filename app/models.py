@@ -550,12 +550,27 @@ class Loan(db.Model):
         from decimal import Decimal, ROUND_HALF_UP
         from datetime import timedelta, datetime
         
-        if not self.first_installment_date or self.status not in ['active', 'completed']:
+        # Allow schedule generation for disbursed, active, and completed loans
+        if self.status not in ['disbursed', 'active', 'completed']:
             return []
+        
+        # Determine first installment date
+        first_date = self.first_installment_date
+        if not first_date:
+            # If first_installment_date is not set, use disbursement_date or approval_date
+            if self.disbursement_date:
+                first_date = self.disbursement_date
+            elif self.approval_date:
+                first_date = self.approval_date
+            elif self.application_date:
+                first_date = self.application_date
+            else:
+                # No valid date found, cannot generate schedule
+                return []
         
         schedule = []
         installment_amount = Decimal(str(self.installment_amount))
-        total_payable = Decimal(str(self.total_payable))
+        total_payable = Decimal(str(self.total_payable or self.loan_amount))
         loan_amount = Decimal(str(self.loan_amount))
         
         # Determine number of installments and frequency delta based on loan type
@@ -575,67 +590,57 @@ class Loan(db.Model):
             frequency_delta = None  # Will use relativedelta for months
             frequency_name = 'Monthly'
         
-        # Get all payments sorted by date
-        all_payments = self.payments.order_by(LoanPayment.payment_date).all()
+        # Get total paid amount
         total_paid = Decimal(str(self.paid_amount or 0))
         
+        # Calculate total interest
+        total_interest = total_payable - loan_amount
+        
         # Generate schedule
-        remaining_balance = total_payable
+        cumulative_expected = Decimal('0')
         
         for i in range(num_installments):
             installment_num = i + 1
             
             # Calculate due date
             if frequency_delta:
-                due_date = self.first_installment_date + (frequency_delta * i)
+                due_date = first_date + (frequency_delta * i)
             else:
                 # For monthly, use relativedelta
-                due_date = self.first_installment_date + relativedelta(months=i)
+                due_date = first_date + relativedelta(months=i)
             
-            # Determine installment amount (last installment might be different due to rounding)
+            # Determine installment amount (last installment adjusts for rounding)
             if installment_num == num_installments:
-                # Last installment: pay remaining balance
-                current_installment = remaining_balance
+                # Last installment: total payable minus all previous installments
+                current_installment = total_payable - cumulative_expected
             else:
                 current_installment = installment_amount
             
+            cumulative_expected += current_installment
+            
             # Calculate principal and interest breakdown
-            if self.interest_type == 'flat' or 'type' in self.loan_type.lower():
-                # For flat interest or special loan types, split evenly
-                total_interest = total_payable - loan_amount
-                interest_per_installment = total_interest / Decimal(str(num_installments))
-                principal_per_installment = loan_amount / Decimal(str(num_installments))
-                
-                interest = interest_per_installment
+            # For most loan types, split evenly across installments
+            interest_per_installment = total_interest / Decimal(str(num_installments))
+            principal_per_installment = loan_amount / Decimal(str(num_installments))
+            
+            # Adjust last installment for rounding
+            if installment_num == num_installments:
+                interest = current_installment - principal_per_installment
                 principal = principal_per_installment
             else:
-                # For reducing balance, calculate based on remaining principal
-                interest_rate_per_period = (Decimal(str(self.interest_rate)) / Decimal('100'))
-                if frequency_name == 'Daily':
-                    interest_rate_per_period = interest_rate_per_period / Decimal('365')
-                elif frequency_name == 'Weekly':
-                    interest_rate_per_period = interest_rate_per_period / Decimal('52')
-                elif frequency_name == 'Monthly':
-                    interest_rate_per_period = interest_rate_per_period / Decimal('12')
-                
-                remaining_principal = loan_amount - (loan_amount / Decimal(str(num_installments)) * Decimal(str(i)))
-                interest = remaining_principal * interest_rate_per_period
-                principal = current_installment - interest
+                interest = interest_per_installment
+                principal = principal_per_installment
             
             # Determine status based on payments
             status = 'pending'
+            installment_threshold = installment_amount * Decimal(str(installment_num))
             
-            # Check if this installment has been paid
-            if total_paid >= current_installment:
+            if total_paid >= installment_threshold:
                 status = 'paid'
-                total_paid -= current_installment
-            elif total_paid > 0:
+            elif total_paid >= (installment_threshold - current_installment) and total_paid > 0:
                 status = 'partial'
-                total_paid = Decimal('0')
             elif due_date < datetime.utcnow().date():
                 status = 'overdue'
-            
-            remaining_balance -= current_installment
             
             schedule.append({
                 'installment_number': installment_num,
