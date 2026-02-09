@@ -24,6 +24,7 @@
                 <select name="role" class="form-select">
                     <option value="">All Roles</option>
                     <option value="admin" {% if role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="regional_manager" {% if role == 'regional_manager' %}selected{% endif %}>Regional Manager</option>
                     <option value="manager" {% if role == 'manager' %}selected{% endif %}>Manager</option>
                     <option value="staff" {% if role == 'staff' %}selected{% endif %}>Staff</option>
                     <option value="loan_collector" {% if role == 'loan_collector' %}selected{% endif %}>Loan Collector</option>
@@ -76,7 +77,15 @@
                         <td>{{ user.email or 'N/A' }}</td>
                         <td><span class="badge bg-primary">{{ user.role|title }}</span></td>
                         <td>
-                            {% if user.branch %}
+                            {% if user.role == 'regional_manager' %}
+                                {% if user.regional_branches %}
+                                    {% for branch in user.regional_branches %}
+                                        {{ branch.name }} ({{ branch.branch_code }}){% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">No branches assigned</span>
+                                {% endif %}
+                            {% elif user.branch %}
                                 {{ user.branch.name }} ({{ user.branch.branch_code }})
                             {% else %}
                                 <span class="text-muted">All Branches</span>
@@ -112,7 +121,7 @@
     </div>
     <div class="card-body">
         <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <h6 class="text-primary">Admin</h6>
                 <ul>
                     <li>Full system access</li>
@@ -121,7 +130,16 @@
                     <li>All reports access</li>
                 </ul>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <h6 class="text-warning">Regional Manager</h6>
+                <ul>
+                    <li>Multi-branch oversight</li>
+                    <li>Loan approval</li>
+                    <li>All reports access</li>
+                    <li>Regional operations</li>
+                </ul>
+            </div>
+            <div class="col-md-3">
                 <h6 class="text-success">Manager</h6>
                 <ul>
                     <li>Member management</li>
@@ -130,7 +148,7 @@
                     <li>Transaction oversight</li>
                 </ul>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <h6 class="text-info">Staff</h6>
                 <ul>
                     <li>Member operations</li>

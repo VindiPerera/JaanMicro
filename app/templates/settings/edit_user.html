@@ -75,7 +75,7 @@
                             {{ form.role.label(class="form-label") }}
                             {{ form.role(class="form-select", id="role") }}
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-4 mb-3" id="branch_container">
                             {{ form.branch_id.label(class="form-label") }}
                             {{ form.branch_id(class="form-select") }}
                             <small class="text-muted">Leave empty for admin users</small>
@@ -369,8 +369,12 @@ $(document).ready(function() {
         const selectedRole = $('#role').val();
         if (selectedRole === 'regional_manager') {
             $('#regional_branches_container').show();
+            $('#branch_container').hide();
+            // Clear branch selection when switching to regional manager
+            $('#branch_id').val('');
         } else {
             $('#regional_branches_container').hide();
+            $('#branch_container').show();
             // Clear selection when hiding
             $('input[name="regional_branches"]').prop('checked', false);
         }
