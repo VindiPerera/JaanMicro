@@ -8,7 +8,7 @@ from app import db
 from app.reports import reports_bp
 from app.models import Customer, Loan, LoanPayment, Investment, InvestmentTransaction, Pawning, PawningPayment
 from app.utils.decorators import permission_required
-from app.utils.helpers import get_current_branch_id, should_filter_by_branch, get_branch_filter_for_query
+from app.utils.helpers import get_current_branch_id, get_branch_filter_for_query
 import io
 import csv
 
@@ -26,6 +26,8 @@ def index():
     # Get branch filtering info
     customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
     loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    investment_branch_filter = get_branch_filter_for_query(Investment.branch_id)
+    pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
     
     # Customer statistics
     customer_query = Customer.query
@@ -51,25 +53,25 @@ def index():
     
     # Investment statistics
     investment_query = Investment.query
-    if should_filter and current_branch_id:
-        investment_query = investment_query.filter_by(branch_id=current_branch_id)
+    if investment_branch_filter is not None:
+        investment_query = investment_query.filter(investment_branch_filter)
     
     total_investment_amount = db.session.query(func.sum(Investment.principal_amount))
-    if should_filter and current_branch_id:
-        total_investment_amount = total_investment_amount.filter(Investment.branch_id == current_branch_id)
+    if investment_branch_filter is not None:
+        total_investment_amount = total_investment_amount.filter(investment_branch_filter)
     total_investment_amount = total_investment_amount.scalar() or 0
     
     active_investments = investment_query.filter_by(status='active').count()
     
     # Pawning statistics
     pawning_query = Pawning.query
-    if should_filter and current_branch_id:
-        pawning_query = pawning_query.filter_by(branch_id=current_branch_id)
+    if pawning_branch_filter is not None:
+        pawning_query = pawning_query.filter(pawning_branch_filter)
     
     active_pawnings = pawning_query.filter_by(status='active').count()
     total_pawning_amount = db.session.query(func.sum(Pawning.loan_amount)).filter_by(status='active')
-    if should_filter and current_branch_id:
-        total_pawning_amount = total_pawning_amount.filter(Pawning.branch_id == current_branch_id)
+    if pawning_branch_filter is not None:
+        total_pawning_amount = total_pawning_amount.filter(pawning_branch_filter)
     total_pawning_amount = total_pawning_amount.scalar() or 0
     
     # Today's activity
@@ -79,22 +81,22 @@ def index():
     todays_loan_payments_query = db.session.query(func.sum(LoanPayment.payment_amount)).join(Loan).filter(
         LoanPayment.payment_date == today
     )
-    if should_filter and current_branch_id:
-        todays_loan_payments_query = todays_loan_payments_query.filter(Loan.branch_id == current_branch_id)
+    if loan_branch_filter is not None:
+        todays_loan_payments_query = todays_loan_payments_query.filter(loan_branch_filter)
     todays_loan_payments = todays_loan_payments_query.scalar() or 0
     
     todays_new_loans_query = Loan.query.filter(
         func.date(Loan.created_at) == today
     )
-    if should_filter and current_branch_id:
-        todays_new_loans_query = todays_new_loans_query.filter_by(branch_id=current_branch_id)
+    if loan_branch_filter is not None:
+        todays_new_loans_query = todays_new_loans_query.filter(loan_branch_filter)
     todays_new_loans = todays_new_loans_query.count()
     
     todays_new_customers_query = Customer.query.filter(
         func.date(Customer.created_at) == today
     )
-    if should_filter and current_branch_id:
-        todays_new_customers_query = todays_new_customers_query.filter_by(branch_id=current_branch_id)
+    if customer_branch_filter is not None:
+        todays_new_customers_query = todays_new_customers_query.filter(customer_branch_filter)
     todays_new_customers = todays_new_customers_query.count()
     
     stats = {
@@ -126,9 +128,9 @@ def loan_report():
     query = Loan.query
     
     # Apply branch filtering
-    current_branch_id = get_current_branch_id()
-    if should_filter_by_branch() and current_branch_id:
-        query = query.filter_by(branch_id=current_branch_id)
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
     
     if start_date:
         query = query.filter(Loan.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
@@ -223,13 +225,13 @@ def collection_report():
     end_date = request.args.get('end_date', '')
     
     # Get branch filtering info
-    current_branch_id = get_current_branch_id()
-    should_filter = should_filter_by_branch()
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
     
     # Loan payments
     loan_query = LoanPayment.query.join(Loan)
-    if should_filter and current_branch_id:
-        loan_query = loan_query.filter(Loan.branch_id == current_branch_id)
+    if loan_branch_filter is not None:
+        loan_query = loan_query.filter(loan_branch_filter)
     if start_date:
         loan_query = loan_query.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
     if end_date:
@@ -240,8 +242,8 @@ def collection_report():
     
     # Pawning payments
     pawning_query = PawningPayment.query.join(Pawning)
-    if should_filter and current_branch_id:
-        pawning_query = pawning_query.filter(Pawning.branch_id == current_branch_id)
+    if pawning_branch_filter is not None:
+        pawning_query = pawning_query.filter(pawning_branch_filter)
     if start_date:
         pawning_query = pawning_query.filter(PawningPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
     if end_date:
@@ -287,9 +289,9 @@ def customer_report():
     query = Customer.query
     
     # Apply branch filtering
-    current_branch_id = get_current_branch_id()
-    if should_filter_by_branch() and current_branch_id:
-        query = query.filter_by(branch_id=current_branch_id)
+    customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
+    if customer_branch_filter is not None:
+        query = query.filter(customer_branch_filter)
     
     # Date filtering
     if start_date:
@@ -319,10 +321,10 @@ def customer_report():
         investment_count_query = Investment.query.filter_by(customer_id=customer.id, status='active')
         pawning_count_query = Pawning.query.filter_by(customer_id=customer.id, status='active')
         
-        if should_filter_by_branch() and current_branch_id:
-            loan_count_query = loan_count_query.filter_by(branch_id=current_branch_id)
-            investment_count_query = investment_count_query.filter_by(branch_id=current_branch_id)
-            pawning_count_query = pawning_count_query.filter_by(branch_id=current_branch_id)
+        if customer_branch_filter is not None:
+            loan_count_query = loan_count_query.filter(customer_branch_filter)
+            investment_count_query = investment_count_query.filter(customer_branch_filter)
+            pawning_count_query = pawning_count_query.filter(customer_branch_filter)
         
         customer.active_loans_count = loan_count_query.count()
         customer.active_investments_count = investment_count_query.count()
@@ -341,10 +343,10 @@ def customer_report():
     investment_customer_query = db.session.query(func.count(func.distinct(Investment.customer_id)))
     pawning_customer_query = db.session.query(func.count(func.distinct(Pawning.customer_id)))
     
-    if should_filter_by_branch() and current_branch_id:
-        loan_customer_query = loan_customer_query.filter(Loan.branch_id == current_branch_id)
-        investment_customer_query = investment_customer_query.filter(Investment.branch_id == current_branch_id)
-        pawning_customer_query = pawning_customer_query.filter(Pawning.branch_id == current_branch_id)
+    if customer_branch_filter is not None:
+        loan_customer_query = loan_customer_query.filter(customer_branch_filter)
+        investment_customer_query = investment_customer_query.filter(customer_branch_filter)
+        pawning_customer_query = pawning_customer_query.filter(customer_branch_filter)
     
     summary.update({
         'customers_with_loans': loan_customer_query.filter(Loan.status == 'active').scalar() or 0,
@@ -357,8 +359,8 @@ def customer_report():
         Customer.district,
         func.count(Customer.id).label('count')
     )
-    if should_filter_by_branch() and current_branch_id:
-        district_query = district_query.filter(Customer.branch_id == current_branch_id)
+    if customer_branch_filter is not None:
+        district_query = district_query.filter(customer_branch_filter)
     district_breakdown = district_query.group_by(Customer.district).order_by(func.count(Customer.id).desc()).limit(10).all()
     
     # Occupation distribution
@@ -366,14 +368,14 @@ def customer_report():
         Customer.occupation,
         func.count(Customer.id).label('count')
     )
-    if should_filter_by_branch() and current_branch_id:
-        occupation_query = occupation_query.filter(Customer.branch_id == current_branch_id)
+    if customer_branch_filter is not None:
+        occupation_query = occupation_query.filter(customer_branch_filter)
     occupation_breakdown = occupation_query.group_by(Customer.occupation).order_by(func.count(Customer.id).desc()).limit(10).all()
     
     # Get all available districts for filter dropdown
     districts_query = db.session.query(Customer.district).distinct().filter(Customer.district != None)
-    if should_filter_by_branch() and current_branch_id:
-        districts_query = districts_query.filter(Customer.branch_id == current_branch_id)
+    if customer_branch_filter is not None:
+        districts_query = districts_query.filter(customer_branch_filter)
     available_districts = districts_query.order_by(Customer.district).all()
     available_districts = [d[0] for d in available_districts if d[0]]  # Convert to list and filter out None values
     
@@ -402,9 +404,9 @@ def investment_report():
     query = Investment.query
     
     # Apply branch filtering
-    current_branch_id = get_current_branch_id()
-    if should_filter_by_branch() and current_branch_id:
-        query = query.filter_by(branch_id=current_branch_id)
+    investment_branch_filter = get_branch_filter_for_query(Investment.branch_id)
+    if investment_branch_filter is not None:
+        query = query.filter(investment_branch_filter)
     
     if start_date:
         query = query.filter(Investment.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
@@ -436,8 +438,8 @@ def investment_report():
         func.count(Investment.id),
         func.sum(Investment.current_amount)
     )
-    if should_filter_by_branch() and current_branch_id:
-        type_breakdown_query = type_breakdown_query.filter(Investment.branch_id == current_branch_id)
+    if investment_branch_filter is not None:
+        type_breakdown_query = type_breakdown_query.filter(investment_branch_filter)
     type_breakdown = type_breakdown_query.group_by(Investment.investment_type).all()
     
     # Get investments by type for display
@@ -456,8 +458,8 @@ def investment_report():
         Investment.maturity_date <= thirty_days,
         Investment.status == 'active'
     )
-    if should_filter_by_branch() and current_branch_id:
-        maturing_query = maturing_query.filter_by(branch_id=current_branch_id)
+    if investment_branch_filter is not None:
+        maturing_query = maturing_query.filter(investment_branch_filter)
     maturing_soon = maturing_query.all()
     
     return render_template('reports/investment_report.html',
@@ -484,9 +486,9 @@ def pawning_report():
     query = Pawning.query
     
     # Apply branch filtering
-    current_branch_id = get_current_branch_id()
-    if should_filter_by_branch() and current_branch_id:
-        query = query.filter_by(branch_id=current_branch_id)
+    pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
+    if pawning_branch_filter is not None:
+        query = query.filter(pawning_branch_filter)
     
     if start_date:
         query = query.filter(Pawning.pawning_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
@@ -503,6 +505,8 @@ def pawning_report():
     total_interest_collected = db.session.query(func.sum(PawningPayment.interest_amount)).join(
         Pawning, PawningPayment.pawning_id == Pawning.id
     )
+    if pawning_branch_filter is not None:
+        total_interest_collected = total_interest_collected.filter(pawning_branch_filter)
     if start_date:
         total_interest_collected = total_interest_collected.filter(PawningPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
     if end_date:
@@ -532,8 +536,8 @@ def pawning_report():
         func.count(Pawning.id),
         func.sum(Pawning.outstanding_principal)
     )
-    if should_filter_by_branch() and current_branch_id:
-        status_breakdown_query = status_breakdown_query.filter(Pawning.branch_id == current_branch_id)
+    if pawning_branch_filter is not None:
+        status_breakdown_query = status_breakdown_query.filter(pawning_branch_filter)
     status_breakdown = status_breakdown_query.group_by(Pawning.status).all()
     
     # Get overdue pawnings
@@ -543,8 +547,8 @@ def pawning_report():
         Pawning.maturity_date < today,
         Pawning.status == 'active'
     )
-    if should_filter_by_branch() and current_branch_id:
-        overdue_query = overdue_query.filter_by(branch_id=current_branch_id)
+    if pawning_branch_filter is not None:
+        overdue_query = overdue_query.filter(pawning_branch_filter)
     overdue_pawnings = overdue_query.all()
     
     return render_template('reports/pawning_report.html',
@@ -571,7 +575,6 @@ def arrears_report():
     
     # Get branch filtering info
     current_branch_id = get_current_branch_id()
-    should_filter = should_filter_by_branch()
     
     from datetime import date
     today = date.today()
@@ -583,8 +586,9 @@ def arrears_report():
         # Temporarily show all active loans for debugging
         loan_query = Loan.query.filter_by(status='active')
         
-        if should_filter and current_branch_id:
-            loan_query = loan_query.filter_by(branch_id=current_branch_id)
+        loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+        if loan_branch_filter is not None:
+            loan_query = loan_query.filter(loan_branch_filter)
         
         if start_date:
             loan_query = loan_query.filter(Loan.disbursement_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
@@ -709,8 +713,9 @@ def arrears_report():
         # Temporarily show all active pawnings for debugging
         pawning_query = Pawning.query.filter_by(status='active')
         
-        if should_filter and current_branch_id:
-            pawning_query = pawning_query.filter_by(branch_id=current_branch_id)
+        pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
+        if pawning_branch_filter is not None:
+            pawning_query = pawning_query.filter(pawning_branch_filter)
         
         if start_date:
             pawning_query = pawning_query.filter(Pawning.pawning_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
@@ -830,9 +835,9 @@ def export_loans():
     query = Loan.query
     
     # Apply branch filtering
-    current_branch_id = get_current_branch_id()
-    if should_filter_by_branch() and current_branch_id:
-        query = query.filter_by(branch_id=current_branch_id)
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
     
     loans = query.all()
     
