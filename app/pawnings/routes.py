@@ -83,6 +83,16 @@ def add_pawning():
             flash('Please select a customer!', 'error')
             return render_template('pawnings/add.html', title='Add Pawning', form=form)
         
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('pawnings/add.html', title='Add Pawning', form=form)
+        
+        if not customer.branch_id:
+            flash('Customer does not have a valid branch assigned!', 'error')
+            return render_template('pawnings/add.html', title='Add Pawning', form=form)
+        
         # Calculate loan-to-value ratio
         from decimal import Decimal, ROUND_HALF_UP
         
@@ -125,7 +135,7 @@ def add_pawning():
         pawning = Pawning(
             pawning_number=pawning_number,
             customer_id=form.customer_id.data,
-            branch_id=get_current_branch_id(),
+            branch_id=customer.branch_id,
             item_description=form.item_description.data,
             item_type=form.item_type.data,
             item_weight=form.item_weight.data,

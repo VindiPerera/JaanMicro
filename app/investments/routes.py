@@ -82,6 +82,16 @@ def add_investment():
             flash('Please select a customer!', 'error')
             return render_template('investments/add.html', title='Add Borrower', form=form)
         
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('investments/add.html', title='Add Borrower', form=form)
+        
+        if not customer.branch_id:
+            flash('Customer does not have a valid branch assigned!', 'error')
+            return render_template('investments/add.html', title='Add Borrower', form=form)
+        
         # Validate minimum investment amount
         if form.principal_amount.data < settings.minimum_investment_amount:
             flash(f'Principal amount cannot be less than Rs. {settings.minimum_investment_amount}!', 'error')
@@ -110,7 +120,7 @@ def add_investment():
         investment = Investment(
             investment_number=investment_number,
             customer_id=form.customer_id.data,
-            branch_id=get_current_branch_id(),
+            branch_id=customer.branch_id,
             investment_type=form.investment_type.data,
             principal_amount=form.principal_amount.data,
             interest_rate=form.interest_rate.data,

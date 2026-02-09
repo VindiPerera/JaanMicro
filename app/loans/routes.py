@@ -128,9 +128,18 @@ def add_loan():
             flash('Please select a customer!', 'error')
             return render_template('loans/add.html', title='Add Loan', form=form)
         
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('loans/add.html', title='Add Loan', form=form)
+        
+        if not customer.branch_id:
+            flash('Customer does not have a valid branch assigned!', 'error')
+            return render_template('loans/add.html', title='Add Loan', form=form)
+        
         # Generate loan number with new format: YY/B##/TYPE/#####
-        branch_id = get_current_branch_id()
-        loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=branch_id)
+        loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=customer.branch_id)
         
         # Calculate EMI using Decimal arithmetic
         from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
@@ -250,7 +259,7 @@ def add_loan():
         loan = Loan(
             loan_number=loan_number,
             customer_id=form.customer_id.data,
-            branch_id=get_current_branch_id(),
+            branch_id=customer.branch_id,
             loan_type=form.loan_type.data,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
