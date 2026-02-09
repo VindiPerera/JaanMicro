@@ -63,6 +63,7 @@
             color: rgba(255,255,255,0.8);
             text-decoration: none;
             transition: all 0.3s;
+            font-size: 0.9rem;
         }
         
         .sidebar-menu li a:hover,
@@ -567,6 +568,12 @@
                 {% endif %}
                 {{ system_settings.app_name }}
             </h4>
+            <div class="d-md-none mt-2">
+                <h5 class="mb-0 fs-6">{{ title }}</h5>
+                {% if current_branch %}
+                    <small class="text-muted d-block">{{ current_branch.name }}</small>
+                {% endif %}
+            </div>
         </div>
         
         <ul class="sidebar-menu">
@@ -657,8 +664,8 @@
                     <button class="btn btn-link d-md-none p-0 me-2" onclick="toggleSidebar()">
                         <i class="bi bi-list fs-4"></i>
                     </button>
-                    <div class="d-inline-block">
-                        <h5 class="mb-0">{% block page_title %}{{ title }}{% endblock %}</h5>
+                    <div class="d-none d-md-inline-block">
+                        <h5 class="mb-0 fs-6">{% block page_title %}{{ title }}{% endblock %}</h5>
                         {% if current_branch %}
                             <small class="text-muted d-block">{{ current_branch.name }}</small>
                         {% endif %}
@@ -669,7 +676,7 @@
                     {% if current_user.role == 'admin' %}
                     <!-- Branch Selector for Admin Users -->
                     <div class="dropdown me-2 mb-1">
-                        <button class="btn btn-outline-primary btn-sm dropdown-toggle d-inline-flex align-items-center" type="button" data-bs-toggle="dropdown">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle d-inline-flex align-items-center fs-7" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-building me-1"></i>
                             <span class="d-none d-sm-inline">{{ session.get('current_branch_name', 'Select Branch') }}</span>
                             <span class="d-sm-none">Branch</span>
@@ -703,7 +710,7 @@
                             <div class="user-avatar">
                                 {{ current_user.full_name[0]|upper }}
                             </div>
-                            <div class="ms-2 d-none d-md-block">
+                            <div class="ms-2 d-none d-md-block fs-7">
                                 <div class="fw-semibold">{{ current_user.full_name }}</div>
                                 <small class="text-muted">{{ current_user.role|title }}</small>
                             </div>

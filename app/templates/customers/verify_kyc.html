@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center mb-4">
     <div>
         <h4>Verify KYC Members</h4>
     </div>
-    <div class="d-flex gap-2">
-        <span class="badge bg-warning text-dark fs-6 align-self-center">
+    <div class="d-flex flex-column flex-sm-row gap-2 mt-2 mt-sm-0">
+        <span class="badge bg-warning text-dark fs-6 align-self-start align-self-sm-center">
             <i class="bi bi-exclamation-triangle me-2"></i>{{ customers.total }} Pending Verification
         </span>
         <a href="{{ url_for('customers.list_customers') }}" class="btn btn-secondary">
@@ -50,7 +50,7 @@
             <strong>Note:</strong> Click on "Verify KYC" button to review and upload KYC documents for each member.
         </div>
         
-        <div class="table-responsive">
+        <div class="table-responsive" style="overflow: auto;">
             <table class="table table-hover">
                 <thead>
                     <tr>
