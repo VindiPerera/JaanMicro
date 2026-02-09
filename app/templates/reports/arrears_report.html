@@ -228,9 +228,7 @@
                 </tbody>
                 <tfoot>
                     <tr class="table-danger fw-bold">
-                        <td colspan="6">TOTAL</td>
-                        <td>-</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
+                        <td colspan="11">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
