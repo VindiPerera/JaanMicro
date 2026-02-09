@@ -8,7 +8,7 @@ from app.investments import investments_bp
 from app.models import Investment, InvestmentTransaction, Customer, ActivityLog, SystemSettings
 from app.investments.forms import InvestmentForm, InvestmentTransactionForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import generate_investment_number, get_current_branch_id, should_filter_by_branch
+from app.utils.helpers import generate_investment_number, get_current_branch_id, should_filter_by_branch, get_branch_filter_for_query
 
 @investments_bp.route('/')
 @login_required
@@ -22,11 +22,10 @@ def list_investments():
     
     query = Investment.query
     
-    # Filter by current branch if needed
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            query = query.filter_by(branch_id=current_branch_id)
+    # Filter by accessible branches
+    branch_filter = get_branch_filter_for_query(Investment.branch_id)
+    if branch_filter is not None:
+        query = query.filter(branch_filter)
     
     if search:
         query = query.join(Customer).filter(
@@ -65,11 +64,10 @@ def add_investment():
     # Get customers for dropdown
     customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
     
-    # Apply branch filtering if needed
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            customer_query = customer_query.filter_by(branch_id=current_branch_id)
+    # Apply branch filtering
+    customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
+    if customer_branch_filter is not None:
+        customer_query = customer_query.filter(customer_branch_filter)
     
     customers = customer_query.order_by(Customer.full_name).all()
     form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
@@ -166,11 +164,11 @@ def view_investment(id):
     investment = Investment.query.get_or_404(id)
     
     # Check branch access
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id and investment.branch_id != current_branch_id:
-            flash('Access denied: Investment not found in current branch.', 'danger')
-            return redirect(url_for('investments.list_investments'))
+    from app.utils.helpers import get_user_accessible_branch_ids
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
+        flash('Access denied: Investment not found in accessible branches.', 'danger')
+        return redirect(url_for('investments.list_investments'))
     
     transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
     
@@ -187,11 +185,11 @@ def add_transaction(id):
     investment = Investment.query.get_or_404(id)
     
     # Check branch access
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id and investment.branch_id != current_branch_id:
-            flash('Access denied: Borrower not found in current branch.', 'danger')
-            return redirect(url_for('investments.list_investments'))
+    from app.utils.helpers import get_user_accessible_branch_ids
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
+        flash('Access denied: Borrower not found in accessible branches.', 'danger')
+        return redirect(url_for('investments.list_investments'))
 
     if investment.status not in ['active']:
         flash('Cannot add transaction for this borrower!', 'warning')

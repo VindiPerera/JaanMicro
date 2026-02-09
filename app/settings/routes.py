@@ -156,6 +156,12 @@ def add_user():
         
         db.session.add(user)
         
+        # Handle regional manager branches
+        if form.role.data == 'regional_manager' and form.regional_branches.data:
+            from app.models import Branch
+            branches = Branch.query.filter(Branch.id.in_(form.regional_branches.data)).all()
+            user.regional_branches.extend(branches)
+        
         # Log activity
         log = ActivityLog(
             user_id=current_user.id,
@@ -205,6 +211,18 @@ def edit_user(id):
         if form.password.data:
             user.set_password(form.password.data)
         
+        # Handle regional manager branches
+        if form.role.data == 'regional_manager':
+            # Clear existing branches
+            user.regional_branches = []
+            if form.regional_branches.data:
+                from app.models import Branch
+                branches = Branch.query.filter(Branch.id.in_(form.regional_branches.data)).all()
+                user.regional_branches.extend(branches)
+        else:
+            # Clear branches if role changed from regional_manager
+            user.regional_branches = []
+        
         # Log activity
         log = ActivityLog(
             user_id=current_user.id,
@@ -226,24 +244,88 @@ def edit_user(id):
                          form=form,
                          user=user)
 
-@settings_bp.route('/users/<int:id>/delete', methods=['POST'])
+@settings_bp.route('/users/<int:id>/delete', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def delete_user(id):
     """Delete user"""
     user = User.query.get_or_404(id)
+    force = request.args.get('force', 'false').lower() == 'true'
     
     if user.id == current_user.id:
         flash('You cannot delete your own account!', 'danger')
         return redirect(url_for('settings.list_users'))
     
+    # Check if user has created any records that cannot be orphaned (unless force delete)
+    if not force:
+        from app.models import Customer, Loan, Investment, Pawning
+        
+        if user.created_customers.count() > 0:
+            flash('Cannot delete user who has created customers. Please reassign or deactivate the user instead.', 'danger')
+            return redirect(url_for('settings.list_users'))
+        
+        if user.created_loans.count() > 0:
+            flash('Cannot delete user who has created loans. Please reassign or deactivate the user instead.', 'danger')
+            return redirect(url_for('settings.list_users'))
+        
+        if user.created_investments.count() > 0:
+            flash('Cannot delete user who has created investments. Please reassign or deactivate the user instead.', 'danger')
+            return redirect(url_for('settings.list_users'))
+        
+        if user.created_pawnings.count() > 0:
+            flash('Cannot delete user who has created pawnings. Please reassign or deactivate the user instead.', 'danger')
+            return redirect(url_for('settings.list_users'))
+    
+    # If force delete, reassign orphaned records to admin user
+    if force:
+        from app.models import Customer, Loan, Investment, Pawning
+        
+        # Find the system admin user
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            flash('Cannot force delete: System admin user not found. Please ensure the admin user exists.', 'danger')
+            return redirect(url_for('settings.list_users'))
+        
+        # Reassign customers created by this user
+        customers_updated = Customer.query.filter_by(created_by=user.id).update({'created_by': admin_user.id})
+        # Reassign customers KYC verified by this user
+        kyc_customers_updated = Customer.query.filter_by(kyc_verified_by=user.id).update({'kyc_verified_by': admin_user.id})
+        
+        # Reassign loans created by this user
+        loans_updated = Loan.query.filter_by(created_by=user.id).update({'created_by': admin_user.id})
+        # Reassign loans approved by this user
+        staff_loans_updated = Loan.query.filter_by(staff_approved_by=user.id).update({'staff_approved_by': admin_user.id})
+        manager_loans_updated = Loan.query.filter_by(manager_approved_by=user.id).update({'manager_approved_by': admin_user.id})
+        admin_loans_updated = Loan.query.filter_by(admin_approved_by=user.id).update({'admin_approved_by': admin_user.id})
+        legacy_loans_updated = Loan.query.filter_by(approved_by=user.id).update({'approved_by': admin_user.id})
+        # Reassign loans deactivated by this user
+        deactivated_loans_updated = Loan.query.filter_by(deactivated_by=user.id).update({'deactivated_by': admin_user.id})
+        # Reassign loans referred by this user
+        referred_loans_updated = Loan.query.filter_by(referred_by=user.id).update({'referred_by': admin_user.id})
+        
+        # Reassign investments created by this user
+        investments_updated = Investment.query.filter_by(created_by=user.id).update({'created_by': admin_user.id})
+        
+        # Reassign pawnings created by this user
+        pawnings_updated = Pawning.query.filter_by(created_by=user.id).update({'created_by': admin_user.id})
+        
+        # Log the reassignment
+        total_reassigned = (customers_updated + kyc_customers_updated + loans_updated + staff_loans_updated + 
+                          manager_loans_updated + admin_loans_updated + legacy_loans_updated + 
+                          deactivated_loans_updated + referred_loans_updated + investments_updated + pawnings_updated)
+    
     # Log activity
+    action_desc = 'force_delete_user' if force else 'delete_user'
+    if force:
+        desc_text = f'Force deleted user: {user.username} ({total_reassigned} records reassigned to admin)'
+    else:
+        desc_text = f'Deleted user: {user.username}'
     log = ActivityLog(
         user_id=current_user.id,
-        action='delete_user',
+        action=action_desc,
         entity_type='user',
         entity_id=user.id,
-        description=f'Deleted user: {user.username}',
+        description=desc_text,
         ip_address=request.remote_addr
     )
     db.session.add(log)
@@ -251,8 +333,39 @@ def delete_user(id):
     db.session.delete(user)
     db.session.commit()
     
-    flash('User deleted successfully!', 'success')
+    if force:
+        flash(f'User force deleted successfully! {total_reassigned} associated records have been reassigned to the system admin.', 'warning')
+    else:
+        flash('User deleted successfully!', 'success')
     return redirect(url_for('settings.list_users'))
+
+@settings_bp.route('/api/check-user-deletion/<int:id>')
+@login_required
+@admin_required
+def check_user_deletion(id):
+    """API endpoint to check if a user can be deleted and return reasons if not"""
+    user = User.query.get_or_404(id)
+    reasons = []
+    
+    if user.id == current_user.id:
+        reasons.append('You cannot delete your own account!')
+    
+    # Check if user has created any records that cannot be orphaned
+    from app.models import Customer, Loan, Investment, Pawning
+    
+    if user.created_customers.count() > 0:
+        reasons.append('User has created customers. Please reassign or deactivate the user instead.')
+    
+    if user.created_loans.count() > 0:
+        reasons.append('User has created loans. Please reassign or deactivate the user instead.')
+    
+    if user.created_investments.count() > 0:
+        reasons.append('User has created investments. Please reassign or deactivate the user instead.')
+    
+    if user.created_pawnings.count() > 0:
+        reasons.append('User has created pawnings. Please reassign or deactivate the user instead.')
+    
+    return {'can_delete': len(reasons) == 0, 'reasons': reasons}
 
 @settings_bp.route('/api/role-permissions/<role>')
 @login_required
@@ -425,13 +538,18 @@ def delete_branch(id):
 
 @settings_bp.route('/switch_branch/<int:branch_id>', methods=['POST'])
 @login_required
-@admin_required
 def switch_branch(branch_id):
-    """Switch current branch context for admin users"""
+    """Switch current branch context for admin and regional manager users"""
     from flask import session
+    from app.utils.helpers import get_user_accessible_branch_ids
+    
+    # Check permissions
+    if current_user.role not in ['admin', 'regional_manager']:
+        flash('You do not have permission to switch branches.', 'danger')
+        return redirect(request.referrer or url_for('main.dashboard'))
     
     if branch_id == 0:
-        # Switch to "All Branches" view
+        # Switch to "All Branches" view (all accessible branches)
         session['current_branch_id'] = None
         session['current_branch_name'] = 'All Branches'
         
@@ -439,7 +557,7 @@ def switch_branch(branch_id):
         log = ActivityLog(
             user_id=current_user.id,
             action='switch_branch',
-            description=f'Admin {current_user.username} switched to view: All Branches',
+            description=f'{current_user.role.title()} {current_user.username} switched to view: All Branches',
             ip_address=request.remote_addr
         )
         db.session.add(log)
@@ -454,6 +572,12 @@ def switch_branch(branch_id):
         flash('Cannot switch to an inactive branch.', 'danger')
         return redirect(request.referrer or url_for('main.dashboard'))
     
+    # Check if user can access this branch
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if branch.id not in accessible_branch_ids:
+        flash('You do not have access to this branch.', 'danger')
+        return redirect(request.referrer or url_for('main.dashboard'))
+    
     # Update session with new branch context
     session['current_branch_id'] = branch.id
     session['current_branch_name'] = branch.name
@@ -462,7 +586,7 @@ def switch_branch(branch_id):
     log = ActivityLog(
         user_id=current_user.id,
         action='switch_branch',
-        description=f'Admin {current_user.username} switched to branch: {branch.name}',
+        description=f'{current_user.role.title()} {current_user.username} switched to branch: {branch.name}',
         ip_address=request.remote_addr
     )
     db.session.add(log)

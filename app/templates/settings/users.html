@@ -146,24 +146,66 @@
 {% block extra_js %}
 <script>
 function confirmDelete(userId, userName) {
-    if (confirm('Are you sure you want to delete user "' + userName + '"? This action cannot be undone.')) {
-        // Create form and submit
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/settings/delete_user/' + userId;
-        
-        var csrfToken = document.querySelector('input[name="csrf_token"]');
-        if (csrfToken) {
-            var token = document.createElement('input');
-            token.type = 'hidden';
-            token.name = 'csrf_token';
-            token.value = csrfToken.value;
-            form.appendChild(token);
-        }
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
+    // First check if user can be deleted
+    fetch('/settings/api/check-user-deletion/' + userId)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.can_delete) {
+                // Show reasons why user cannot be deleted and offer force delete
+                let message = 'Cannot delete user "' + userName + '" for the following reasons:\n\n';
+                data.reasons.forEach(reason => {
+                    message += '• ' + reason + '\n';
+                });
+                message += '\nWould you like to force delete this user anyway? This will permanently remove the user and reassign associated records to the system admin.';
+                
+                if (confirm(message)) {
+                    // Force delete
+                    if (confirm('Are you absolutely sure? Force deletion cannot be undone and will reassign ' + userName + '\'s records to the admin user.')) {
+                        // Create form and submit with force parameter
+                        var form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '/settings/users/' + userId + '/delete?force=true';
+                        
+                        var csrfToken = document.querySelector('input[name="csrf_token"]');
+                        if (csrfToken) {
+                            var token = document.createElement('input');
+                            token.type = 'hidden';
+                            token.name = 'csrf_token';
+                            token.value = csrfToken.value;
+                            form.appendChild(token);
+                        }
+                        
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                }
+                return;
+            }
+            
+            // User can be deleted, show confirmation
+            if (confirm('Are you sure you want to delete user "' + userName + '"? This action cannot be undone.')) {
+                // Create form and submit
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/settings/users/' + userId + '/delete';
+                
+                var csrfToken = document.querySelector('input[name="csrf_token"]');
+                if (csrfToken) {
+                    var token = document.createElement('input');
+                    token.type = 'hidden';
+                    token.name = 'csrf_token';
+                    token.value = csrfToken.value;
+                    form.appendChild(token);
+                }
+                
+                document.body.appendChild(form);
+                form.submit();
+            }
+        })
+        .catch(error => {
+            console.error('Error checking user deletion:', error);
+            alert('Error checking if user can be deleted. Please try again.');
+        });
 }
 
 function bulkUpdatePermissions() {

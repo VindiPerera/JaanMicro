@@ -12,6 +12,12 @@ import json
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Association tables
+regional_manager_branches = db.Table('regional_manager_branches',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('branch_id', db.Integer, db.ForeignKey('branches.id'), primary_key=True)
+)
+
 # User and Authentication Models
 class User(UserMixin, db.Model):
     """User model for staff members"""
@@ -24,7 +30,7 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(20))
     nic_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
-    role = db.Column(db.String(50), nullable=False, default='staff')  # admin, manager, staff, loan_collector, accountant
+    role = db.Column(db.String(50), nullable=False, default='staff')  # admin, regional_manager, manager, staff, loan_collector, accountant
     branch_id = db.Column(db.Integer, db.ForeignKey('branches.id'), nullable=True)  # Nullable for admin users who can access all branches
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -48,6 +54,9 @@ class User(UserMixin, db.Model):
     # Relationships
     created_customers = db.relationship('Customer', foreign_keys='Customer.created_by', backref='created_by_user', lazy='dynamic')
     created_loans = db.relationship('Loan', foreign_keys='Loan.created_by', backref='creator', lazy='dynamic')
+    created_investments = db.relationship('Investment', foreign_keys='Investment.created_by', backref='creator', lazy='dynamic')
+    created_pawnings = db.relationship('Pawning', foreign_keys='Pawning.created_by', backref='creator', lazy='dynamic')
+    regional_branches = db.relationship('Branch', secondary=regional_manager_branches, backref='regional_managers', lazy='dynamic')
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -110,6 +119,20 @@ class User(UserMixin, db.Model):
                 'can_verify_kyc': False
             },
             'manager': {
+                'can_add_customers': True,
+                'can_edit_customers': True,
+                'can_delete_customers': True,
+                'can_manage_loans': True,
+                'can_approve_loans': True,
+                'can_manage_investments': True,
+                'can_manage_pawnings': True,
+                'can_view_reports': True,
+                'can_view_collection_reports': True,
+                'can_manage_settings': True,
+                'can_collect_payments': True,
+                'can_verify_kyc': True
+            },
+            'regional_manager': {
                 'can_add_customers': True,
                 'can_edit_customers': True,
                 'can_delete_customers': True,

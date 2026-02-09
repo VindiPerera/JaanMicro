@@ -68,6 +68,28 @@
                             {{ form.branch_id(class="form-select") }}
                             <small class="text-muted">Leave empty for admin users</small>
                         </div>
+                        <div class="col-md-4 mb-3" id="regional_branches_container" style="display: none;">
+                            {{ form.regional_branches.label(class="form-label") }}
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                <div class="row">
+                                    {% for branch_id, branch_name in form.regional_branches.choices %}
+                                    <div class="col-md-6 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   id="regional_branches_{{ branch_id }}" 
+                                                   name="regional_branches" 
+                                                   value="{{ branch_id }}"
+                                                   {% if form.regional_branches.data and branch_id in form.regional_branches.data %}checked{% endif %}>
+                                            <label class="form-check-label" for="regional_branches_{{ branch_id }}">
+                                                {{ branch_name }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <small class="text-muted">Select branches this regional manager can access</small>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <div class="form-check mt-4">
                                 {{ form.is_active(class="form-check-input") }}
@@ -206,6 +228,20 @@ $(document).ready(function() {
             'can_collect_payments': true,
             'can_verify_kyc': true
         },
+        'regional_manager': {
+            'can_add_customers': true,
+            'can_edit_customers': true,
+            'can_delete_customers': true,
+            'can_manage_loans': true,
+            'can_approve_loans': true,
+            'can_manage_investments': true,
+            'can_manage_pawnings': true,
+            'can_view_reports': true,
+            'can_view_collection_reports': true,
+            'can_manage_settings': true,
+            'can_collect_payments': true,
+            'can_verify_kyc': true
+        },
         'admin': {
             'can_add_customers': true,
             'can_edit_customers': true,
@@ -234,7 +270,7 @@ $(document).ready(function() {
         });
         
         // Show/hide KYC verification permission based on role
-        if (role === 'manager') {
+        if (role === 'manager' || role === 'regional_manager') {
             $('#verify-kyc-permission').show();
         } else {
             $('#verify-kyc-permission').hide();
@@ -249,6 +285,7 @@ $(document).ready(function() {
     function updateRoleInfoMessage(role) {
         const roleDescriptions = {
             'admin': '<i class="bi bi-shield-check me-2"></i><strong>Administrator</strong> - Full system access with all permissions enabled.',
+            'regional_manager': '<i class="bi bi-building me-2"></i><strong>Regional Manager</strong> - Multi-branch oversight with comprehensive permissions across assigned branches.',
             'manager': '<i class="bi bi-person-badge me-2"></i><strong>Manager</strong> - Comprehensive access including user management and reports.',
             'accountant': '<i class="bi bi-calculator me-2"></i><strong>Accountant</strong> - Financial operations, loan approval, and reporting access.',
             'loan_collector': '<i class="bi bi-cash-coin me-2"></i><strong>Loan Collector</strong> - Focused on payment collection and loan management.',
@@ -275,6 +312,21 @@ $(document).ready(function() {
     const initialRole = $('#role').val() || 'staff';
     $('#role').val(initialRole);
     setRolePermissions(initialRole);
+    
+    // Show/hide regional branches field based on role
+    function toggleRegionalBranches() {
+        const selectedRole = $('#role').val();
+        if (selectedRole === 'regional_manager') {
+            $('#regional_branches_container').show();
+        } else {
+            $('#regional_branches_container').hide();
+            // Clear selection when hiding
+            $('input[name="regional_branches"]').prop('checked', false);
+        }
+    }
+    
+    $('#role').on('change', toggleRegionalBranches);
+    toggleRegionalBranches(); // Initial check
 });
 </script>
 {% endblock %}

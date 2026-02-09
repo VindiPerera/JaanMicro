@@ -202,16 +202,43 @@ def get_current_branch():
         return Branch.query.get(branch_id)
     return None
 
+def get_user_accessible_branch_ids():
+    """Get list of branch IDs that the current user can access"""
+    from flask_login import current_user
+    from flask import session
+    
+    if not current_user.is_authenticated:
+        return []
+    
+    if current_user.role == 'admin':
+        # Admin can access all branches
+        return [b.id for b in Branch.query.filter_by(is_active=True).all()]
+    
+    if current_user.role == 'regional_manager':
+        # Regional manager can access their assigned branches
+        if current_user.regional_branches:
+            return [b.id for b in current_user.regional_branches]
+        else:
+            # If no branches assigned, return empty list
+            return []
+    
+    # Regular users can only access their own branch
+    if current_user.branch_id:
+        return [current_user.branch_id]
+    
+    return []
+
 def get_current_branch_id():
     """Get the current branch ID for filtering queries"""
     from flask_login import current_user
     
-    # First try to get from session (for admin users who can switch branches)
+    # First try to get from session (for admin and regional manager users who can switch branches)
     branch_id = session.get('current_branch_id')
     
-    # If not in session and user is logged in, use user's branch
+    # If not in session and user is logged in, use user's branch (only for regular users)
     if branch_id is None and current_user.is_authenticated:
-        branch_id = current_user.branch_id
+        if current_user.role not in ['admin', 'regional_manager']:
+            branch_id = current_user.branch_id
     
     # If still None, get the default branch (MAIN)
     if branch_id is None:
@@ -221,6 +248,38 @@ def get_current_branch_id():
     
     return branch_id
 
+def get_branch_filter_for_query(model_branch_id_column=None):
+    """Get branch filter condition for database queries
+    
+    Args:
+        model_branch_id_column: The branch_id column of the model (e.g., Customer.branch_id)
+                                 If None, returns condition for Branch.id
+    """
+    from flask_login import current_user
+    from flask import session
+    from sqlalchemy import or_
+    
+    if not current_user.is_authenticated:
+        return None
+    
+    # Check if user has selected a specific branch in session
+    session_branch_id = session.get('current_branch_id')
+    if session_branch_id:
+        if model_branch_id_column is not None:
+            return model_branch_id_column == session_branch_id
+        else:
+            return Branch.id == session_branch_id
+    
+    # Get accessible branches
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids:
+        if model_branch_id_column is not None:
+            return model_branch_id_column.in_(accessible_branch_ids)
+        else:
+            return Branch.id.in_(accessible_branch_ids)
+    
+    return None
+
 def should_filter_by_branch():
     """Check if current user should have branch filtering applied"""
     from flask_login import current_user
@@ -229,9 +288,18 @@ def should_filter_by_branch():
     if not current_user.is_authenticated:
         return True
     
+    # If user has selected a specific branch, filter by it
+    if session.get('current_branch_id') is not None:
+        return True
+    
+    # Otherwise, check based on role
     if current_user.role == 'admin':
-        # Admin can choose to filter by a specific branch or see all
-        return session.get('current_branch_id') is not None
+        # Admin can see all branches when no specific branch selected
+        return False
+    
+    if current_user.role == 'regional_manager':
+        # Regional managers should see their assigned branches
+        return True
     
     # Regular users always filter by their assigned branch
     return True

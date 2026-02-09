@@ -30,11 +30,15 @@ def login():
         user.last_login = datetime.utcnow()
         
         # Set current branch in session
-        if user.branch_id:
+        if user.role in ['admin', 'regional_manager']:
+            # Admin and regional manager users default to "All Branches" view
+            session['current_branch_id'] = None
+            session['current_branch_name'] = 'All Branches'
+        elif user.branch_id:
             session['current_branch_id'] = user.branch_id
             session['current_branch_name'] = user.branch.name if user.branch else 'Unknown Branch'
         else:
-            # Admin user - can access all branches, default to first active branch
+            # Regular user without branch - default to first active branch
             default_branch = Branch.query.filter_by(is_active=True).first()
             if default_branch:
                 session['current_branch_id'] = default_branch.id

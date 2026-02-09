@@ -1,7 +1,7 @@
 """Settings forms"""
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
-from wtforms import StringField, SelectField, DecimalField, IntegerField, TextAreaField, BooleanField, PasswordField, SubmitField
+from wtforms import StringField, SelectField, SelectMultipleField, DecimalField, IntegerField, TextAreaField, BooleanField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Email, Optional, NumberRange, Length, EqualTo, ValidationError
 from app.models import User
 from datetime import datetime, date, timedelta
@@ -102,9 +102,11 @@ class UserForm(FlaskForm):
         ('loan_collector', 'Loan Collector'),
         ('accountant', 'Accountant'),
         ('manager', 'Manager'),
+        ('regional_manager', 'Regional Manager'),
         ('admin', 'Administrator')
     ], validators=[DataRequired()])
     branch_id = SelectField('Branch', coerce=int, validators=[Optional()])
+    regional_branches = SelectMultipleField('Assigned Branches (for Regional Managers)', coerce=int, validators=[Optional()])
     is_active = BooleanField('Active', default=True)
     
     # Permissions - removed defaults, will be set programmatically
@@ -126,6 +128,7 @@ class UserForm(FlaskForm):
         # Set branch choices
         from app.models import Branch
         self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+        self.regional_branches.choices = [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
         
         # Set default permissions for staff role on new forms only if no data provided
         if not args and not kwargs.get('obj'):  # New form, no existing data
@@ -201,6 +204,20 @@ class UserForm(FlaskForm):
                 'can_collect_payments': True,
                 'can_verify_kyc': True
             },
+            'regional_manager': {
+                'can_add_customers': True,
+                'can_edit_customers': True,
+                'can_delete_customers': True,
+                'can_manage_loans': True,
+                'can_approve_loans': True,
+                'can_manage_investments': True,
+                'can_manage_pawnings': True,
+                'can_view_reports': True,
+                'can_view_collection_reports': True,
+                'can_manage_settings': True,
+                'can_collect_payments': True,
+                'can_verify_kyc': True
+            },
             'admin': {
                 'can_add_customers': True,
                 'can_edit_customers': True,
@@ -255,9 +272,11 @@ class UserEditForm(FlaskForm):
         ('loan_collector', 'Loan Collector'),
         ('accountant', 'Accountant'),
         ('manager', 'Manager'),
+        ('regional_manager', 'Regional Manager'),
         ('admin', 'Administrator')
     ], validators=[DataRequired()])
     branch_id = SelectField('Branch', coerce=int, validators=[Optional()])
+    regional_branches = SelectMultipleField('Assigned Branches (for Regional Managers)', coerce=int, validators=[Optional()])
     is_active = BooleanField('Active')
     
     # Permissions
@@ -278,10 +297,16 @@ class UserEditForm(FlaskForm):
     
     def __init__(self, *args, **kwargs):
         super(UserEditForm, self).__init__(*args, **kwargs)
-        self.original_nic = kwargs.get('obj').nic_number if kwargs.get('obj') else None
+        self.obj = kwargs.get('obj')
+        self.original_nic = self.obj.nic_number if self.obj else None
         # Set branch choices
         from app.models import Branch
         self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+        self.regional_branches.choices = [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
+        
+        # Populate regional branches for existing regional managers
+        if self.obj and self.obj.role == 'regional_manager':
+            self.regional_branches.data = [b.id for b in self.obj.regional_branches]
     
     def validate_username(self, field):
         user = User.query.filter_by(username=field.data).first()

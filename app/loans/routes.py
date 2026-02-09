@@ -566,7 +566,7 @@ def approve_loan_admin(id):
         return redirect(url_for('loans.view_loan', id=id))
     
     # Check if user is admin
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'regional_manager']:
         flash('Only admins can perform final approval and disbursement!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
@@ -666,7 +666,7 @@ def deactivate_loan(id):
             return redirect(url_for('loans.list_loans'))
     
     # Check if user has admin role for deactivation
-    if current_user.role != 'admin':
+    if current_user.role not in ['admin', 'regional_manager']:
         flash('Only administrators can deactivate loans.', 'danger')
         return redirect(url_for('loans.view_loan', id=id))
     

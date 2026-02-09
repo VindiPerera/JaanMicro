@@ -8,7 +8,7 @@ from app import db
 from app.reports import reports_bp
 from app.models import Customer, Loan, LoanPayment, Investment, InvestmentTransaction, Pawning, PawningPayment
 from app.utils.decorators import permission_required
-from app.utils.helpers import get_current_branch_id, should_filter_by_branch
+from app.utils.helpers import get_current_branch_id, should_filter_by_branch, get_branch_filter_for_query
 import io
 import csv
 
@@ -24,27 +24,27 @@ def index():
     from decimal import Decimal
     
     # Get branch filtering info
-    current_branch_id = get_current_branch_id()
-    should_filter = should_filter_by_branch()
+    customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
     
     # Customer statistics
     customer_query = Customer.query
-    if should_filter and current_branch_id:
-        customer_query = customer_query.filter_by(branch_id=current_branch_id)
+    if customer_branch_filter is not None:
+        customer_query = customer_query.filter(customer_branch_filter)
     
     total_customers = customer_query.count()
     active_customers = customer_query.filter_by(status='active').count()
     
     # Loan statistics
     loan_query = Loan.query
-    if should_filter and current_branch_id:
-        loan_query = loan_query.filter_by(branch_id=current_branch_id)
+    if loan_branch_filter is not None:
+        loan_query = loan_query.filter(loan_branch_filter)
     
     total_loan_disbursed = db.session.query(func.sum(Loan.disbursed_amount)).filter(
         Loan.status.in_(['active', 'completed'])
     )
-    if should_filter and current_branch_id:
-        total_loan_disbursed = total_loan_disbursed.filter(Loan.branch_id == current_branch_id)
+    if loan_branch_filter is not None:
+        total_loan_disbursed = total_loan_disbursed.filter(loan_branch_filter)
     total_loan_disbursed = total_loan_disbursed.scalar() or 0
     
     active_loans = loan_query.filter_by(status='active').count()

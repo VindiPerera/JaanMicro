@@ -79,9 +79,9 @@ def create_app(config_name='default'):
         settings = SystemSettings.get_settings()
         current_branch = get_current_branch()
         
-        # Get active branches for admin users
+        # Get active branches for admin and regional manager users
         branches = []
-        if current_user.is_authenticated and current_user.role == 'admin':
+        if current_user.is_authenticated and current_user.role in ['admin', 'regional_manager']:
             branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
         
         return dict(

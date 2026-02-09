@@ -732,8 +732,8 @@
                 </div>
                 
                 <div class="user-menu d-flex align-items-center flex-wrap">
-                    {% if current_user.role == 'admin' %}
-                    <!-- Branch Selector for Admin Users -->
+                    {% if current_user.role in ['admin', 'regional_manager'] %}
+                    <!-- Branch Selector for Admin and Regional Manager Users -->
                     <div class="dropdown me-2 mb-1">
                         <button class="btn btn-outline-primary btn-sm dropdown-toggle d-inline-flex align-items-center fs-7" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-building me-1"></i>
