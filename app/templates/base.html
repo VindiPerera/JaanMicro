@@ -119,11 +119,20 @@
             min-height: 100vh;
         }
         
-        /* Footer */
-        .footer {
-            background: white;
-            border-top: 1px solid #dee2e6;
-            box-shadow: 0 -2px 4px rgba(0,0,0,0.08);
+        /* Sidebar overlay for mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
         }
         
         /* Top Navbar */
@@ -193,6 +202,93 @@
             overflow: hidden;
         }
         
+        .table-scroll-container {
+            max-height: 400px;
+            overflow: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #f8f9fa;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: #6c757d;
+            border-radius: 4px;
+        }
+        
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: #495057;
+        }
+        
+        .table-scroll-container table {
+            margin-bottom: 0;
+            min-width: 100%;
+        }
+        
+        .table-responsive.table-scroll {
+            max-height: 400px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        
+        .table-responsive.table-scroll-mobile {
+            max-height: 300px;
+            overflow-y: auto;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #f8f9fa;
+        }
+        
+        .table-responsive.table-scroll-mobile::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        .table-responsive.table-scroll-mobile::-webkit-scrollbar-track {
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .table-responsive.table-scroll-mobile::-webkit-scrollbar-thumb {
+            background: #6c757d;
+            border-radius: 4px;
+        }
+        
+        .table-responsive.table-scroll-mobile::-webkit-scrollbar-thumb:hover {
+            background: #495057;
+        }
+        
+        /* Mobile table scrolling */
+        @media (max-width: 768px) {
+            .table-responsive.table-scroll-mobile {
+                max-height: 250px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .table-responsive.table-scroll-mobile {
+                max-height: 200px;
+            }
+        }
+        
         .table thead th {
             background: #f8f9fa;
             border-bottom: 2px solid #dee2e6;
@@ -254,6 +350,20 @@
             gap: 0.75rem;
         }
         
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+            flex: 1;
+        }
+        
+        .navbar-left h5 {
+            margin-bottom: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
         .user-avatar {
             width: 40px;
             height: 40px;
@@ -278,6 +388,139 @@
             
             .main-content {
                 margin-left: 0;
+            }
+            
+            /* Top navbar mobile adjustments */
+            .top-navbar {
+                padding: 0.75rem 1rem;
+                margin-bottom: 1rem;
+            }
+            
+            .navbar-left {
+                margin-bottom: 0.5rem;
+            }
+            
+            .navbar-left h5 {
+                font-size: 1.1rem;
+                max-width: 200px;
+            }
+            
+            .user-menu {
+                gap: 0.5rem;
+                justify-content: flex-end;
+            }
+            
+            /* Improve table responsiveness */
+            .table-responsive {
+                font-size: 0.875rem;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .table-responsive th,
+            .table-responsive td {
+                padding: 0.5rem;
+                white-space: nowrap;
+            }
+            
+            /* Add vertical scrolling for large tables on mobile */
+            .table-responsive.table-scroll-mobile {
+                max-height: 250px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Stats cards mobile layout */
+            .stats-card .card-body {
+                padding: 1rem;
+            }
+            
+            .stats-value {
+                font-size: 1.5rem;
+            }
+            
+            /* Form improvements for mobile */
+            .form-control,
+            .form-select {
+                font-size: 1rem;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            /* Button spacing */
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+            }
+            
+            /* Card headers */
+            .card-header {
+                padding: 1rem;
+            }
+            
+            .card-header h5,
+            .card-header h6 {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Extra small screens */
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+            
+            .content-wrapper {
+                padding: 0 0.5rem 1rem;
+            }
+            
+            /* Top navbar extra small screen adjustments */
+            .top-navbar {
+                padding: 0.5rem 0.75rem;
+            }
+            
+            .top-navbar .d-flex {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .navbar-left {
+                margin-bottom: 0.25rem;
+            }
+            
+            .navbar-left h5 {
+                font-size: 1rem;
+                max-width: 150px;
+            }
+            
+            .user-menu {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                gap: 0.25rem;
+            }
+            
+            .user-menu .dropdown {
+                margin-bottom: 0.25rem;
+            }
+            
+            /* Hide some table columns on very small screens if needed */
+            .table-responsive .d-none-mobile {
+                display: none;
+            }
+            
+            /* Stack form rows on very small screens */
+            .row.g-3 > * {
+                margin-bottom: 1rem;
+            }
+            
+            /* Improve pagination on mobile */
+            .pagination {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .pagination .page-link {
+                padding: 0.375rem 0.5rem;
+                font-size: 0.875rem;
             }
         }
         
@@ -304,6 +547,9 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -398,24 +644,27 @@
     <div class="main-content">
         <!-- Top Navbar -->
         <nav class="top-navbar">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <button class="btn btn-link d-md-none" onclick="toggleSidebar()">
+            <div class="d-flex justify-content-between align-items-start flex-wrap">
+                <div class="navbar-left">
+                    <button class="btn btn-link d-md-none p-0 me-2" onclick="toggleSidebar()">
                         <i class="bi bi-list fs-4"></i>
                     </button>
-                    <h5 class="mb-0 d-inline-block">{% block page_title %}{{ title }}{% endblock %}</h5>
-                    {% if current_branch %}
-                        <small class="text-muted d-block">{{ current_branch.name }}</small>
-                    {% endif %}
+                    <div class="d-inline-block">
+                        <h5 class="mb-0">{% block page_title %}{{ title }}{% endblock %}</h5>
+                        {% if current_branch %}
+                            <small class="text-muted d-block">{{ current_branch.name }}</small>
+                        {% endif %}
+                    </div>
                 </div>
                 
-                <div class="user-menu">
+                <div class="user-menu d-flex align-items-center flex-wrap">
                     {% if current_user.role == 'admin' %}
                     <!-- Branch Selector for Admin Users -->
-                    <div class="dropdown me-3">
-                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <div class="dropdown me-2 mb-1">
+                        <button class="btn btn-outline-primary btn-sm dropdown-toggle d-inline-flex align-items-center" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-building me-1"></i>
-                            {{ session.get('current_branch_name', 'Select Branch') }}
+                            <span class="d-none d-sm-inline">{{ session.get('current_branch_name', 'Select Branch') }}</span>
+                            <span class="d-sm-none">Branch</span>
                         </button>
                         <ul class="dropdown-menu">
                             <li><h6 class="dropdown-header">Switch Branch</h6></li>
@@ -441,7 +690,7 @@
                     </div>
                     {% endif %}
                     
-                    <div class="dropdown">
+                    <div class="dropdown mb-1">
                         <a class="d-flex align-items-center text-decoration-none dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <div class="user-avatar">
                                 {{ current_user.full_name[0]|upper }}
@@ -513,7 +762,10 @@
     
     <script>
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('show');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
         }
         
         // Initialize DataTables

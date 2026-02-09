@@ -47,16 +47,16 @@
 <!-- Members Table -->
 <div class="card">
     <div class="card-body">
-        <div class="table-responsive">
+        <div class="table-responsive table-scroll-mobile">
             <table class="table table-hover data-table">
                 <thead>
                     <tr>
                         <th>Member ID</th>
                         <th>Name</th>
                         <th>Type</th>
-                        <th>NIC</th>
+                        <th class="d-none d-sm-table-cell">NIC</th>
                         <th>Phone</th>
-                        <th>City</th>
+                        <th class="d-none d-md-table-cell">City</th>
                         <th>KYC</th>
                         <th>Status</th>
                     </tr>
@@ -67,9 +67,9 @@
                         <td><a href="{{ url_for('customers.view_customer', id=customer.id) }}">{{ customer.customer_id }}</a></td>
                         <td>{{ customer.full_name }}</td>
                         <td>{{ customer.customer_type_display }}</td>
-                        <td>{{ customer.nic_number }}</td>
+                        <td class="d-none d-sm-table-cell">{{ customer.nic_number }}</td>
                         <td>{{ customer.phone_primary }}</td>
-                        <td>{{ customer.city }}</td>
+                        <td class="d-none d-md-table-cell">{{ customer.city }}</td>
                         <td>
                             {% if customer.kyc_verified %}
                             <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
