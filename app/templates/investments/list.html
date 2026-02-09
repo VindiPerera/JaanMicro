@@ -2,9 +2,9 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h4>Borrowers</h4>
+    <h4>Borrowings</h4>
     <a href="{{ url_for('investments.add_investment') }}" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-2"></i>Add New Borrower
+        <i class="bi bi-plus-circle me-2"></i>Add New Borrowing
     </a>
 </div>
 
@@ -90,7 +90,8 @@
         <!-- Pagination -->
         {% if investments.pages > 1 %}
         <nav>
-            <ul class="pagination">
+            <!-- Desktop Pagination -->
+            <ul class="pagination d-none d-md-flex">
                 {% if investments.has_prev %}
                 <li class="page-item"><a class="page-link" href="{{ url_for('investments.list_investments', page=investments.prev_num, search=search, status=status, investment_type=investment_type) }}">Previous</a></li>
                 {% endif %}
@@ -111,6 +112,31 @@
                 <li class="page-item"><a class="page-link" href="{{ url_for('investments.list_investments', page=investments.next_num, search=search, status=status, investment_type=investment_type) }}">Next</a></li>
                 {% endif %}
             </ul>
+            
+            <!-- Mobile Pagination -->
+            <div class="d-md-none">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="{{ url_for('investments.list_investments', page=investments.prev_num if investments.has_prev else investments.page, search=search, status=status, investment_type=investment_type) }}" 
+                       class="btn btn-outline-primary {% if not investments.has_prev %}disabled{% endif %}">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </a>
+                    
+                    <div class="text-center">
+                        <small class="text-muted">Page {{ investments.page }} of {{ investments.pages }}</small>
+                        <br>
+                        <select class="form-select form-select-sm d-inline-block w-auto mt-1" onchange="window.location.href='{{ url_for('investments.list_investments', page='', search=search, status=status, investment_type=investment_type) }}'.replace('page=', 'page=') + this.value">
+                            {% for page_num in range(1, investments.pages + 1) %}
+                            <option value="{{ page_num }}" {% if page_num == investments.page %}selected{% endif %}>{{ page_num }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <a href="{{ url_for('investments.list_investments', page=investments.next_num if investments.has_next else investments.page, search=search, status=status, investment_type=investment_type) }}" 
+                       class="btn btn-outline-primary {% if not investments.has_next %}disabled{% endif %}">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
         </nav>
         {% endif %}
     </div>
