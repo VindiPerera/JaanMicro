@@ -66,6 +66,11 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
+        # Custom validation for required profile picture
+        if not form.profile_picture.data or not hasattr(form.profile_picture.data, 'filename') or not form.profile_picture.data.filename:
+            form.profile_picture.errors.append('Profile picture is required.')
+            return render_template('customers/add.html', title='Add Member', form=form)
+        
         # Get selected customer types
         customer_types = []
         if form.customer_type_customer.data:
