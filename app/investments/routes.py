@@ -60,6 +60,7 @@ def list_investments():
 def add_investment():
     """Add new borrower"""
     form = InvestmentForm()
+    settings = SystemSettings.get_settings()
     
     # Get customers for dropdown
     customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
@@ -75,7 +76,6 @@ def add_investment():
     
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
-        settings = SystemSettings.get_settings()
         form.interest_rate.data = settings.default_investment_interest_rate
     
     if form.validate_on_submit():
@@ -89,7 +89,6 @@ def add_investment():
             flash(f'Principal amount cannot be less than Rs. {settings.minimum_investment_amount}!', 'error')
             return render_template('investments/add.html', title='Add Borrower', form=form)
         
-        settings = SystemSettings.get_settings()
         investment_number = generate_investment_number(settings.investment_number_prefix)
         
         # Calculate maturity amount
