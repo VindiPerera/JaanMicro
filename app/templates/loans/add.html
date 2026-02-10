@@ -74,6 +74,20 @@
                             {% endif %}
                         </div>
                         
+                        <div class="mb-3">
+                            {{ form.application_date.label(class="form-label") }}
+                            {% if current_user.role == 'admin' %}
+                                {{ form.application_date(class="form-control", type="date") }}
+                                <small class="text-muted">Date when the loan application is submitted (Admin can edit)</small>
+                            {% else %}
+                                {{ form.application_date(class="form-control", type="date", readonly=true) }}
+                                <small class="text-muted">Date when the loan application is submitted (Auto-set to today)</small>
+                            {% endif %}
+                            {% if form.application_date.errors %}
+                            <div class="text-danger small">{{ form.application_date.errors[0] }}</div>
+                            {% endif %}
+                        </div>
+                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 {{ form.loan_type.label(class="form-label") }}

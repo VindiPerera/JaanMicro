@@ -235,16 +235,21 @@ def get_current_branch_id():
     # First try to get from session (for admin and regional manager users who can switch branches)
     branch_id = session.get('current_branch_id')
     
-    # If not in session and user is logged in, use user's branch (only for regular users)
+    # If not in session and user is logged in, use user's branch
     if branch_id is None and current_user.is_authenticated:
-        if current_user.role not in ['admin', 'regional_manager']:
-            branch_id = current_user.branch_id
+        branch_id = current_user.branch_id
     
-    # If still None, get the default branch (MAIN)
+    # If still None, get any active branch as fallback
     if branch_id is None:
-        default_branch = Branch.query.filter_by(branch_code='MAIN').first()
+        # Try MAIN branch first
+        default_branch = Branch.query.filter_by(branch_code='MAIN', is_active=True).first()
         if default_branch:
             branch_id = default_branch.id
+        else:
+            # If no MAIN branch, get any active branch
+            any_branch = Branch.query.filter_by(is_active=True).first()
+            if any_branch:
+                branch_id = any_branch.id
     
     return branch_id
 

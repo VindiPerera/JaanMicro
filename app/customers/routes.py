@@ -66,9 +66,16 @@ def add_customer():
     form = CustomerForm()
     
     if form.validate_on_submit():
+        # Validate branch_id is available
+        current_branch_id = get_current_branch_id()
+        if not current_branch_id:
+            flash('Error: No branch found. Please contact administrator to set up at least one branch.', 'error')
+            return render_template('customers/add.html', title='Add Member', form=form)
+        
         # Custom validation for required profile picture
         if not form.profile_picture.data or not hasattr(form.profile_picture.data, 'filename') or not form.profile_picture.data.filename:
             form.profile_picture.errors.append('Profile picture is required.')
+            flash('Profile picture is required.', 'error')
             return render_template('customers/add.html', title='Add Member', form=form)
         
         # Get selected customer types
@@ -84,7 +91,7 @@ def add_customer():
         
         # Use the first selected type as primary for ID generation
         primary_customer_type = customer_types[0] if customer_types else 'customer'
-        customer_id = generate_customer_id(primary_customer_type, get_current_branch_id())
+        customer_id = generate_customer_id(primary_customer_type, current_branch_id)
         
         # Handle profile picture upload
         profile_picture_path = None
@@ -92,11 +99,11 @@ def add_customer():
             file = form.profile_picture.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_{file.filename}")
-                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
-                profile_picture_path = f"customers/{get_current_branch_id()}/{filename}"
+                profile_picture_path = f"customers/{current_branch_id}/{filename}"
         
         # Handle KYC document uploads
         nic_front_path = None
@@ -108,45 +115,45 @@ def add_customer():
             file = form.nic_front_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_nic_front_{file.filename}")
-                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
-                nic_front_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+                nic_front_path = f"uploads/customers/{current_branch_id}/{filename}"
         
         if form.nic_back_image.data and hasattr(form.nic_back_image.data, 'filename') and form.nic_back_image.data.filename:
             file = form.nic_back_image.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_nic_back_{file.filename}")
-                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
-                nic_back_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+                nic_back_path = f"uploads/customers/{current_branch_id}/{filename}"
         
         if form.photo.data and hasattr(form.photo.data, 'filename') and form.photo.data.filename:
             file = form.photo.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_photo_{file.filename}")
-                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
-                photo_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+                photo_path = f"uploads/customers/{current_branch_id}/{filename}"
         
         if form.proof_of_address.data and hasattr(form.proof_of_address.data, 'filename') and form.proof_of_address.data.filename:
             file = form.proof_of_address.data
             if allowed_file(file.filename):
                 filename = secure_filename(f"{customer_id}_address_proof_{file.filename}")
-                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(get_current_branch_id()))
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
                 os.makedirs(upload_dir, exist_ok=True)
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
-                proof_of_address_path = f"uploads/customers/{get_current_branch_id()}/{filename}"
+                proof_of_address_path = f"uploads/customers/{current_branch_id}/{filename}"
         
         customer = Customer(
             customer_id=customer_id,
-            branch_id=get_current_branch_id(),
+            branch_id=current_branch_id,
             full_name=form.full_name.data,
             nic_number=form.nic_number.data,
             customer_types=customer_types,  # Use the property setter
@@ -185,22 +192,30 @@ def add_customer():
             created_by=current_user.id
         )
         
-        db.session.add(customer)
-        
-        # Log activity
-        log = ActivityLog(
-            user_id=current_user.id,
-            action='create_customer',
-            entity_type='customer',
-            description=f'Created customer: {customer.full_name}',
-            ip_address=request.remote_addr
-        )
-        db.session.add(log)
-        
-        db.session.commit()
-        
-        flash(f'Customer {customer.full_name} added successfully!', 'success')
-        return redirect(url_for('customers.view_customer', id=customer.id))
+        try:
+            db.session.add(customer)
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='create_customer',
+                entity_type='customer',
+                description=f'Created customer: {customer.full_name}',
+                ip_address=request.remote_addr
+            )
+            db.session.add(log)
+            
+            db.session.commit()
+            
+            flash(f'Member {customer.full_name} added successfully!', 'success')
+            return redirect(url_for('customers.view_customer', id=customer.id))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding member: {str(e)}', 'error')
+            current_app.logger.error(f'Error adding customer: {str(e)}')
+            import traceback
+            current_app.logger.error(traceback.format_exc())
+            return render_template('customers/add.html', title='Add Member', form=form)
     
     return render_template('customers/add.html', title='Add Member', form=form)
 

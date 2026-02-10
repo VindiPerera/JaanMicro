@@ -18,9 +18,11 @@ from app.utils.helpers import generate_loan_number, get_current_branch_id, shoul
 def list_loans():
     """List all loans"""
     page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 25, type=int)
     search = request.args.get('search', '')
     status = request.args.get('status', '')
     loan_type = request.args.get('loan_type', '')
+    referred_by = request.args.get('referred_by', type=int)
     
     query = Loan.query
     
@@ -45,16 +47,29 @@ def list_loans():
     if loan_type:
         query = query.filter_by(loan_type=loan_type)
     
+    if referred_by:
+        query = query.filter_by(referred_by=referred_by)
+    
     loans = query.order_by(Loan.created_at.desc()).paginate(
-        page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+        page=page, per_page=per_page, error_out=False
     )
+    
+    # Get users for referrer filter
+    user_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            user_query = user_query.filter_by(branch_id=current_branch_id)
+    users = user_query.order_by(User.full_name).all()
     
     return render_template('loans/list.html',
                          title='Loans',
                          loans=loans,
                          search=search,
                          status=status,
-                         loan_type=loan_type)
+                         loan_type=loan_type,
+                         referred_by=referred_by,
+                         users=users)
 
 @loans_bp.route('/add', methods=['GET', 'POST'])
 @login_required
@@ -273,7 +288,7 @@ def add_loan():
             total_payable=total_payable,
             outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
-            application_date=datetime.now().date(),
+            application_date=form.application_date.data,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
