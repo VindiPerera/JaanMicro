@@ -339,6 +339,7 @@ def view_loan(id):
     
     # Update the loan's stored outstanding amount to reflect current calculation
     loan.update_outstanding_amount()
+    db.session.commit()
     
     # Get guarantors
     guarantors = []
@@ -392,8 +393,8 @@ def approve_loan(id):
             loan.disbursement_reference = form.disbursement_reference.data
             loan.first_installment_date = form.first_installment_date.data
             loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
-            # Set initial outstanding amount to disbursed amount (principal only initially)
-            loan.outstanding_amount = loan.approved_amount or loan.loan_amount
+            # Set initial outstanding amount to total payable (principal + interest)
+            loan.outstanding_amount = loan.total_payable if loan.total_payable else (loan.approved_amount or loan.loan_amount)
             
             # Log activity
             log = ActivityLog(
@@ -624,8 +625,8 @@ def approve_loan_admin(id):
             else:
                 loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
             
-            # Set initial outstanding amount to disbursed amount
-            loan.outstanding_amount = loan.approved_amount or loan.loan_amount
+            # Set initial outstanding amount to total payable (principal + interest)
+            loan.outstanding_amount = loan.total_payable if loan.total_payable else (loan.approved_amount or loan.loan_amount)
             
             # Log activity
             log = ActivityLog(
@@ -879,6 +880,10 @@ def add_payment(id):
     # Get current outstanding amount with accrued interest for display
     current_outstanding = loan.calculate_current_outstanding()
     accrued_interest = loan.calculate_accrued_interest()
+    
+    # Update stored outstanding amount to match current calculation
+    loan.update_outstanding_amount()
+    db.session.commit()
     
     return render_template('loans/payment.html',
                          title=f'Add Payment: {loan.loan_number}',

@@ -212,17 +212,49 @@ $(document).ready(function() {
                     }
                 }
             } else {
-                // For flat rate: Proportional distribution
+                // For flat rate: Calculate based on total interest divided by installments
                 var totalPayable = {{ loan.total_payable|float if loan.total_payable else loan.loan_amount|float }};
                 var loanAmount = {{ loan.loan_amount|float }};
+                var installmentAmount = {{ loan.installment_amount|float if loan.installment_amount else 0 }};
                 
                 if (totalPayable > 0 && loanAmount > 0) {
-                    var principalRatio = roundedOutstanding / loanAmount;
+                    // Calculate total interest for the loan
+                    var totalInterest = totalPayable - loanAmount;
+                    var paidAmount = {{ loan.paid_amount|float if loan.paid_amount else 0 }};
                     
-                    principalAmount = Math.round((paymentAmount - penaltyAmount) * principalRatio * 100) / 100;
-                    interestAmount = (paymentAmount - penaltyAmount) - principalAmount;
+                    // Calculate number of installments
+                    var numInstallments = 0;
+                    {% if loan.duration_weeks %}
+                        numInstallments = {{ loan.duration_weeks }};
+                    {% elif loan.duration_days %}
+                        numInstallments = {{ loan.duration_days }};
+                    {% else %}
+                        numInstallments = {{ loan.duration_months|default(1) }};
+                    {% endif %}
                     
-                    // Handle overpayment
+                    if (numInstallments > 0) {
+                        // For flat rate: Interest per installment is fixed
+                        var interestPerInstallment = totalInterest / numInstallments;
+                        
+                        // If this is an installment amount payment
+                        if (installmentAmount > 0 && Math.abs(paymentAmount - installmentAmount) <= 0.05) {
+                            // Regular installment payment
+                            interestAmount = Math.round(interestPerInstallment * 100) / 100;
+                            principalAmount = Math.round((paymentAmount - penaltyAmount - interestAmount) * 100) / 100;
+                        } else {
+                            // Partial or different amount - calculate proportionally
+                            var paymentRatio = installmentAmount > 0 ? (paymentAmount / installmentAmount) : 1;
+                            interestAmount = Math.round((interestPerInstallment * paymentRatio) * 100) / 100;
+                            principalAmount = Math.round((paymentAmount - penaltyAmount - interestAmount) * 100) / 100;
+                        }
+                    } else {
+                        // Fallback: proportional distribution
+                        var interestRatio = totalInterest / totalPayable;
+                        interestAmount = Math.round((paymentAmount - penaltyAmount) * interestRatio * 100) / 100;
+                        principalAmount = Math.round((paymentAmount - penaltyAmount - interestAmount) * 100) / 100;
+                    }
+                    
+                    // Handle overpayment - ensure principal doesn't exceed outstanding
                     if (principalAmount > roundedOutstanding) {
                         var excess = principalAmount - roundedOutstanding;
                         principalAmount = roundedOutstanding;

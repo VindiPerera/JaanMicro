@@ -481,17 +481,41 @@ class Loan(db.Model):
         
         loan_amount = Decimal(str(self.disbursed_amount or self.loan_amount))
         interest_rate = Decimal(str(self.interest_rate))
-        duration = Decimal(str(self.duration_months))
         
-        if self.interest_type == 'flat':
-            # For flat interest: Total Interest = Principal × Rate × Time
-            total_interest = (loan_amount * interest_rate * duration) / (Decimal('12') * Decimal('100'))
+        # Check if this is a flat rate loan type (Type1 9weeks, 54 Daily, Type4 loans)
+        is_flat_rate_loan = (self.loan_type and (
+            'type1' in self.loan_type.lower() or 
+            '54' in self.loan_type.lower() or 
+            'type4' in self.loan_type.lower() or 
+            'micro' in self.loan_type.lower() or
+            'daily' in self.loan_type.lower()
+        )) or self.interest_type == 'flat'
+        
+        if is_flat_rate_loan:
+            # For flat interest loans, use total_payable if available
+            if self.total_payable:
+                total_interest = Decimal(str(self.total_payable)) - loan_amount
+            else:
+                # Fallback: calculate based on duration
+                if self.duration_weeks:
+                    # For weekly loans, calculate using weeks
+                    interest = interest_rate * Decimal('2')
+                    total_interest = (loan_amount * interest) / Decimal('100')
+                elif self.duration_days:
+                    # For daily loans
+                    interest = interest_rate * Decimal('2')
+                    total_interest = (loan_amount * interest) / Decimal('100')
+                else:
+                    # Monthly loans
+                    duration = Decimal(str(self.duration_months))
+                    total_interest = (loan_amount * interest_rate * duration) / (Decimal('12') * Decimal('100'))
         else:
             # For reducing balance, calculate based on total payable amount
             if self.total_payable:
                 total_interest = Decimal(str(self.total_payable)) - loan_amount
             else:
                 # Fallback calculation
+                duration = Decimal(str(self.duration_months))
                 total_interest = (loan_amount * interest_rate * duration) / (Decimal('12') * Decimal('100'))
         
         return total_interest.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -548,9 +572,23 @@ class Loan(db.Model):
         paid_principal = self.get_total_paid_principal()
         outstanding_principal = disbursed - paid_principal
         
-        if self.interest_type == 'flat':
+        # Check if this is a flat rate loan type (Type1 9weeks, 54 Daily, Type4 loans)
+        is_flat_rate_loan = (self.loan_type and (
+            'type1' in self.loan_type.lower() or 
+            '54' in self.loan_type.lower() or 
+            'type4' in self.loan_type.lower() or 
+            'micro' in self.loan_type.lower() or
+            'daily' in self.loan_type.lower()
+        )) or self.interest_type == 'flat'
+        
+        if is_flat_rate_loan:
             # For flat interest loans, calculate remaining total payable amount
-            total_expected = disbursed + self.get_total_expected_interest()
+            # Use total_payable if available, otherwise calculate it
+            if self.total_payable:
+                total_expected = Decimal(str(self.total_payable))
+            else:
+                total_expected = disbursed + self.get_total_expected_interest()
+            
             total_paid = Decimal(str(self.paid_amount or 0))
             outstanding = total_expected - total_paid
         else:
