@@ -773,8 +773,23 @@ def add_payment(id):
         # Calculate interest and principal splits based on loan type
         if loan.interest_type == 'flat':
             # For flat interest loans, calculate fixed interest per payment
-            total_interest = (disbursed * Decimal(str(loan.interest_rate)) * Decimal(str(loan.duration_months))) / (Decimal('12') * Decimal('100'))
-            installment_interest = total_interest / Decimal(str(loan.duration_months))
+            # Determine number of installments and period based on frequency
+            if loan.installment_frequency == 'monthly':
+                num_installments = loan.duration_months or 0
+                period = Decimal('1') / Decimal('12')
+            elif loan.installment_frequency == 'weekly':
+                num_installments = loan.duration_weeks or 0
+                period = Decimal('7') / Decimal('365')
+            elif loan.installment_frequency == 'daily':
+                num_installments = loan.duration_days or 0
+                period = Decimal('1') / Decimal('365')
+            else:
+                num_installments = loan.duration_months or 0
+                period = Decimal('1') / Decimal('12')
+            
+            time_in_years = Decimal(str(num_installments)) * period
+            total_interest = (disbursed * Decimal(str(loan.interest_rate)) * time_in_years) / Decimal('100')
+            installment_interest = total_interest / Decimal(str(num_installments)) if num_installments > 0 else Decimal('0')
             
             # For flat loans, determine if this is truly a full settlement (paying off entire remaining balance)
             total_paid = Decimal(str(loan.paid_amount or 0))
