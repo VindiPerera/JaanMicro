@@ -276,7 +276,21 @@ $(document).ready(function() {
         $('#interest_amount').val(interestAmount.toFixed(2));
         
         var totalPayment = paymentAmount;
-        var outstandingAfter = Math.max(0, Math.round((roundedOutstanding - principalAmount) * 100) / 100);
+        
+        // Calculate outstanding after payment
+        // For monthly loans, outstanding includes all remaining interest, so subtract total payment
+        // For other loan types, subtract only principal from outstanding
+        var loanType = '{{ loan.loan_type }}';
+        var outstandingAfter;
+        
+        if (loanType === 'monthly_loan') {
+            // For monthly loans: Outstanding includes principal + remaining interest
+            // So subtract the full payment amount
+            outstandingAfter = Math.max(0, Math.round((roundedOutstanding - totalPayment) * 100) / 100);
+        } else {
+            // For other loan types: Subtract only principal
+            outstandingAfter = Math.max(0, Math.round((roundedOutstanding - principalAmount) * 100) / 100);
+        }
         
         // If outstanding after payment is very small (≤ 0.02), show as 0.00
         if (outstandingAfter <= 0.02) {

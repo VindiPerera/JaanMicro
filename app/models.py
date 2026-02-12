@@ -572,18 +572,9 @@ class Loan(db.Model):
         paid_principal = self.get_total_paid_principal()
         outstanding_principal = disbursed - paid_principal
         
-        # Check if this is a flat rate loan type (Type1 9weeks, 54 Daily, Type4 loans)
-        is_flat_rate_loan = (self.loan_type and (
-            'type1' in self.loan_type.lower() or 
-            '54' in self.loan_type.lower() or 
-            'type4' in self.loan_type.lower() or 
-            'micro' in self.loan_type.lower() or
-            'daily' in self.loan_type.lower()
-        )) or self.interest_type == 'flat'
-        
-        if is_flat_rate_loan:
-            # For flat interest loans, calculate remaining total payable amount
-            # Use total_payable if available, otherwise calculate it
+        # IMPORTANT: Special handling for monthly loans
+        if self.loan_type == 'monthly_loan':
+            # For monthly loans, always show total remaining payable amount (principal + remaining interest)
             if self.total_payable:
                 total_expected = Decimal(str(self.total_payable))
             else:
@@ -592,9 +583,30 @@ class Loan(db.Model):
             total_paid = Decimal(str(self.paid_amount or 0))
             outstanding = total_expected - total_paid
         else:
-            # For reducing balance loans, add accrued interest
-            accrued_interest = self.calculate_accrued_interest()
-            outstanding = outstanding_principal + accrued_interest
+            # For other loan types: Type1 9weeks, 54 Daily, Type4 Micro, Type4 Daily
+            # Check if this is a flat rate loan type
+            is_flat_rate_loan = (self.loan_type and (
+                'type1' in self.loan_type.lower() or 
+                '54' in self.loan_type.lower() or 
+                'type4' in self.loan_type.lower() or 
+                'micro' in self.loan_type.lower() or
+                'daily' in self.loan_type.lower()
+            )) or self.interest_type == 'flat'
+            
+            if is_flat_rate_loan:
+                # For flat interest loans, calculate remaining total payable amount
+                # Use total_payable if available, otherwise calculate it
+                if self.total_payable:
+                    total_expected = Decimal(str(self.total_payable))
+                else:
+                    total_expected = disbursed + self.get_total_expected_interest()
+                
+                total_paid = Decimal(str(self.paid_amount or 0))
+                outstanding = total_expected - total_paid
+            else:
+                # For reducing balance loans, add accrued interest
+                accrued_interest = self.calculate_accrued_interest()
+                outstanding = outstanding_principal + accrued_interest
         
         # Add any penalty amount
         penalty = Decimal(str(self.penalty_amount or 0))
@@ -657,6 +669,19 @@ class Loan(db.Model):
         # Calculate total interest
         total_interest = total_payable - loan_amount
         
+        # IMPORTANT: Reducing balance calculation ONLY applies to monthly loans with reducing_balance interest type
+        # All other loan types (Type 1, 54 Daily, Type 4 Micro, Type 4 Daily, and monthly with flat rate)
+        # use even distribution of principal and interest across all installments
+        is_monthly_reducing_balance = (
+            self.loan_type == 'monthly_loan' and 
+            self.interest_type == 'reducing_balance'
+        )
+        
+        # For reducing balance loans, we need to track the outstanding balance
+        outstanding_balance = loan_amount
+        cumulative_principal_paid = Decimal('0')
+        cumulative_interest_paid = Decimal('0')
+        
         # Generate schedule
         cumulative_expected = Decimal('0')
         
@@ -679,18 +704,51 @@ class Loan(db.Model):
             
             cumulative_expected += current_installment
             
-            # Calculate principal and interest breakdown
-            # For most loan types, split evenly across installments
-            interest_per_installment = total_interest / Decimal(str(num_installments))
-            principal_per_installment = loan_amount / Decimal(str(num_installments))
-            
-            # Adjust last installment for rounding
-            if installment_num == num_installments:
-                interest = current_installment - principal_per_installment
-                principal = principal_per_installment
+            # Calculate principal and interest breakdown based on loan type
+            if is_monthly_reducing_balance:
+                # For reducing balance loans, calculate interest on outstanding balance
+                interest_rate = Decimal(str(self.interest_rate))
+                
+                # Calculate monthly interest rate based on frequency
+                if frequency_name == 'Monthly':
+                    period_rate = interest_rate / (Decimal('12') * Decimal('100'))
+                elif frequency_name == 'Weekly':
+                    period_rate = interest_rate / (Decimal('52') * Decimal('100'))
+                elif frequency_name == 'Daily':
+                    period_rate = interest_rate / (Decimal('365') * Decimal('100'))
+                else:
+                    period_rate = interest_rate / (Decimal('12') * Decimal('100'))
+                
+                # Interest for this period
+                if installment_num == num_installments:
+                    # Last installment: remaining principal and remaining interest
+                    principal = outstanding_balance
+                    interest = current_installment - principal
+                else:
+                    interest = (outstanding_balance * period_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    principal = current_installment - interest
+                
+                # Update outstanding balance
+                outstanding_balance = (outstanding_balance - principal).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                cumulative_principal_paid += principal
+                cumulative_interest_paid += interest
             else:
-                interest = interest_per_installment
-                principal = principal_per_installment
+                # For ALL other loan types: Type 1 (9 Week), 54 Daily, Type 4 Micro, Type 4 Daily,
+                # and monthly loans with flat rate - split principal and interest evenly across installments
+                interest_per_installment = total_interest / Decimal(str(num_installments))
+                principal_per_installment = loan_amount / Decimal(str(num_installments))
+                
+                # Adjust last installment for rounding
+                if installment_num == num_installments:
+                    # Last installment: adjust for any rounding differences
+                    principal = loan_amount - cumulative_principal_paid
+                    interest = current_installment - principal
+                else:
+                    interest = interest_per_installment
+                    principal = principal_per_installment
+                
+                cumulative_principal_paid += principal
+                cumulative_interest_paid += interest
             
             # Determine status based on payments
             status = 'pending'
