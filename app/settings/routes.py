@@ -150,7 +150,8 @@ def add_user():
             can_view_reports=form.can_view_reports.data,
             can_view_collection_reports=form.can_view_collection_reports.data,
             can_manage_settings=form.can_manage_settings.data,
-            can_collect_payments=form.can_collect_payments.data
+            can_collect_payments=form.can_collect_payments.data,
+            can_verify_kyc=form.can_verify_kyc.data
         )
         user.set_password(form.password.data)
         
@@ -207,6 +208,7 @@ def edit_user(id):
         user.can_view_collection_reports = form.can_view_collection_reports.data
         user.can_manage_settings = form.can_manage_settings.data
         user.can_collect_payments = form.can_collect_payments.data
+        user.can_verify_kyc = form.can_verify_kyc.data
         
         if form.password.data:
             user.set_password(form.password.data)

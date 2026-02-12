@@ -4,6 +4,13 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Loan Details</h4>
     <div>
+        {# Admin Edit Button #}
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('loans.edit_loan', id=loan.id) }}" class="btn btn-warning">
+            <i class="bi bi-pencil-square me-2"></i>Edit Loan
+        </a>
+        {% endif %}
+        
         {# Multi-stage approval buttons #}
         {% if loan.status == 'pending' and current_user.role in ['staff', 'loan_collector'] %}
         <a href="{{ url_for('loans.approve_loan_staff', id=loan.id) }}" class="btn btn-primary">

@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+    <div class="mb-3 mb-md-0">
+        <h4><i class="bi bi-pencil-square me-2"></i>Edit Loan - Select Loan</h4>
+        <p class="text-muted mb-0"><small>Admin Only Feature</small></p>
+    </div>
+    <div>
+        <a href="{{ url_for('loans.list_loans') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Loans
+        </a>
+    </div>
+</div>
+
+<!-- Search Box -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" placeholder="Search by loan number, customer name, or customer ID..." value="{{ search }}" autofocus>
+                </div>
+                <div class="col-md-2">
+                    <select name="status" class="form-select">
+                        <option value="">All Status</option>
+                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="pending_staff_approval" {% if status == 'pending_staff_approval' %}selected{% endif %}>Staff Approval</option>
+                        <option value="pending_manager_approval" {% if status == 'pending_manager_approval' %}selected{% endif %}>Manager Approval</option>
+                        <option value="initiated" {% if status == 'initiated' %}selected{% endif %}>Initiated</option>
+                        <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="defaulted" {% if status == 'defaulted' %}selected{% endif %}>Defaulted</option>
+                        <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejected</option>
+                        <option value="deactivated" {% if status == 'deactivated' %}selected{% endif %}>Deactivated</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="loan_type" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="type1_9weeks" {% if loan_type == 'type1_9weeks' %}selected{% endif %}>9 Week Loan</option>
+                        <option value="54_daily" {% if loan_type == '54_daily' %}selected{% endif %}>54 Daily Loan</option>
+                        <option value="type4_micro" {% if loan_type == 'type4_micro' %}selected{% endif %}>Micro Loan</option>
+                        <option value="type4_daily" {% if loan_type == 'type4_daily' %}selected{% endif %}>Daily Loan</option>
+                        <option value="monthly_loan" {% if loan_type == 'monthly_loan' %}selected{% endif %}>Monthly Loan</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-2"></i>Search
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <a href="{{ url_for('loans.edit_loan_select') }}" class="btn btn-secondary w-100">
+                        <i class="bi bi-arrow-clockwise me-2"></i>Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Loans Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-scroll-container">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Loan Number</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Outstanding</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans.items %}
+                    <tr>
+                        <td><strong>{{ loan.loan_number }}</strong></td>
+                        <td>
+                            {{ loan.customer.full_name }}<br>
+                            <small class="text-muted">{{ loan.customer.customer_id }}</small>
+                        </td>
+                        <td>
+                            {% if loan.loan_type == 'type1_9weeks' %}
+                            9 Week Loan
+                            {% elif loan.loan_type == '54_daily' %}
+                            54 Daily Loan
+                            {% elif loan.loan_type == 'type4_micro' %}
+                            Micro Loan
+                            {% elif loan.loan_type == 'type4_daily' %}
+                            Daily Loan
+                            {% elif loan.loan_type == 'monthly_loan' %}
+                            Monthly Loan
+                            {% else %}
+                            {{ loan.loan_type }}
+                            {% endif %}
+                        </td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                        <td>
+                            {% if loan.outstanding_amount %}
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge status-{{ loan.status }}">{{ loan.status|replace('_', ' ')|title }}</span>
+                        </td>
+                        <td>{{ loan.application_date.strftime('%d/%m/%Y') if loan.application_date else '-' }}</td>
+                        <td>
+                            <a href="{{ url_for('loans.edit_loan', id=loan.id) }}" class="btn btn-sm btn-warning">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center text-muted">No Loans found. Try searching with different keywords.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if loans.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-3">
+            <!-- Desktop Pagination -->
+            <ul class="pagination justify-content-center d-none d-md-flex">
+                {% if loans.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ loans.prev_num }}&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}">Previous</a></li>
+                {% endif %}
+                
+                {% for page_num in loans.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == loans.page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if loans.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ loans.next_num }}&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}">Next</a></li>
+                {% endif %}
+            </ul>
+            
+            <!-- Mobile Pagination -->
+            <div class="d-md-none">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="?page={{ loans.prev_num if loans.has_prev else loans.page }}&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}" 
+                       class="btn btn-outline-primary {% if not loans.has_prev %}disabled{% endif %}">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </a>
+                    
+                    <div class="text-center">
+                        <small class="text-muted">Page {{ loans.page }} of {{ loans.pages }}</small>
+                        <br>
+                        <select class="form-select form-select-sm d-inline-block w-auto mt-1" onchange="window.location.href='?page='+this.value+'&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}'">
+                            {% for page_num in range(1, loans.pages + 1) %}
+                            <option value="{{ page_num }}" {% if page_num == loans.page %}selected{% endif %}>{{ page_num }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <a href="?page={{ loans.next_num if loans.has_next else loans.page }}&search={{ search }}&status={{ status }}&loan_type={{ loan_type }}" 
+                       class="btn btn-outline-primary {% if not loans.has_next %}disabled{% endif %}">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        </nav>
+        {% endif %}
+        
+        <!-- Summary -->
+        <div class="mt-3">
+            <small class="text-muted">Showing {{ loans.items|length }} of {{ loans.total }} loan{{ 's' if loans.total != 1 else '' }}</small>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-pending, .status-pending_staff_approval, .status-pending_manager_approval {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.status-initiated {
+    background-color: #17a2b8;
+    color: #fff;
+}
+
+.status-active {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.status-completed {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.status-rejected {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.status-defaulted {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.status-deactivated {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.table-scroll-container {
+    overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+    .table {
+        font-size: 0.875rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.5rem;
+    }
+}
+</style>
+{% endblock %}

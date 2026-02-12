@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4><i class="bi bi-pencil-square me-2"></i>Edit Loan: {{ loan.loan_number }}</h4>
+            <button type="button" onclick="history.back()" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-2"></i>Back
+            </button>
+        </div>
+
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Admin Only:</strong> Editing loan details will recalculate EMI and total payable amounts.
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Loan Details</h5>
+            </div>
+            <div class="card-body">
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <strong>Please correct the following errors:</strong>
+                    <ul class="mb-0">
+                        {% for field, errors in form.errors.items() %}
+                            {% for error in errors %}
+                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <form method="POST" action="" id="loanForm" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.customer_search.label(class="form-label", text="Member") }}
+                        <div class="position-relative">
+                            {{ form.customer_search(class="form-control", id="customer-search", autocomplete="off") }}
+                            {{ form.customer_id() }}
+                            <div id="customer-search-results" class="position-absolute top-100 start-0 w-100 bg-white border rounded shadow-sm d-none" style="z-index: 1000; max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+                        {% if form.customer_search.errors %}
+                        <div class="text-danger small">{{ form.customer_search.errors[0] }}</div>
+                        {% endif %}
+                        {% if form.customer_id.errors %}
+                        <div class="text-danger small">{{ form.customer_id.errors[0] }}</div>
+                        {% endif %}
+                        <small class="text-muted">Search by customer name, ID, or NIC number</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.referred_by.label(class="form-label") }}
+                        {{ form.referred_by(class="form-select") }}
+                        <small class="text-muted">Select the user who brought/sourced this loan (optional)</small>
+                        {% if form.referred_by.errors %}
+                        <div class="text-danger small">{{ form.referred_by.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.application_date.label(class="form-label") }}
+                        {{ form.application_date(class="form-control", type="date") }}
+                        <small class="text-muted">Date when the loan application was submitted</small>
+                        {% if form.application_date.errors %}
+                        <div class="text-danger small">{{ form.application_date.errors[0] }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_type.label(class="form-label") }}
+                            {{ form.loan_type(class="form-select", id="loan_type") }}
+                            <small class="text-muted">Calculation type for this loan</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_purpose.label(class="form-label") }}
+                            {{ form.loan_purpose(class="form-select", id="loan_purpose") }}
+                            <small class="text-muted">Purpose/category of the loan</small>
+                        </div>
+                    </div>
+                    
+                    <h6 class="border-bottom pb-2 mb-3 mt-3">Loan Amount & Terms</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.loan_amount.label(class="form-label") }}
+                            {{ form.loan_amount(class="form-control", id="loan_amount") }}
+                        </div>
+                        <div class="col-md-6 mb-3" id="durationWeeksField" style="display: none;">
+                            {{ form.duration_weeks.label(class="form-label") }}
+                            {{ form.duration_weeks(class="form-control", id="duration_weeks") }}
+                            <small class="text-muted">Repayment period in weeks</small>
+                        </div>
+                        <div class="col-md-6 mb-3" id="durationDaysField" style="display: none;">
+                            {{ form.duration_days.label(class="form-label") }}
+                            {{ form.duration_days(class="form-control", id="duration_days") }}
+                            <small class="text-muted">Repayment period in days</small>
+                        </div>
+                        <div class="col-md-6 mb-3" id="durationMonthsField">
+                            {{ form.duration_months.label(class="form-label") }}
+                            {{ form.duration_months(class="form-control", id="duration_months", required=false) }}
+                            <small class="text-muted">Repayment period in months</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.interest_rate.label(class="form-label") }}
+                            {{ form.interest_rate(class="form-control", id="interest_rate") }}
+                            <small class="text-muted" id="interestRateHelp">Annual percentage rate</small>
+                        </div>
+                        <div class="col-md-6 mb-3" id="interestTypeField">
+                            {{ form.interest_type.label(class="form-label") }}
+                            {{ form.interest_type(class="form-select", id="interest_type") }}
+                            <small class="text-muted">Flat Rate: Simple interest. Reducing Balance: EMI with compound interest</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="installmentFrequencyField">
+                        {{ form.installment_frequency.label(class="form-label") }}
+                        {{ form.installment_frequency(class="form-select", id="installment_frequency") }}
+                        <small class="text-muted">How often payments are made</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.purpose.label(class="form-label") }}
+                        {{ form.purpose(class="form-control", rows="3") }}
+                        <small class="text-muted">What will the loan be used for?</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.security_details.label(class="form-label") }}
+                        {{ form.security_details(class="form-control", rows="3") }}
+                        <small class="text-muted">Collateral or guarantee details</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.notes.label(class="form-label") }}
+                        {{ form.notes(class="form-control", rows="2") }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        {{ form.document.label(class="form-label") }}
+                        {{ form.document(class="form-control") }}
+                        {% if loan.document_path %}
+                        <small class="text-muted">Current: <a href="{{ url_for('static', filename='uploads/' + loan.document_path) }}" target="_blank">View Document</a></small><br>
+                        {% endif %}
+                        <small class="text-muted">Upload new document to replace existing (PDF only, max 10MB)</small>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> Status: <span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span><br>
+                        Updating loan details will recalculate EMI and total payable amounts based on new values.
+                    </div>
+                    
+                    <div class="mt-4">
+                        {{ form.submit(class="btn btn-primary", value="Update Loan") }}
+                        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    var customerSearchTimeout;
+    
+    // Customer search functionality
+    $('#customer-search').on('input', function() {
+        var searchTerm = $(this).val().trim();
+        var resultsContainer = $('#customer-search-results');
+        
+        clearTimeout(customerSearchTimeout);
+        
+        if (searchTerm.length < 2) {
+            resultsContainer.addClass('d-none');
+            return;
+        }
+        
+        customerSearchTimeout = setTimeout(function() {
+            $.ajax({
+                url: '{{ url_for("loans.search_customers") }}',
+                method: 'GET',
+                data: { q: searchTerm },
+                success: function(response) {
+                    if (response.success && response.customers.length > 0) {
+                        var html = '';
+                        response.customers.forEach(function(customer) {
+                            html += '<div class="p-2 border-bottom customer-result" data-id="' + customer.id + '" data-text="' + customer.text + '" style="cursor: pointer;">';
+                            html += '<strong>' + customer.customer_id + '</strong> - ' + customer.full_name;
+                            html += '<br><small class="text-muted">NIC: ' + customer.nic_number + ' | Phone: ' + (customer.phone_primary || 'N/A') + '</small>';
+                            html += '</div>';
+                        });
+                        resultsContainer.html(html).removeClass('d-none');
+                    } else {
+                        resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                    }
+                },
+                error: function() {
+                    resultsContainer.html('<div class="p-2 text-danger">Error searching customers</div>').removeClass('d-none');
+                }
+            });
+        }, 300);
+    });
+    
+    // Handle customer selection
+    $(document).on('click', '.customer-result', function() {
+        var customerId = $(this).data('id');
+        var customerText = $(this).data('text');
+        
+        $('#customer_id').val(customerId);
+        $('#customer-search').val(customerText);
+        $('#customer-search-results').addClass('d-none');
+    });
+    
+    // Hide results when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#customer-search, #customer-search-results').length) {
+            $('#customer-search-results').addClass('d-none');
+        }
+    });
+    
+    // Handle loan type change to show/hide appropriate fields
+    $('#loan_type').on('change', function() {
+        var loanType = $(this).val();
+        
+        // First, remove required from all duration fields
+        $('#duration_weeks').prop('required', false).removeAttr('required');
+        $('#duration_days').prop('required', false).removeAttr('required');
+        $('#duration_months').prop('required', false).removeAttr('required');
+        
+        if (loanType === 'type1_9weeks') {
+            $('#durationWeeksField').show();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').hide();
+            $('#duration_weeks').prop('required', true).attr('required', 'required');
+            $('#duration_days').val('');
+            $('#duration_months').val('');
+            
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
+            
+            $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
+        } else if (loanType === '54_daily') {
+            $('#durationDaysField').show();
+            $('#durationWeeksField').hide();
+            $('#durationMonthsField').hide();
+            $('#duration_days').prop('required', true).attr('required', 'required');
+            $('#duration_weeks').val('');
+            $('#duration_months').val('');
+            
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
+            
+            $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
+        } else if (loanType === 'type4_micro') {
+            $('#durationWeeksField').hide();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').show();
+            $('#duration_weeks').val('');
+            $('#duration_days').val('');
+            $('#duration_months').prop('required', true).attr('required', 'required');
+            
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
+            
+            $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
+        } else if (loanType === 'type4_daily') {
+            $('#durationWeeksField').hide();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').show();
+            $('#duration_weeks').val('');
+            $('#duration_days').val('');
+            $('#duration_months').prop('required', true).attr('required', 'required');
+            
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
+            
+            $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
+        } else {
+            $('#durationWeeksField').hide();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').show();
+            $('#duration_weeks').val('');
+            $('#duration_days').val('');
+            $('#duration_months').prop('required', true).attr('required', 'required');
+            
+            $('#interestTypeField').show();
+            $('#installmentFrequencyField').show();
+            $('#interest_type').prop('required', true).attr('required', 'required');
+            $('#installment_frequency').prop('required', true).attr('required', 'required');
+            
+            $('#interestRateHelp').text('Annual percentage rate');
+        }
+    });
+    
+    // Trigger change on page load to show correct fields
+    $('#loan_type').trigger('change');
+    
+    // Auto-calculate EMI on field change
+    $('#loan_amount, #interest_rate, #duration_months, #duration_weeks, #duration_days, #interest_type, #loan_type').on('change keyup', function() {
+        calculateEMI();
+    });
+    
+    function calculateEMI() {
+        var principal = parseFloat($('#loan_amount').val()) || 0;
+        var rate = parseFloat($('#interest_rate').val()) || 0;
+        var loanType = $('#loan_type').val();
+        var emi;
+        var totalPayable;
+        
+        if (loanType === 'type1_9weeks') {
+            var weeks = parseInt($('#duration_weeks').val()) || 9;
+            
+            if (principal > 0 && rate > 0 && weeks > 0) {
+                var interest = rate * 2;
+                emi = ((100 + interest) * principal) / (100 * weeks);
+                emi = Math.floor(emi);
+                totalPayable = emi * weeks;
+                
+                if ($('#emi-display').length === 0) {
+                    $('#durationWeeksField').after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else if (loanType === '54_daily') {
+            var days = parseInt($('#duration_days').val()) || 54;
+            
+            if (principal > 0 && rate > 0 && days > 0) {
+                var interest = rate * 2;
+                emi = ((100 + interest) * principal) / (100 * days);
+                emi = Math.floor(emi);
+                totalPayable = emi * days;
+                
+                if ($('#emi-display').length === 0) {
+                    $('#durationDaysField').after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else if (loanType === 'type4_micro') {
+            var months = parseInt($('#duration_months').val()) || 1;
+            
+            if (principal > 0 && rate > 0 && months > 0) {
+                var fullInterest = rate * months;
+                var weeks = months * 4;
+                emi = (principal * ((fullInterest + 100) / 100)) / weeks;
+                emi = Math.round(emi * 100) / 100;
+                totalPayable = emi * weeks;
+                
+                if ($('#emi-display').length === 0) {
+                    $('#durationMonthsField').after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Weekly Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Weeks:</strong> ' + weeks + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Weekly Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Weeks:</strong> ' + weeks + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else if (loanType === 'type4_daily') {
+            var months = parseInt($('#duration_months').val()) || 1;
+            
+            if (principal > 0 && rate > 0 && months > 0) {
+                var fullInterest = rate * months;
+                var days = months * 25;
+                emi = (principal * ((fullInterest + 100) / 100)) / days;
+                emi = Math.round(emi * 100) / 100;
+                totalPayable = emi * days;
+                
+                if ($('#emi-display').length === 0) {
+                    $('#durationMonthsField').after(
+                        '<div id="emi-display" class="col-md-12 mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Daily Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Days:</strong> ' + days + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Daily Installment:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Duration in Days:</strong> ' + days + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else {
+            var months = parseInt($('#duration_months').val()) || 1;
+            var type = $('#interest_type').val();
+            
+            if (principal > 0 && rate > 0 && months > 0) {
+                var monthlyRate = rate / (12 * 100);
+                
+                if (type === 'reducing_balance' && monthlyRate > 0) {
+                    emi = principal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+                } else {
+                    var totalInterest = principal * rate * months / (12 * 100);
+                    emi = (principal + totalInterest) / months;
+                }
+                
+                totalPayable = emi * months;
+                
+                if ($('#emi-display').length === 0) {
+                    $('#installmentFrequencyField').after(
+                        '<div id="emi-display" class="mb-3">' +
+                        '<div class="alert alert-info">' +
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Estimated EMI:</strong> ' + emi.toFixed(2) + '<br>' +
+                        '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        }
+    }
+    
+    // Calculate EMI on page load
+    calculateEMI();
+});
+</script>
+{% endblock %}

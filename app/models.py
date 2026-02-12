@@ -324,6 +324,7 @@ class Loan(db.Model):
     
     # Loan Details
     loan_type = db.Column(db.String(50), nullable=False)  # Type 1 - 9 week loan, Type 2, etc.
+    loan_purpose = db.Column(db.String(50))  # Purpose category: personal, business, education, etc.
     loan_amount = db.Column(db.Numeric(15, 2), nullable=False)
     interest_rate = db.Column(db.Numeric(5, 2), nullable=False)  # Annual percentage rate
     interest_type = db.Column(db.String(30), default='reducing_balance')  # flat, reducing_balance

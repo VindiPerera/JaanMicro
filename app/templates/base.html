@@ -670,6 +670,9 @@
                 <ul class="collapse submenu" id="loansSubmenu">
                     <li><a href="{{ url_for('loans.list_loans') }}"><i class="bi bi-list-ul"></i> List Loans</a></li>
                     <li><a href="{{ url_for('loans.add_loan') }}"><i class="bi bi-plus-circle"></i> Add Loan</a></li>
+                    {% if current_user.role == 'admin' %}
+                    <li><a href="{{ url_for('loans.edit_loan_select') }}"><i class="bi bi-pencil"></i> Edit Loan</a></li>
+                    {% endif %}
                     <li><a href="{{ url_for('loans.search_loans') }}"><i class="bi bi-search"></i> Search Loan</a></li>
                     <li><a href="{{ url_for('loans.receipt_entry') }}"><i class="bi bi-receipt"></i> Receipt Entry</a></li>
                 </ul>

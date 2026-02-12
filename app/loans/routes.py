@@ -9,7 +9,7 @@ from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
 from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, admin_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
 
 @loans_bp.route('/')
@@ -276,6 +276,7 @@ def add_loan():
             customer_id=form.customer_id.data,
             branch_id=customer.branch_id,
             loan_type=form.loan_type.data,
+            loan_purpose=form.loan_purpose.data if form.loan_purpose.data else None,
             loan_amount=form.loan_amount.data,
             interest_rate=form.interest_rate.data,
             interest_type=form.interest_type.data,
@@ -320,6 +321,50 @@ def add_loan():
     
     return render_template('loans/add.html', title='Add Loan', form=form)
 
+@loans_bp.route('/edit-loan-select')
+@login_required
+@admin_required
+def edit_loan_select():
+    """Select loan to edit (Admin only)"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '', type=str)
+    status = request.args.get('status', '', type=str)
+    loan_type = request.args.get('loan_type', '', type=str)
+    
+    query = Loan.query
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    if search:
+        query = query.join(Customer).filter(
+            db.or_(
+                Loan.loan_number.ilike(f'%{search}%'),
+                Customer.full_name.ilike(f'%{search}%'),
+                Customer.customer_id.ilike(f'%{search}%')
+            )
+        )
+    
+    if status:
+        query = query.filter_by(status=status)
+    
+    if loan_type:
+        query = query.filter_by(loan_type=loan_type)
+    
+    loans = query.order_by(Loan.created_at.desc()).paginate(
+        page=page, per_page=25, error_out=False
+    )
+    
+    return render_template('loans/edit_select.html',
+                         title='Edit Loan - Select Loan',
+                         loans=loans,
+                         search=search,
+                         status=status,
+                         loan_type=loan_type)
+
 @loans_bp.route('/<int:id>')
 @login_required
 def view_loan(id):
@@ -358,6 +403,205 @@ def view_loan(id):
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
                          arrears_details=arrears_details)
+
+@loans_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_loan(id):
+    """Edit loan (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+    
+    form = LoanForm()
+    
+    # Get users for referred_by dropdown
+    user_query = User.query.filter_by(is_active=True)
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            user_query = user_query.filter_by(branch_id=current_branch_id)
+    
+    users = user_query.order_by(User.full_name).all()
+    form.referred_by.choices = [(0, 'Select User (Optional)')] + [(u.id, f'{u.full_name} ({u.username})') for u in users]
+    
+    if request.method == 'GET':
+        # Pre-populate form with existing loan data
+        customer = loan.customer
+        form.customer_search.data = f"{customer.full_name} ({customer.customer_id})"
+        form.customer_id.data = loan.customer_id
+        form.referred_by.data = loan.referred_by if loan.referred_by else 0
+        form.application_date.data = loan.application_date
+        form.loan_type.data = loan.loan_type
+        form.loan_purpose.data = loan.loan_purpose
+        form.loan_amount.data = loan.loan_amount
+        form.duration_weeks.data = loan.duration_weeks
+        form.duration_days.data = loan.duration_days
+        form.duration_months.data = loan.duration_months
+        form.interest_rate.data = loan.interest_rate
+        form.interest_type.data = loan.interest_type
+        form.installment_frequency.data = loan.installment_frequency
+        form.purpose.data = loan.purpose
+        form.security_details.data = loan.security_details
+        form.notes.data = loan.notes
+    
+    if form.validate_on_submit():
+        # Custom validation based on loan type
+        if form.loan_type.data == 'type1_9weeks':
+            if not form.duration_weeks.data:
+                flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        elif form.loan_type.data == '54_daily':
+            if not form.duration_days.data:
+                flash('Duration (Days) is required for 54 Daily Loan!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        elif form.loan_type.data in ['type4_micro', 'type4_daily', 'monthly_loan']:
+            if not form.duration_months.data:
+                flash('Duration (Months) is required for this loan type!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        
+        # Validate customer selection
+        if form.customer_id.data == 0:
+            flash('Please select a customer!', 'error')
+            return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        
+        # Recalculate EMI and totals with updated values
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
+        
+        loan_amount = Decimal(str(form.loan_amount.data))
+        interest_rate = Decimal(str(form.interest_rate.data))
+        
+        duration_weeks = None
+        duration_days = None
+        duration_months = form.duration_months.data
+        
+        # Calculate based on loan type
+        if form.loan_type.data == 'type1_9weeks':
+            duration_weeks = form.duration_weeks.data or 9
+            duration_months = 0
+            interest = interest_rate * Decimal('2')
+            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == '54_daily':
+            duration_days = form.duration_days.data or 54
+            duration_months = 0
+            interest = interest_rate * Decimal('2')
+            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_days)))
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'type4_micro':
+            months = form.duration_months.data
+            duration_weeks = months * 4
+            full_interest = interest_rate * Decimal(str(months))
+            emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_weeks))
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'type4_daily':
+            months = form.duration_months.data
+            duration_days = months * 30
+            full_interest = interest_rate * Decimal(str(months))
+            emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'monthly_loan':
+            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
+            n = duration_months
+            
+            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
+                mr_float = float(monthly_rate)
+                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
+                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
+            else:
+                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
+                emi = (loan_amount + total_interest) / Decimal(str(n))
+            
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
+            n = duration_months
+            
+            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
+                mr_float = float(monthly_rate)
+                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
+                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
+            else:
+                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
+                emi = (loan_amount + total_interest) / Decimal(str(n))
+            
+            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        
+        # Handle document upload
+        if form.document.data and hasattr(form.document.data, 'filename') and form.document.data.filename:
+            file = form.document.data
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            document_filename = f"{timestamp}_{filename}"
+            
+            upload_folder = os.path.join(current_app.config['UPLOAD_FOLDER'], 'loans')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            file_path = os.path.join(upload_folder, document_filename)
+            file.save(file_path)
+            
+            loan.document_path = f"loans/{document_filename}"
+        
+        # Calculate documentation fee (1% of loan amount)
+        documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        
+        # Update loan data
+        loan.customer_id = form.customer_id.data
+        loan.branch_id = customer.branch_id
+        loan.loan_type = form.loan_type.data
+        loan.loan_purpose = form.loan_purpose.data
+        loan.loan_amount = form.loan_amount.data
+        loan.interest_rate = form.interest_rate.data
+        loan.interest_type = form.interest_type.data
+        loan.duration_months = duration_months
+        loan.duration_weeks = duration_weeks
+        loan.duration_days = duration_days
+        loan.installment_amount = emi
+        loan.installment_frequency = 'daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data)
+        loan.total_payable = total_payable
+        loan.documentation_fee = documentation_fee
+        loan.application_date = form.application_date.data
+        loan.purpose = form.purpose.data
+        loan.security_details = form.security_details.data
+        loan.referred_by = form.referred_by.data if form.referred_by.data != 0 else None
+        loan.notes = form.notes.data
+        loan.updated_at = datetime.utcnow()
+        
+        # Recalculate disbursed amount if loan is already active
+        if loan.status == 'active' and loan.approved_amount:
+            loan.disbursed_amount = loan.approved_amount - documentation_fee
+        
+        # Update outstanding amount if needed for active loans
+        if loan.status == 'active':
+            # Recalculate outstanding as total payable minus paid amount
+            loan.outstanding_amount = total_payable - (loan.paid_amount or Decimal('0'))
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='edit_loan',
+            entity_type='loan',
+            description=f'Edited loan: {loan.loan_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        
+        db.session.commit()
+        
+        flash(f'Loan {loan.loan_number} updated successfully!', 'success')
+        return redirect(url_for('loans.view_loan', id=loan.id))
+    
+    return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
 
 @loans_bp.route('/<int:id>/approve', methods=['GET', 'POST'])
 @login_required
