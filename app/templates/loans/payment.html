@@ -278,17 +278,26 @@ $(document).ready(function() {
         var totalPayment = paymentAmount;
         
         // Calculate outstanding after payment
-        // For monthly loans, outstanding includes all remaining interest, so subtract total payment
-        // For other loan types, subtract only principal from outstanding
+        // For flat rate loans (monthly, Type 1, 54 Daily, Type 4), outstanding includes all remaining interest
+        // So we need to subtract the full payment amount, not just principal
         var loanType = '{{ loan.loan_type }}';
         var outstandingAfter;
         
-        if (loanType === 'monthly_loan') {
-            // For monthly loans: Outstanding includes principal + remaining interest
+        // Check if this is a flat rate loan type
+        var isFlatRateLoan = (
+            loanType === 'monthly_loan' || 
+            loanType === 'type1_9weeks' || 
+            loanType === '54_daily' || 
+            loanType === 'type4_micro' || 
+            loanType === 'type4_daily'
+        );
+        
+        if (isFlatRateLoan) {
+            // For flat rate loans: Outstanding includes principal + ALL remaining interest
             // So subtract the full payment amount
             outstandingAfter = Math.max(0, Math.round((roundedOutstanding - totalPayment) * 100) / 100);
         } else {
-            // For other loan types: Subtract only principal
+            // For reducing balance loans: Subtract only principal (interest accrues dynamically)
             outstandingAfter = Math.max(0, Math.round((roundedOutstanding - principalAmount) * 100) / 100);
         }
         
