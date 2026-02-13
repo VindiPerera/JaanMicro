@@ -289,7 +289,7 @@ def add_loan():
             total_payable=total_payable,
             outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
-            application_date=form.application_date.data,
+            application_date=datetime.now().date(),
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
@@ -578,8 +578,8 @@ def edit_loan(id):
         loan.updated_at = datetime.utcnow()
         
         # Recalculate disbursed amount if loan is already active
-        if loan.status == 'active' and loan.approved_amount:
-            loan.disbursed_amount = loan.approved_amount - documentation_fee
+        if loan.status == 'active':
+            loan.disbursed_amount = loan.loan_amount - documentation_fee
         
         # Update outstanding amount if needed for active loans
         if loan.status == 'active':
@@ -1322,6 +1322,70 @@ def search_customers():
     return jsonify({
         'success': True,
         'customers': customer_list
+    })
+
+
+@loans_bp.route('/api/search-guarantors')
+@login_required
+@permission_required('manage_loans')
+def search_guarantors():
+    """Search KYC approved guarantors and family guarantors"""
+    search_term = request.args.get('q', '', type=str).strip()
+    exclude_customer_id = request.args.get('exclude_customer_id', type=int)
+    
+    if not search_term or len(search_term) < 2:
+        return jsonify({'success': False, 'guarantors': []})
+    
+    # Query customers who are guarantors or family guarantors and have KYC verified
+    query = Customer.query.filter(
+        db.or_(
+            Customer.customer_type.like('%guarantor%'),
+            Customer.customer_type.like('%family_guarantor%')
+        ),
+        Customer.kyc_verified == True,
+        Customer.status == 'active'
+    )
+    
+    # Exclude the selected loan member
+    if exclude_customer_id:
+        query = query.filter(Customer.id != exclude_customer_id)
+    
+    # Filter by current branch if needed
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    
+    # Search by name, customer ID, or NIC number
+    guarantors = query.filter(
+        db.or_(
+            Customer.full_name.ilike(f'%{search_term}%'),
+            Customer.customer_id.ilike(f'%{search_term}%'),
+            Customer.nic_number.ilike(f'%{search_term}%')
+        )
+    ).order_by(Customer.full_name).limit(10).all()
+    
+    # Format guarantor data
+    guarantor_list = []
+    for guarantor in guarantors:
+        guarantor_list.append({
+            'id': guarantor.id,
+            'text': f'{guarantor.customer_id} - {guarantor.full_name} ({guarantor.nic_number})',
+            'customer_id': guarantor.customer_id,
+            'full_name': guarantor.full_name,
+            'nic_number': guarantor.nic_number,
+            'phone_primary': guarantor.phone_primary,
+            'customer_type_display': guarantor.customer_type_display,
+            'address_line1': guarantor.address_line1,
+            'address_line2': guarantor.address_line2 or '',
+            'city': guarantor.city,
+            'district': guarantor.district,
+            'email': guarantor.email or ''
+        })
+    
+    return jsonify({
+        'success': True,
+        'guarantors': guarantor_list
     })
 
 

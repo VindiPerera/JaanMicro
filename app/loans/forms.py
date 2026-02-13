@@ -10,7 +10,7 @@ class LoanForm(FlaskForm):
     customer_id = HiddenField('Customer ID', validators=[DataRequired()])
     customer_search = StringField('Customer Search', validators=[DataRequired()], render_kw={"placeholder": "Search by name, ID, or NIC number"})
     referred_by = SelectField('Referred By (User)', coerce=int, choices=[], validators=[Optional()])
-    application_date = DateField('Application Date', validators=[DataRequired()], default=datetime.now)
+    application_date = DateField('Application Date', validators=[Optional()], default=datetime.now)
     loan_type = SelectField('Loan Type', choices=[
         ('', 'Select'),
         ('type1_9weeks', '9 Week Loan'),

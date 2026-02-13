@@ -74,20 +74,6 @@
                             {% endif %}
                         </div>
                         
-                        <div class="mb-3">
-                            {{ form.application_date.label(class="form-label") }}
-                            {% if current_user.role == 'admin' %}
-                                {{ form.application_date(class="form-control", type="date") }}
-                                <small class="text-muted">Date when the loan application is submitted (Admin can edit)</small>
-                            {% else %}
-                                {{ form.application_date(class="form-control", type="date", readonly=true) }}
-                                <small class="text-muted">Date when the loan application is submitted (Auto-set to today)</small>
-                            {% endif %}
-                            {% if form.application_date.errors %}
-                            <div class="text-danger small">{{ form.application_date.errors[0] }}</div>
-                            {% endif %}
-                        </div>
-                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 {{ form.loan_type.label(class="form-label") }}
@@ -188,10 +174,9 @@
                         <h6 class="border-bottom pb-2 mb-3">Add Guarantors</h6>
                         
                         <div class="mb-3">
-                            <label class="form-label">Select Guarantor</label>
-                            <select class="form-select" id="guarantorSelect">
-                                <option value="">-- Select KYC Approved Guarantor --</option>
-                            </select>
+                            <label class="form-label">Search Guarantor</label>
+                            <input type="text" class="form-control" id="guarantorSearch" placeholder="Search by name, customer ID, or NIC number">
+                            <div id="guarantorSuggestions" class="list-group mt-1" style="display: none; max-height: 200px; overflow-y: auto;"></div>
                             <small class="text-muted">Only KYC approved guarantors and family guarantors are shown</small>
                         </div>
                         
@@ -537,7 +522,7 @@ $(document).ready(function() {
         $('#step1-indicator').removeClass('active').addClass('completed');
         $('#step2-indicator').addClass('active');
         $('#form-title').text('Add Guarantors');
-        loadGuarantors();
+        clearGuarantorSearch();
     });
     
     $('#backToStep1').on('click', function() {
@@ -553,113 +538,135 @@ $(document).ready(function() {
         $('#guarantorIds').val('');
         updateGuarantorCounter();
         $('#addGuarantor').prop('disabled', false);
-        $('#guarantorSelect').prop('disabled', false);
+        $('#guarantorSearch').prop('disabled', false);
         $('#guarantorCounter').removeClass('alert-success').addClass('alert-warning');
     });
     
-    // Load KYC approved guarantors
-    function loadGuarantors() {
+    // Clear guarantor search
+    function clearGuarantorSearch() {
+        $('#guarantorSearch').val('');
+        $('#guarantorSuggestions').hide();
+        $('#guarantorDetails').hide();
+    }
+    
+    // Search guarantors
+    function searchGuarantors(query) {
         var memberId = $('#customer_id').val();
-        if (!memberId) {
-            alert('Please select a member first before proceeding to add guarantors.');
-            $('#backToStep1').click();
+        if (!query || query.length < 2) {
+            $('#guarantorSuggestions').hide();
             return;
         }
         
         $.ajax({
-            url: '{{ url_for("loans.get_guarantors") }}',
+            url: '{{ url_for("loans.search_guarantors") }}',
             method: 'GET',
-            data: { exclude_customer_id: memberId },
+            data: { q: query, exclude_customer_id: memberId },
             success: function(data) {
-                var select = $('#guarantorSelect');
-                select.empty();
-                select.append('<option value="">-- Select KYC Approved Guarantor --</option>');
+                var suggestions = $('#guarantorSuggestions');
+                suggestions.empty();
                 
                 if (data.guarantors && data.guarantors.length > 0) {
                     data.guarantors.forEach(function(guarantor) {
-                        select.append(
-                            '<option value="' + guarantor.id + '" data-guarantor=\'' + JSON.stringify(guarantor) + '\'>' +
-                            guarantor.full_name + ' (' + guarantor.nic_number + ') - ' + guarantor.customer_type_display +
-                            '</option>'
+                        suggestions.append(
+                            '<a href="#" class="list-group-item list-group-item-action" data-guarantor=\'' + JSON.stringify(guarantor) + '\'>' +
+                            guarantor.text +
+                            '</a>'
                         );
                     });
+                    suggestions.show();
                 } else {
-                    select.append('<option value="">No KYC approved guarantors found</option>');
+                    suggestions.hide();
                 }
             },
             error: function() {
-                alert('Error loading guarantors. Please try again.');
+                $('#guarantorSuggestions').hide();
             }
         });
     }
     
-    // Show guarantor details when selected
-    $('#guarantorSelect').on('change', function() {
-        var selectedOption = $(this).find('option:selected');
-        if (selectedOption.val()) {
-            var guarantor = JSON.parse(selectedOption.attr('data-guarantor'));
-            
-            $('#guarantorName').text(guarantor.full_name);
-            $('#guarantorNIC').text(guarantor.nic_number);
-            $('#guarantorPhone').text(guarantor.phone_primary);
-            $('#guarantorType').text(guarantor.customer_type_display);
-            $('#guarantorAddress').text(guarantor.address_line1 + (guarantor.address_line2 ? ', ' + guarantor.address_line2 : ''));
-            $('#guarantorDistrict').text(guarantor.district);
-            
-            $('#guarantorDetails').show();
-        } else {
-            $('#guarantorDetails').hide();
+    // Handle guarantor search input
+    $('#guarantorSearch').on('input', function() {
+        var query = $(this).val().trim();
+        searchGuarantors(query);
+    });
+    
+    // Handle suggestion click
+    $('#guarantorSuggestions').on('click', 'a', function(e) {
+        e.preventDefault();
+        var guarantor = JSON.parse($(this).attr('data-guarantor'));
+        
+        // Populate details
+        $('#guarantorName').text(guarantor.full_name);
+        $('#guarantorNIC').text(guarantor.nic_number);
+        $('#guarantorPhone').text(guarantor.phone_primary);
+        $('#guarantorType').text(guarantor.customer_type_display);
+        $('#guarantorAddress').text(guarantor.address_line1 + (guarantor.address_line2 ? ', ' + guarantor.address_line2 : ''));
+        $('#guarantorDistrict').text(guarantor.district);
+        
+        $('#guarantorDetails').show();
+        $('#guarantorSuggestions').hide();
+        $('#guarantorSearch').val(guarantor.text);
+        
+        // Store selected guarantor
+        $('#guarantorSearch').data('selected-guarantor', guarantor);
+    });
+    
+    // Hide suggestions when clicking outside
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('#guarantorSearch, #guarantorSuggestions').length) {
+            $('#guarantorSuggestions').hide();
         }
     });
     
     // Add guarantor to list
     $('#addGuarantor').on('click', function() {
-        var selectedOption = $('#guarantorSelect').find('option:selected');
-        if (selectedOption.val()) {
-            var guarantor = JSON.parse(selectedOption.attr('data-guarantor'));
-            
-            // Check if already have 2 guarantors
-            if (addedGuarantors.length >= 2) {
-                alert('Maximum 2 guarantors allowed. Please remove one to add another.');
-                return;
-            }
-            
-            // Check if already added
-            if (addedGuarantors.indexOf(guarantor.id) !== -1) {
-                alert('This guarantor has already been added.');
-                return;
-            }
-            
-            addedGuarantors.push(guarantor.id);
-            
-            var guarantorHtml = 
-                '<div class="list-group-item d-flex justify-content-between align-items-center" data-guarantor-id="' + guarantor.id + '">' +
-                '<div>' +
-                '<strong>' + guarantor.full_name + '</strong><br>' +
-                '<small class="text-muted">NIC: ' + guarantor.nic_number + ' | Phone: ' + guarantor.phone_primary + '</small><br>' +
-                '<small class="text-muted">Type: ' + guarantor.customer_type_display + '</small>' +
-                '</div>' +
-                '<button type="button" class="btn btn-sm btn-danger remove-guarantor">' +
-                '<i class="bi bi-trash"></i>' +
-                '</button>' +
-                '</div>';
-            
-            $('#guarantorsList').append(guarantorHtml);
-            $('#guarantorIds').val(addedGuarantors.join(','));
-            
-            // Update counter
-            updateGuarantorCounter();
-            
-            // Reset selection
-            $('#guarantorSelect').val('');
-            $('#guarantorDetails').hide();
-            
-            // Disable add button and select if 2 are added
-            if (addedGuarantors.length >= 2) {
-                $('#addGuarantor').prop('disabled', true);
-                $('#guarantorSelect').prop('disabled', true);
-                $('#guarantorCounter').removeClass('alert-warning').addClass('alert-success');
-            }
+        var guarantor = $('#guarantorSearch').data('selected-guarantor');
+        if (!guarantor) {
+            alert('Please search and select a guarantor first.');
+            return;
+        }
+        
+        // Check if already have 2 guarantors
+        if (addedGuarantors.length >= 2) {
+            alert('Maximum 2 guarantors allowed. Please remove one to add another.');
+            return;
+        }
+        
+        // Check if already added
+        if (addedGuarantors.indexOf(guarantor.id) !== -1) {
+            alert('This guarantor has already been added.');
+            return;
+        }
+        
+        addedGuarantors.push(guarantor.id);
+        
+        var guarantorHtml = 
+            '<div class="list-group-item d-flex justify-content-between align-items-center" data-guarantor-id="' + guarantor.id + '">' +
+            '<div>' +
+            '<strong>' + guarantor.full_name + '</strong><br>' +
+            '<small class="text-muted">NIC: ' + guarantor.nic_number + ' | Phone: ' + guarantor.phone_primary + '</small><br>' +
+            '<small class="text-muted">Type: ' + guarantor.customer_type_display + '</small>' +
+            '</div>' +
+            '<button type="button" class="btn btn-sm btn-danger remove-guarantor">' +
+            '<i class="bi bi-trash"></i>' +
+            '</button>' +
+            '</div>';
+        
+        $('#guarantorsList').append(guarantorHtml);
+        $('#guarantorIds').val(addedGuarantors.join(','));
+        
+        // Update counter
+        updateGuarantorCounter();
+        
+        // Reset selection
+        $('#guarantorSearch').val('').removeData('selected-guarantor');
+        $('#guarantorDetails').hide();
+        
+        // Disable add button and search if 2 are added
+        if (addedGuarantors.length >= 2) {
+            $('#addGuarantor').prop('disabled', true);
+            $('#guarantorSearch').prop('disabled', true);
+            $('#guarantorCounter').removeClass('alert-warning').addClass('alert-success');
         }
     });
     
@@ -676,10 +683,10 @@ $(document).ready(function() {
         // Update counter
         updateGuarantorCounter();
         
-        // Re-enable add button and select if below 2
+        // Re-enable add button and search if below 2
         if (addedGuarantors.length < 2) {
             $('#addGuarantor').prop('disabled', false);
-            $('#guarantorSelect').prop('disabled', false);
+            $('#guarantorSearch').prop('disabled', false);
             $('#guarantorCounter').removeClass('alert-success').addClass('alert-warning');
         }
     });
