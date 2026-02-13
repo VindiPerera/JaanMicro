@@ -151,6 +151,17 @@ def add_customer():
                 file.save(file_path)
                 proof_of_address_path = f"uploads/customers/{current_branch_id}/{filename}"
         
+        bank_book_path = None
+        if form.bank_book_image.data and hasattr(form.bank_book_image.data, 'filename') and form.bank_book_image.data.filename:
+            file = form.bank_book_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer_id}_bank_book_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(current_branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                bank_book_path = f"uploads/customers/{current_branch_id}/{filename}"
+        
         customer = Customer(
             customer_id=customer_id,
             branch_id=current_branch_id,
@@ -189,6 +200,7 @@ def add_customer():
             nic_back_image=nic_back_path,
             photo=photo_path,
             proof_of_address=proof_of_address_path,
+            bank_book_image=bank_book_path,
             created_by=current_user.id
         )
         
@@ -312,6 +324,16 @@ def edit_customer(id):
                 file_path = os.path.join(upload_dir, filename)
                 file.save(file_path)
                 customer.proof_of_address = f"uploads/customers/{customer.branch_id}/{filename}"
+        
+        if form.bank_book_image.data and hasattr(form.bank_book_image.data, 'filename') and form.bank_book_image.data.filename:
+            file = form.bank_book_image.data
+            if allowed_file(file.filename):
+                filename = secure_filename(f"{customer.customer_id}_bank_book_{file.filename}")
+                upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'customers', str(customer.branch_id))
+                os.makedirs(upload_dir, exist_ok=True)
+                file_path = os.path.join(upload_dir, filename)
+                file.save(file_path)
+                customer.bank_book_image = f"uploads/customers/{customer.branch_id}/{filename}"
         
         customer.full_name = form.full_name.data
         customer.nic_number = form.nic_number.data

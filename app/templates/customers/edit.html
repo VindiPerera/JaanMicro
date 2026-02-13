@@ -241,6 +241,19 @@
                         </div>
                     </div>
                     
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.bank_book_image.label(class="form-label") }}
+                            {{ form.bank_book_image(class="form-control", accept="image/*,application/pdf") }}
+                            <div class="form-text">Bank book front page (JPG, PNG, PDF)</div>
+                            {% if customer.bank_book_image %}
+                                <div class="mt-2">
+                                    <small class="text-muted">Current: <a href="/{{ customer.bank_book_image }}" target="_blank">View</a></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
                     <div class="mt-4">
                         {{ form.submit(class="btn btn-primary") }}
                         <button type="button" onclick="history.back()" class="btn btn-secondary">Cancel</button>

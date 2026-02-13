@@ -73,6 +73,9 @@ class CustomerForm(FlaskForm):
     proof_of_address = FileField('Proof of Address', validators=[
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
     ])
+    bank_book_image = FileField('Bank Book Front Page', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
+    ])
     
     # Contact Information
     phone_primary = StringField('Primary Phone', validators=[DataRequired(), Length(max=20)])

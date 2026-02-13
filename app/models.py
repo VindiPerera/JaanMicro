@@ -243,6 +243,7 @@ class Customer(db.Model):
     nic_back_image = db.Column(db.String(255))
     photo = db.Column(db.String(255))
     proof_of_address = db.Column(db.String(255))
+    bank_book_image = db.Column(db.String(255))  # Bank book front page image
     additional_documents = db.Column(db.Text)  # JSON array of document paths
     
     # Emergency Contact

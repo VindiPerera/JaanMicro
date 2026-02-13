@@ -181,7 +181,36 @@
                         </div>
                         {% endif %}
 
-                        {% if not customer.nic_front_image and not customer.nic_back_image and not customer.photo and not customer.proof_of_address %}
+                        <!-- Bank Book -->
+                        {% if customer.bank_book_image %}
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <i class="bi bi-bank me-2"></i>Bank Book Front Page
+                            </div>
+                            <div class="card-body text-center">
+                                {% if customer.bank_book_image.endswith('.pdf') %}
+                                <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
+                                <p class="mt-2">PDF Document</p>
+                                {% else %}
+                                <img src="/{{ customer.bank_book_image }}" class="img-fluid" style="max-height: 200px;" alt="Bank Book" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <div style="display: none;" class="text-danger">
+                                    <i class="bi bi-exclamation-triangle fs-1"></i>
+                                    <p class="mt-2">Image not found</p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-2">
+                                    <a href="/{{ customer.bank_book_image }}" target="_blank" class="btn btn-sm btn-info">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="/{{ customer.bank_book_image }}" download class="btn btn-sm btn-primary">
+                                        <i class="bi bi-download"></i> Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if not customer.nic_front_image and not customer.nic_back_image and not customer.photo and not customer.proof_of_address and not customer.bank_book_image %}
                         <div class="text-center text-muted py-5">
                             <i class="bi bi-inbox" style="font-size: 4rem;"></i>
                             <p class="mt-3">No documents uploaded yet</p>
