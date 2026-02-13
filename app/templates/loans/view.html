@@ -360,7 +360,7 @@
                         {{ loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">
-                        <strong>Maturity Date:</strong><br>
+                        <strong>Settlement Date:</strong><br>
                         {{ loan.maturity_date.strftime('%Y-%m-%d') if loan.maturity_date else 'N/A' }}
                     </div>
                     {% if loan.status == 'completed' %}
