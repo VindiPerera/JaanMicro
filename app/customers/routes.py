@@ -270,9 +270,28 @@ def edit_customer(id):
             flash('Access denied: Customer does not belong to your branch.', 'danger')
             return redirect(url_for('customers.list_customers'))
     
-    form = CustomerForm(obj=customer)
+    # Log request details
+    current_app.logger.info(f"Edit customer {customer.customer_id} - Method: {request.method}")
+    if request.method == 'POST':
+        current_app.logger.info(f"POST data: {request.form.to_dict()}")
+    
+    # For POST requests, don't use obj=customer so form reads from request.form
+    # For GET requests, use obj=customer to populate form fields
+    # Always pass original_nic and is_edit flag for validation
+    if request.method == 'POST':
+        form = CustomerForm(original_nic=customer.nic_number, is_edit=True)
+    else:
+        form = CustomerForm(obj=customer, original_nic=customer.nic_number, is_edit=True)
     
     if form.validate_on_submit():
+        current_app.logger.info(f"=== FORM VALIDATED - UPDATE CUSTOMER {customer.customer_id} ===")
+        current_app.logger.info(f"Current customer types in DB: {customer.customer_types}")
+        current_app.logger.info(f"Form checkbox values:")
+        current_app.logger.info(f"  customer_type_customer: {form.customer_type_customer.data}")
+        current_app.logger.info(f"  customer_type_investor: {form.customer_type_investor.data}")
+        current_app.logger.info(f"  customer_type_guarantor: {form.customer_type_guarantor.data}")
+        current_app.logger.info(f"  customer_type_family_guarantor: {form.customer_type_family_guarantor.data}")
+        
         # Handle profile picture upload
         if form.profile_picture.data and hasattr(form.profile_picture.data, 'filename') and form.profile_picture.data.filename:
             file = form.profile_picture.data
@@ -348,7 +367,18 @@ def edit_customer(id):
             customer_types.append('guarantor')
         if form.customer_type_family_guarantor.data:
             customer_types.append('family_guarantor')
+        
+        # Ensure at least one customer type is selected
+        if not customer_types:
+            flash('Please select at least one customer type.', 'error')
+            return render_template('customers/edit.html',
+                                 title=f'Edit Customer: {customer.full_name}',
+                                 form=form,
+                                 customer=customer)
+        
         customer.customer_types = customer_types  # Use the property setter
+        current_app.logger.info(f"New customer types to save: {customer_types}")
+        current_app.logger.info(f"Customer type after setter: {customer.customer_type}")
         
         customer.date_of_birth = form.date_of_birth.data
         customer.gender = form.gender.data
@@ -393,6 +423,22 @@ def edit_customer(id):
         
         flash('Customer information updated successfully!', 'success')
         return redirect(url_for('customers.view_customer', id=customer.id))
+    
+    # Log validation errors if form was submitted but validation failed
+    if request.method == 'POST':
+        current_app.logger.error(f"=== FORM VALIDATION FAILED ===")
+        current_app.logger.error(f"Form errors: {form.errors}")
+        for field, errors in form.errors.items():
+            for error in errors:
+                current_app.logger.error(f"  {field}: {error}")
+    
+    # Pre-populate customer type checkboxes on GET request or when there are validation errors
+    if request.method == 'GET' or not form.validate_on_submit():
+        current_types = customer.customer_types
+        form.customer_type_customer.data = 'customer' in current_types
+        form.customer_type_investor.data = 'investor' in current_types
+        form.customer_type_guarantor.data = 'guarantor' in current_types
+        form.customer_type_family_guarantor.data = 'family_guarantor' in current_types
     
     return render_template('customers/edit.html',
                          title=f'Edit Customer: {customer.full_name}',

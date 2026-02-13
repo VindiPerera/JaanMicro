@@ -142,3 +142,7 @@ instance/
 # Temporary files
 *.tmp
 *.temp
+
+# Static uploads (user-generated files)
+app/static/uploads/*
+!app/static/uploads/.gitkeep

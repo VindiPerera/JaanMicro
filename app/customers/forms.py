@@ -141,25 +141,29 @@ class CustomerForm(FlaskForm):
     submit = SubmitField('Save Member')
     
     def __init__(self, *args, **kwargs):
-        super(CustomerForm, self).__init__(*args, **kwargs)
-        self.original_nic = kwargs.get('obj').nic_number if kwargs.get('obj') else None
-        
-        # Initialize customer type checkboxes
+        # Extract custom parameters before calling super().__init__
+        self.original_nic = kwargs.pop('original_nic', None)
+        is_edit = kwargs.pop('is_edit', False)
         customer = kwargs.get('obj')
+        
+        # Get original NIC from obj if available and not already set
+        if customer and not self.original_nic:
+            self.original_nic = customer.nic_number
+        
+        super(CustomerForm, self).__init__(*args, **kwargs)
+        
+        # Initialize customer type checkboxes only for GET requests (when obj is provided)
         if customer:
             customer_types = customer.customer_types
             self.customer_type_customer.data = 'customer' in customer_types
             self.customer_type_investor.data = 'investor' in customer_types
             self.customer_type_guarantor.data = 'guarantor' in customer_types
             self.customer_type_family_guarantor.data = 'family_guarantor' in customer_types
-        else:
+        elif not is_edit:
             # Default for new customers
             self.customer_type_customer.data = True
         
-        # Make KYC fields required only when adding new customer (obj is None)
-        # When editing (obj is provided), make them optional
-        is_edit = kwargs.get('obj') is not None
-        
+        # Make KYC fields required only when adding new customer
         if not is_edit:
             # For new customers, make KYC documents required
             self.nic_front_image.validators.insert(0, DataRequired('NIC Front Image is required'))
