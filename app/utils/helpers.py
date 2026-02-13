@@ -155,6 +155,46 @@ def generate_pawning_number(prefix='PWN'):
     
     return f"{prefix}{new_number:06d}"
 
+def generate_receipt_number(loan_id=None, payment_type='loan'):
+    """Generate unique receipt number for payments
+    
+    Args:
+        loan_id: ID of the loan (for loan payments)
+        payment_type: 'loan' or 'pawning'
+    
+    Returns:
+        Sequential numeric receipt number (e.g., 100001, 100002, etc.)
+    """
+    from app.models import LoanPayment, PawningPayment
+    
+    # Determine which model to query based on payment type
+    if payment_type == 'loan':
+        # Get the last loan payment receipt number
+        last_payment = LoanPayment.query.filter(
+            LoanPayment.receipt_number.isnot(None),
+            LoanPayment.receipt_number != ''
+        ).order_by(LoanPayment.id.desc()).first()
+    else:
+        # Get the last pawning payment receipt number
+        last_payment = PawningPayment.query.filter(
+            PawningPayment.receipt_number.isnot(None),
+            PawningPayment.receipt_number != ''
+        ).order_by(PawningPayment.id.desc()).first()
+    
+    if last_payment and last_payment.receipt_number:
+        try:
+            # Extract the numeric part and increment
+            last_number = int(last_payment.receipt_number)
+            new_number = last_number + 1
+        except (ValueError, AttributeError):
+            # If conversion fails, start from a base number
+            new_number = 100001
+    else:
+        # Start from 100001 if no existing receipts
+        new_number = 100001
+    
+    return str(new_number)
+
 def format_currency(amount, currency_symbol='Rs.'):
     """Format amount as currency"""
     if amount is None:
@@ -308,3 +348,50 @@ def should_filter_by_branch():
     
     # Regular users always filter by their assigned branch
     return True
+
+def generate_receipt_number():
+    """Generate a unique sequential receipt number for payments
+    
+    Returns:
+        A sequential receipt number as string (e.g., '000001', '000002', etc.)
+    """
+    from app.models import LoanPayment, PawningPayment
+    
+    # Get the highest receipt number from both loan and pawning payments
+    try:
+        # Check loan payments
+        last_loan_payment = LoanPayment.query.filter(
+            LoanPayment.receipt_number.isnot(None),
+            LoanPayment.receipt_number != ''
+        ).order_by(LoanPayment.id.desc()).first()
+        
+        # Check pawning payments
+        last_pawning_payment = PawningPayment.query.filter(
+            PawningPayment.receipt_number.isnot(None),
+            PawningPayment.receipt_number != ''
+        ).order_by(PawningPayment.id.desc()).first()
+        
+        # Find the highest number
+        highest_number = 0
+        
+        if last_loan_payment and last_loan_payment.receipt_number:
+            try:
+                loan_num = int(last_loan_payment.receipt_number)
+                highest_number = max(highest_number, loan_num)
+            except ValueError:
+                pass
+        
+        if last_pawning_payment and last_pawning_payment.receipt_number:
+            try:
+                pawning_num = int(last_pawning_payment.receipt_number)
+                highest_number = max(highest_number, pawning_num)
+            except ValueError:
+                pass
+        
+        # Generate next number
+        next_number = highest_number + 1
+        return f"{next_number:06d}"  # 6-digit zero-padded number
+        
+    except:
+        # If database query fails, start from 1
+        return "000001"

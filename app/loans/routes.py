@@ -10,7 +10,7 @@ from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
 from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
 from app.utils.decorators import permission_required, admin_required
-from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch
+from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
 @loans_bp.route('/')
 @login_required
@@ -1099,6 +1099,7 @@ def add_payment(id):
             penalty_amount=float(form.penalty_amount.data or 0),
             payment_method=form.payment_method.data,
             reference_number=form.reference_number.data,
+            receipt_number=generate_receipt_number(),
             notes=form.notes.data,
             collected_by=current_user.id
         )
@@ -1108,6 +1109,9 @@ def add_payment(id):
         # Update loan amounts - recalculate outstanding based on new payment
         loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + payment_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         loan.update_outstanding_amount()  # Use our new method to calculate current outstanding
+        
+        # Set balance_after for the payment record
+        payment.balance_after = float(loan.outstanding_amount or 0)
         
         # Check if loan is fully paid
         if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences

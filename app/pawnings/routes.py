@@ -11,7 +11,7 @@ from app.pawnings import pawnings_bp
 from app.models import Pawning, PawningPayment, Customer, ActivityLog, SystemSettings
 from app.pawnings.forms import PawningForm, PawningPaymentForm
 from app.utils.decorators import permission_required
-from app.utils.helpers import generate_pawning_number, allowed_file, get_current_branch_id, should_filter_by_branch
+from app.utils.helpers import generate_pawning_number, allowed_file, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
 @pawnings_bp.route('/')
 @login_required
@@ -350,7 +350,7 @@ def add_payment(id):
             interest_period_to=interest_to,
             payment_method=form.payment_method.data,
             reference_number=form.reference_number.data,
-            receipt_number=f'PWN-RCP-{pawning.id}-{datetime.now().strftime("%Y%m%d%H%M%S")}',
+            receipt_number=generate_receipt_number(),
             notes=form.notes.data,
             collected_by=current_user.id
         )
