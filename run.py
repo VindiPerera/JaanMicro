@@ -31,7 +31,7 @@ def create_admin_user():
         
         admin = User(
             username='admin',
-            email='admin@jaanmicro.local',
+            email='admin@jaanmicro.com',
             password_hash=generate_password_hash('admin123'),
             full_name='System Administrator',
             role='admin',
