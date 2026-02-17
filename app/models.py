@@ -690,12 +690,12 @@ class Loan(db.Model):
         for i in range(num_installments):
             installment_num = i + 1
             
-            # Calculate due date
+            # Calculate due date - start from next period, not today
             if frequency_delta:
-                due_date = first_date + (frequency_delta * i)
+                due_date = first_date + (frequency_delta * installment_num)
             else:
                 # For monthly, use relativedelta
-                due_date = first_date + relativedelta(months=i)
+                due_date = first_date + relativedelta(months=installment_num)
             
             # Determine installment amount (last installment adjusts for rounding)
             if installment_num == num_installments:
