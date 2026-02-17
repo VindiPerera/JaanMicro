@@ -60,20 +60,25 @@ class CustomerForm(FlaskForm):
         FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
     ])
     
-    # KYC Documents
+    # KYC Documents - All optional, validation handled in custom validate method
     nic_front_image = FileField('NIC Front Image', validators=[
+        Optional(),
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
     ])
     nic_back_image = FileField('NIC Back Image', validators=[
+        Optional(),
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
     ])
     photo = FileField('Customer Photo', validators=[
+        Optional(),
         FileAllowed(['jpg', 'jpeg', 'png'], 'Images only!')
     ])
     proof_of_address = FileField('Proof of Address', validators=[
+        Optional(),
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
     ])
     bank_book_image = FileField('Bank Book Front Page', validators=[
+        Optional(),
         FileAllowed(['jpg', 'jpeg', 'png', 'pdf'], 'Images and PDFs only!')
     ])
     
