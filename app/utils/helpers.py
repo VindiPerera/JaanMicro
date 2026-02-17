@@ -164,6 +164,23 @@ def generate_pawning_number(prefix='PWN'):
     
     return f"{prefix}{new_number:06d}"
 
+def generate_receipt_number(entity_type='LOAN', entity_id=None):
+    """Generate unique receipt number for payments
+    
+    Args:
+        entity_type: Type of entity (LOAN, PWN, INV, etc.)
+        entity_id: ID of the related entity
+    
+    Returns:
+        Receipt number in format: LOAN-RCP-{id}-{timestamp}
+        Example: LOAN-RCP-123-20260217130530
+    """
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    if entity_id:
+        return f"{entity_type}-RCP-{entity_id}-{timestamp}"
+    else:
+        return f"{entity_type}-RCP-{timestamp}"
+
 def format_currency(amount, currency_symbol='Rs.'):
     """Format amount as currency"""
     if amount is None:
