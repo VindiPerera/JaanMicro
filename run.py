@@ -34,6 +34,7 @@ def create_admin_user():
             email='admin@jaanmicro.com',
             password_hash=generate_password_hash('admin123'),
             full_name='System Administrator',
+            nic_number='000000000V',
             role='admin',
             is_active=True
         )

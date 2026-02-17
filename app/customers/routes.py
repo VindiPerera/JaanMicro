@@ -72,12 +72,6 @@ def add_customer():
             flash('Error: No branch found. Please contact administrator to set up at least one branch.', 'error')
             return render_template('customers/add.html', title='Add Member', form=form)
         
-        # Custom validation for required profile picture
-        if not form.profile_picture.data or not hasattr(form.profile_picture.data, 'filename') or not form.profile_picture.data.filename:
-            form.profile_picture.errors.append('Profile picture is required.')
-            flash('Profile picture is required.', 'error')
-            return render_template('customers/add.html', title='Add Member', form=form)
-        
         # Get selected customer types
         customer_types = []
         if form.customer_type_customer.data:
@@ -204,6 +198,13 @@ def add_customer():
             created_by=current_user.id
         )
         
+        # Check if customer_id already exists (to avoid duplicate key error)
+        existing_customer = Customer.query.filter_by(customer_id=customer_id).first()
+        if existing_customer:
+            flash(f'Customer ID {customer_id} already exists. Please try again.', 'error')
+            current_app.logger.error(f'Duplicate customer_id attempted: {customer_id}')
+            return render_template('customers/add.html', title='Add Member', form=form)
+        
         try:
             db.session.add(customer)
             
@@ -223,8 +224,17 @@ def add_customer():
             return redirect(url_for('customers.view_customer', id=customer.id))
         except Exception as e:
             db.session.rollback()
-            flash(f'Error adding member: {str(e)}', 'error')
-            current_app.logger.error(f'Error adding customer: {str(e)}')
+            
+            # Parse the error to show user-friendly messages
+            error_msg = str(e)
+            if 'UNIQUE constraint failed: customers.customer_id' in error_msg:
+                flash(f'Customer ID conflict. Please try again.', 'error')
+            elif 'UNIQUE constraint failed: customers.nic_number' in error_msg:
+                flash(f'A customer with NIC number {form.nic_number.data} already exists.', 'error')
+            else:
+                flash(f'Error adding member. Please check all fields and try again.', 'error')
+            
+            current_app.logger.error(f'Error adding customer: {error_msg}')
             import traceback
             current_app.logger.error(traceback.format_exc())
             return render_template('customers/add.html', title='Add Member', form=form)
