@@ -686,13 +686,21 @@ class Loan(db.Model):
         
         # Generate schedule
         cumulative_expected = Decimal('0')
+        current_due_date = first_date  # Track the actual current due date
         
         for i in range(num_installments):
             installment_num = i + 1
             
             # Calculate due date - start from next period, not today
             if frequency_delta:
-                due_date = first_date + (frequency_delta * installment_num)
+                current_due_date = current_due_date + frequency_delta
+                
+                # For daily loans (54 Daily and Type 4 Daily), skip Sundays
+                if frequency_name == 'Daily':
+                    while current_due_date.weekday() == 6:  # 6 = Sunday
+                        current_due_date = current_due_date + timedelta(days=1)
+                
+                due_date = current_due_date
             else:
                 # For monthly, use relativedelta
                 due_date = first_date + relativedelta(months=installment_num)
