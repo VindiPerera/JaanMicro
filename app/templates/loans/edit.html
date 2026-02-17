@@ -353,10 +353,14 @@ $(document).ready(function() {
             var days = parseInt($('#duration_days').val()) || 54;
             
             if (principal > 0 && rate > 0 && days > 0) {
-                var interest = rate * 2;
-                emi = ((100 + interest) * principal) / (100 * days);
-                emi = Math.floor(emi);
-                totalPayable = emi * days;
+                // 54 Daily Loan: Full Interest = Interest Rate * 2
+                // Total Payable = Loan Amount * (100 + Full Interest) / 100
+                // Daily Installment = Total Payable / Days
+                var fullInterest = rate * 2;
+                totalPayable = principal * (100 + fullInterest) / 100;
+                emi = totalPayable / days;
+                // Round EMI to 2 decimal places
+                emi = Math.round(emi * 100) / 100;
                 
                 if ($('#emi-display').length === 0) {
                     $('#durationDaysField').after(

@@ -181,13 +181,12 @@ def add_loan():
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
             duration_months = 0  # Not used for daily loans
-            # Same formula as Type 1 but using days instead of weeks
-            # Installment = ((100 + Interest) * Loan Amount) / (100 * days)
-            interest = interest_rate * Decimal('2')
-            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_days)))
-            # Floor to whole number to get exact total
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
-            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # 54 Daily Loan: Full Interest = Interest Rate * 2
+            # Total Payable = Loan Amount * (100 + Full Interest) / 100
+            # Daily Installment = Total Payable / Days
+            full_interest = interest_rate * Decimal('2')
+            total_payable = (loan_amount * (Decimal('100') + full_interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = (total_payable / Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_micro':
             # Type 4 Micro Loan: Uses months as input, converts to weeks
             # Full Interest = Interest Rate * Months
@@ -490,10 +489,12 @@ def edit_loan(id):
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
             duration_months = 0
-            interest = interest_rate * Decimal('2')
-            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_days)))
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
-            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # 54 Daily Loan: Full Interest = Interest Rate * 2
+            # Total Payable = Loan Amount * (100 + Full Interest) / 100
+            # Daily Installment = Total Payable / Days
+            full_interest = interest_rate * Decimal('2')
+            total_payable = (loan_amount * (Decimal('100') + full_interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = (total_payable / Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_micro':
             months = form.duration_months.data
             duration_weeks = months * 4
