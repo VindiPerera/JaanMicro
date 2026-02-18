@@ -148,7 +148,7 @@
                         {% if loan.document_path %}
                         <small class="text-muted">Current: <a href="{{ url_for('static', filename='uploads/' + loan.document_path) }}" target="_blank">View Document</a></small><br>
                         {% endif %}
-                        <small class="text-muted">Upload new document to replace existing (PDF only, max 150MB)</small>
+                        <small class="text-muted">Upload new document to replace existing (PDF or ZIP, max 10MB)</small>
                     </div>
                     
                     <div class="alert alert-info mt-3">

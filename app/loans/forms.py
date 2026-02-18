@@ -50,7 +50,7 @@ class LoanForm(FlaskForm):
     security_details = TextAreaField('Security/Collateral Details', validators=[Optional()])
     # Status field removed - all new loans start as 'pending' and go through approval workflow
     notes = TextAreaField('Notes', validators=[Optional()])
-    document = FileField('Upload Document (PDF)', validators=[Optional(), FileAllowed(['pdf'], 'PDF files only!')])
+    document = FileField('Upload Document (PDF/ZIP)', validators=[Optional(), FileAllowed(['pdf', 'zip'], 'PDF and ZIP files only!')])
     
     submit = SubmitField('Save Loan')
 
