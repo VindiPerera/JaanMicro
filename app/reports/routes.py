@@ -223,57 +223,129 @@ def collection_report():
     """Collection reports"""
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    payment_method = request.args.get('payment_method', '')
+    collection_type = request.args.get('collection_type', '')
     
     # Get branch filtering info
     loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
     pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
     
     # Loan payments
-    loan_query = LoanPayment.query.join(Loan)
+    loan_query = LoanPayment.query.join(Loan).join(Customer)
     if loan_branch_filter is not None:
         loan_query = loan_query.filter(loan_branch_filter)
     if start_date:
         loan_query = loan_query.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
     if end_date:
         loan_query = loan_query.filter(LoanPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    if payment_method:
+        loan_query = loan_query.filter(LoanPayment.payment_method == payment_method)
     
-    loan_payments = loan_query.order_by(LoanPayment.payment_date.desc()).all()
-    total_loan_collection = sum(float(p.payment_amount) for p in loan_payments)
+    loan_payments = loan_query.order_by(LoanPayment.payment_date.desc()).all() if collection_type != 'pawning' else []
     
     # Pawning payments
-    pawning_query = PawningPayment.query.join(Pawning)
+    pawning_query = PawningPayment.query.join(Pawning).join(Customer)
     if pawning_branch_filter is not None:
         pawning_query = pawning_query.filter(pawning_branch_filter)
     if start_date:
         pawning_query = pawning_query.filter(PawningPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
     if end_date:
         pawning_query = pawning_query.filter(PawningPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    if payment_method:
+        pawning_query = pawning_query.filter(PawningPayment.payment_method == payment_method)
     
-    pawning_payments = pawning_query.order_by(PawningPayment.payment_date.desc()).all()
-    total_pawning_collection = sum(float(p.payment_amount) for p in pawning_payments)
+    pawning_payments = pawning_query.order_by(PawningPayment.payment_date.desc()).all() if collection_type != 'loan' else []
+    
+    # Combine all payments
+    all_payments = []
+    for payment in loan_payments:
+        all_payments.append({
+            'payment': payment,
+            'type': 'loan',
+            'loan_id': payment.loan_id,
+            'pawning_id': None,
+            'payment_date': payment.payment_date,
+            'receipt_number': payment.receipt_number,
+            'reference_number': payment.loan.loan_number if payment.loan else 'N/A',
+            'member_name': payment.loan.customer.full_name if payment.loan and payment.loan.customer else 'N/A',
+            'amount': float(payment.payment_amount or 0),
+            'principal_amount': float(payment.principal_amount or 0),
+            'interest_amount': float(payment.interest_amount or 0),
+            'payment_method': payment.payment_method,
+            'collected_by': payment.collected_by_user if payment.collected_by_user else None
+        })
+    
+    for payment in pawning_payments:
+        all_payments.append({
+            'payment': payment,
+            'type': 'pawning',
+            'loan_id': None,
+            'pawning_id': payment.pawning_id,
+            'payment_date': payment.payment_date,
+            'receipt_number': payment.receipt_number,
+            'reference_number': payment.pawning.ticket_number if payment.pawning else 'N/A',
+            'member_name': payment.pawning.customer.full_name if payment.pawning and payment.pawning.customer else 'N/A',
+            'amount': float(payment.payment_amount or 0),
+            'principal_amount': float(payment.principal_amount or 0),
+            'interest_amount': float(payment.interest_amount or 0),
+            'payment_method': payment.payment_method,
+            'collected_by': payment.collected_by_user if payment.collected_by_user else None
+        })
+    
+    # Sort all payments by date descending
+    all_payments.sort(key=lambda x: x['payment_date'], reverse=True)
     
     # Calculate summary
+    total_amount = sum(p['amount'] for p in all_payments)
+    total_principal = sum(p['principal_amount'] for p in all_payments)
+    total_interest = sum(p['interest_amount'] for p in all_payments)
+    
     summary = {
-        'total_count': len(loan_payments) + len(pawning_payments),
-        'total_amount': total_loan_collection + total_pawning_collection,
-        'total_principal': sum(float(p.principal_amount or 0) for p in loan_payments) + sum(float(p.principal_amount or 0) for p in pawning_payments),
-        'total_interest': sum(float(p.interest_amount or 0) for p in loan_payments) + sum(float(p.interest_amount or 0) for p in pawning_payments)
+        'total_count': len(all_payments),
+        'total_amount': total_amount,
+        'total_principal': total_principal,
+        'total_interest': total_interest
     }
     
-    # Daily collection breakdown
-    daily_breakdown = db.session.query(
-        LoanPayment.payment_date,
-        func.sum(LoanPayment.payment_amount)
-    ).group_by(LoanPayment.payment_date).order_by(LoanPayment.payment_date.desc()).limit(30).all()
+    # Collections by payment method
+    collections_by_method = {}
+    for payment in all_payments:
+        method = payment['payment_method'] or 'Not Specified'
+        if method not in collections_by_method:
+            collections_by_method[method] = {'count': 0, 'total': 0}
+        collections_by_method[method]['count'] += 1
+        collections_by_method[method]['total'] += payment['amount']
+    
+    collections_by_method_list = [
+        {'payment_method': k, 'count': v['count'], 'total': v['total']}
+        for k, v in collections_by_method.items()
+    ]
+    
+    # Collections by user
+    collections_by_user = {}
+    for payment in all_payments:
+        user = payment['collected_by']
+        user_name = user.full_name if user else 'Not Specified'
+        if user_name not in collections_by_user:
+            collections_by_user[user_name] = {'count': 0, 'total': 0}
+        collections_by_user[user_name]['count'] += 1
+        collections_by_user[user_name]['total'] += payment['amount']
+    
+    collections_by_user_list = [
+        {'user_name': k, 'count': v['count'], 'total': v['total']}
+        for k, v in collections_by_user.items()
+    ]
     
     return render_template('reports/collection_report.html',
                          title='Collection Report',
-                         loan_payments=loan_payments,
-                         pawning_payments=pawning_payments,
+                         payments=all_payments,
                          summary=summary,
-                         daily_breakdown=daily_breakdown,
+                         collections_by_method=collections_by_method_list,
+                         collections_by_user=collections_by_user_list,
                          start_date=start_date,
-                         end_date=end_date)
+                         end_date=end_date,
+                         payment_method=payment_method,
+                         collection_type=collection_type)
 
 @reports_bp.route('/customers')
 @login_required

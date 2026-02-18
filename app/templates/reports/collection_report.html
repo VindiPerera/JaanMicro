@@ -182,38 +182,22 @@
                 <tbody>
                     {% for payment in payments %}
                     <tr>
-                        <td>{{ payment.payment_date.strftime('%Y-%m-%d %H:%M') if payment.payment_date else 'N/A' }}</td>
-                        <td>{{ payment.receipt_number }}</td>
+                        <td>{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else 'N/A' }}</td>
+                        <td>{{ payment.receipt_number or 'N/A' }}</td>
                         <td>
-                            {% if payment.loan_id %}
+                            {% if payment.type == 'loan' %}
                                 <span class="badge bg-primary">Loan</span>
-                            {% elif payment.pawning_id %}
+                            {% elif payment.type == 'pawning' %}
                                 <span class="badge bg-warning">Pawning</span>
                             {% else %}
                                 <span class="badge bg-secondary">Other</span>
                             {% endif %}
                         </td>
-                        <td>
-                            {% if payment.loan_id %}
-                                {{ payment.loan.loan_number if payment.loan else 'N/A' }}
-                            {% elif payment.pawning_id %}
-                                {{ payment.pawning.ticket_number if payment.pawning else 'N/A' }}
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if payment.loan_id and payment.loan %}
-                                {{ payment.loan.customer.full_name }}
-                            {% elif payment.pawning_id and payment.pawning %}
-                                {{ payment.pawning.customer.full_name }}
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </td>
-                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.amount|float) }}</strong></td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
+                        <td>{{ payment.reference_number }}</td>
+                        <td>{{ payment.member_name }}</td>
+                        <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.amount) }}</strong></td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount) }}</td>
                         <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
                         <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
                     </tr>
@@ -239,9 +223,74 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 function exportToExcel() {
-    var table = document.getElementById('collection-report-table');
-    var wb = XLSX.utils.table_to_book(table, {sheet: "Collection Report"});
-    XLSX.writeFile(wb, 'collection_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    // Create workbook
+    var wb = XLSX.utils.book_new();
+    
+    // Summary data
+    var summaryData = [
+        ['Collection Report'],
+        ['Generated on: ' + new Date().toLocaleString()],
+        [''],
+        ['Summary'],
+        ['Total Collections', {{ summary.total_count }}],
+        ['Total Amount', 'Rs. {{ "%.2f"|format(summary.total_amount) }}'],
+        ['Principal Collected', 'Rs. {{ "%.2f"|format(summary.total_principal) }}'],
+        ['Interest Collected', 'Rs. {{ "%.2f"|format(summary.total_interest) }}'],
+        [''],
+        ['Collection Details'],
+        ['Date', 'Receipt #', 'Type', 'Reference #', 'Member', 'Amount', 'Principal', 'Interest', 'Method', 'Collected By']
+    ];
+    
+    // Add payment data
+    {% for payment in payments %}
+    summaryData.push([
+        '{{ payment.payment_date.strftime("%Y-%m-%d") if payment.payment_date else "N/A" }}',
+        '{{ payment.receipt_number or "N/A" }}',
+        '{{ payment.type|title }}',
+        '{{ payment.reference_number }}',
+        '{{ payment.member_name }}',
+        {{ payment.amount }},
+        {{ payment.principal_amount }},
+        {{ payment.interest_amount }},
+        '{{ payment.payment_method|title if payment.payment_method else "N/A" }}',
+        '{{ payment.collected_by.full_name if payment.collected_by else "N/A" }}'
+    ]);
+    {% endfor %}
+    
+    // Add totals row
+    summaryData.push([
+        '', '', '', '', 'TOTAL',
+        {{ summary.total_amount }},
+        {{ summary.total_principal }},
+        {{ summary.total_interest }},
+        '', ''
+    ]);
+    
+    // Create worksheet
+    var ws = XLSX.utils.aoa_to_sheet(summaryData);
+    
+    // Set column widths
+    ws['!cols'] = [
+        {wch: 12}, // Date
+        {wch: 15}, // Receipt
+        {wch: 10}, // Type
+        {wch: 20}, // Reference
+        {wch: 25}, // Member
+        {wch: 12}, // Amount
+        {wch: 12}, // Principal
+        {wch: 12}, // Interest
+        {wch: 15}, // Method
+        {wch: 20}  // Collected By
+    ];
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Collections');
+    
+    // Generate filename with current date
+    var filename = 'collection_report_' + new Date().toISOString().split('T')[0] + '.xlsx';
+    
+    // Save file
+    XLSX.writeFile(wb, filename);
 }
 
 // Print styles
