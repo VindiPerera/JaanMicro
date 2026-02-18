@@ -170,10 +170,9 @@ class CustomerForm(FlaskForm):
         
         # Make KYC fields required only when adding new customer
         if not is_edit:
-            # For new customers, make KYC documents required
+            # For new customers, make KYC documents required (except Customer Photo which is optional)
             self.nic_front_image.validators.insert(0, DataRequired('NIC Front Image is required'))
             self.nic_back_image.validators.insert(0, DataRequired('NIC Back Image is required'))
-            self.photo.validators.insert(0, DataRequired('Customer Photo is required'))
             self.proof_of_address.validators.insert(0, DataRequired('Proof of Address is required'))
         else:
             # For editing, make KYC documents optional (remove DataRequired if present)
