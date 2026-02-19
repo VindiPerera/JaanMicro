@@ -775,8 +775,8 @@ $(document).ready(function() {
                 // Installment = ((100 + Interest) * Amount) / (100 * weeks)
                 var interest = rate * 2;
                 emi = ((100 + interest) * principal) / (100 * weeks);
-                // Floor to whole number to get exact total
-                emi = Math.floor(emi);
+                // Ceil to whole number so installment covers the total
+                emi = Math.ceil(emi);
                 totalPayable = emi * weeks;
                 
                 // Show calculated values

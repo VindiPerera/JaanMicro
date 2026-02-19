@@ -406,7 +406,7 @@ class Loan(db.Model):
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""
-        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
         
         loan_amount = Decimal(str(self.loan_amount))
         interest_rate = Decimal(str(self.interest_rate))
@@ -417,8 +417,8 @@ class Loan(db.Model):
             # Installment = ((100 + Interest) * Loan Amount) / (100 * weeks)
             interest = interest_rate * Decimal('2')
             installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_weeks)))
-            # Floor to whole number to get exact total
-            return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+            # Ceil to whole number so installment covers the total
+            return float(installment.quantize(Decimal('1'), rounding=ROUND_UP))
         
         # Check if this is a 54 Daily loan
         if self.loan_type and '54' in self.loan_type and self.duration_days:
@@ -426,8 +426,8 @@ class Loan(db.Model):
             # Installment = ((100 + Interest) * Loan Amount) / (100 * days)
             interest = interest_rate * Decimal('2')
             installment = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(self.duration_days)))
-            # Floor to whole number to get exact total
-            return float(installment.quantize(Decimal('1'), rounding=ROUND_DOWN))
+            # Ceil to whole number so installment covers the total
+            return float(installment.quantize(Decimal('1'), rounding=ROUND_UP))
         
         # Check if this is a Type 4 Micro Loan (weekly)
         if self.loan_type and 'Micro' in self.loan_type and self.duration_weeks and self.duration_months:
