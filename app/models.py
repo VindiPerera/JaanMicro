@@ -643,6 +643,11 @@ class Loan(db.Model):
                 # No valid date found, cannot generate schedule
                 return []
         
+        # Load schedule overrides for this loan (admin customizations)
+        overrides = {}
+        for override in self.schedule_overrides.all():
+            overrides[override.installment_number] = override
+        
         schedule = []
         installment_amount = Decimal(str(self.installment_amount))
         total_payable = Decimal(str(self.total_payable or self.loan_amount))
@@ -691,6 +696,10 @@ class Loan(db.Model):
         for i in range(num_installments):
             installment_num = i + 1
             
+            # Check if this installment is skipped by admin
+            if installment_num in overrides and overrides[installment_num].is_skipped:
+                continue  # Skip this installment entirely
+            
             # Calculate due date - start from next period, not today
             if frequency_delta:
                 current_due_date = current_due_date + frequency_delta
@@ -704,6 +713,10 @@ class Loan(db.Model):
             else:
                 # For monthly, use relativedelta
                 due_date = first_date + relativedelta(months=installment_num)
+            
+            # Check if admin has overridden the due date
+            if installment_num in overrides and overrides[installment_num].custom_due_date:
+                due_date = overrides[installment_num].custom_due_date
             
             # Determine installment amount (last installment adjusts for rounding)
             if installment_num == num_installments:
@@ -777,7 +790,8 @@ class Loan(db.Model):
                 'amount': float(current_installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'principal': float(principal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'interest': float(interest.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'status': status
+                'status': status,
+                'is_customized': installment_num in overrides  # Flag for UI
             })
         
         return schedule
@@ -847,6 +861,38 @@ class LoanPayment(db.Model):
     
     def __repr__(self):
         return f'<LoanPayment {self.id}>'
+
+class LoanScheduleOverride(db.Model):
+    """Override specific installment due dates in payment schedule (Admin only)"""
+    __tablename__ = 'loan_schedule_overrides'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    loan_id = db.Column(db.Integer, db.ForeignKey('loans.id'), nullable=False, index=True)
+    installment_number = db.Column(db.Integer, nullable=False)  # Which installment (1, 2, 3, etc.)
+    
+    # Override options
+    custom_due_date = db.Column(db.Date)  # Custom due date (None if skipped)
+    is_skipped = db.Column(db.Boolean, default=False)  # If True, skip this installment entirely
+    
+    # Audit trail
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    notes = db.Column(db.Text)  # Reason for override
+    
+    # Relationships
+    loan = db.relationship('Loan', backref=db.backref('schedule_overrides', lazy='dynamic', cascade='all, delete-orphan'))
+    creator = db.relationship('User', foreign_keys=[created_by], backref='created_schedule_overrides')
+    updater = db.relationship('User', foreign_keys=[updated_by], backref='updated_schedule_overrides')
+    
+    # Unique constraint: one override per installment per loan
+    __table_args__ = (
+        db.UniqueConstraint('loan_id', 'installment_number', name='unique_loan_installment_override'),
+    )
+    
+    def __repr__(self):
+        return f'<LoanScheduleOverride Loan:{self.loan_id} Inst:{self.installment_number}>'
 
 # Investment Models
 class Investment(db.Model):

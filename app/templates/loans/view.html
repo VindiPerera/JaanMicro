@@ -11,6 +11,13 @@
         </a>
         {% endif %}
         
+        {# Schedule Management Button (Admin only) #}
+        {% if current_user.role == 'admin' and loan.status in ['active', 'completed', 'disbursed'] %}
+        <a href="{{ url_for('loans.view_schedule', id=loan.id) }}" class="btn btn-info">
+            <i class="bi bi-calendar-check me-2"></i>Manage Schedule
+        </a>
+        {% endif %}
+        
         {# Multi-stage approval buttons #}
         {% if loan.status == 'pending' and current_user.role in ['staff', 'loan_collector'] %}
         <a href="{{ url_for('loans.approve_loan_staff', id=loan.id) }}" class="btn btn-primary">

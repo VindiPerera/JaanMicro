@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-calendar-check me-2"></i>
+                        Payment Schedule Management
+                    </h5>
+                    <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-light btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Loan
+                    </a>
+                </div>
+                <div class="card-body">
+                    <!-- Loan Summary -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <strong>Loan Number:</strong><br>
+                            {{ loan.loan_number }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Customer:</strong><br>
+                            {{ loan.customer.full_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Loan Type:</strong><br>
+                            {{ loan.loan_type.replace('_', ' ').title() }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status:</strong><br>
+                            <span class="badge bg-{{ 'success' if loan.status == 'active' else 'secondary' }}">
+                                {{ loan.status.upper() }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Instructions -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Admin Functions:</strong> Click on any due date to edit it, or use the action buttons to skip/reset installments.
+                        Changes are logged and can be reversed.
+                    </div>
+
+                    <!-- Payment Schedule Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="scheduleTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Installment #</th>
+                                    <th>Due Date</th>
+                                    <th>Amount</th>
+                                    <th>Principal</th>
+                                    <th>Interest</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if schedule %}
+                                    {% for installment in schedule %}
+                                    <tr id="installment-{{ installment.installment_number }}" 
+                                        class="{% if installment.is_customized %}table-warning{% endif %}">
+                                        <td>{{ installment.installment_number }}</td>
+                                        <td>
+                                            <span class="due-date-display">
+                                                {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                                {% if installment.is_customized %}
+                                                    <i class="bi bi-pencil-square text-warning ms-1" 
+                                                       title="Customized by admin"></i>
+                                                {% endif %}
+                                            </span>
+                                            <input type="date" class="form-control form-control-sm d-none due-date-input"
+                                                   value="{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else '' }}"
+                                                   data-installment="{{ installment.installment_number }}">
+                                        </td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if installment.status == 'paid' %}bg-success
+                                                {% elif installment.status == 'overdue' %}bg-danger
+                                                {% elif installment.status == 'partial' %}bg-warning
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ installment.status|title }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <button type="button" 
+                                                        class="btn btn-outline-primary btn-edit-date"
+                                                        data-installment="{{ installment.installment_number }}"
+                                                        title="Edit due date">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button type="button" 
+                                                        class="btn btn-outline-warning btn-skip"
+                                                        data-installment="{{ installment.installment_number }}"
+                                                        title="Skip this installment">
+                                                    <i class="bi bi-skip-forward"></i>
+                                                </button>
+                                                {% if installment.is_customized %}
+                                                <button type="button" 
+                                                        class="btn btn-outline-secondary btn-reset"
+                                                        data-installment="{{ installment.installment_number }}"
+                                                        title="Reset to original">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-5">
+                                            <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+                                            No payment schedule available for this loan.
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Notes Modal -->
+<div class="modal fade" id="notesModal" tabindex="-1" aria-labelledby="notesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="notesModalLabel">Add Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="notesText" class="form-label">Reason for change (optional):</label>
+                    <textarea class="form-control" id="notesText" rows="3" 
+                              placeholder="e.g., Customer requested extension due to emergency"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmAction">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.table-warning {
+    background-color: #fff3cd !important;
+}
+</style>
+
+<script>
+let currentAction = null;
+let currentInstallment = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
+    
+    // Edit date buttons
+    document.querySelectorAll('.btn-edit-date').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const installmentNum = this.dataset.installment;
+            const row = document.getElementById(`installment-${installmentNum}`);
+            const display = row.querySelector('.due-date-display');
+            const input = row.querySelector('.due-date-input');
+            
+            if (display.classList.contains('d-none')) {
+                // Save mode
+                const newDate = input.value;
+                if (newDate && newDate !== display.textContent.trim()) {
+                    currentAction = 'edit';
+                    currentInstallment = installmentNum;
+                    document.getElementById('notesModalLabel').textContent = `Edit Due Date for Installment ${installmentNum}`;
+                    notesModal.show();
+                } else {
+                    cancelEdit(installmentNum);
+                }
+            } else {
+                // Edit mode
+                display.classList.add('d-none');
+                input.classList.remove('d-none');
+                this.innerHTML = '<i class="bi bi-check-lg"></i>';
+                this.classList.remove('btn-outline-primary');
+                this.classList.add('btn-success');
+            }
+        });
+    });
+    
+    // Skip buttons
+    document.querySelectorAll('.btn-skip').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentInstallment = this.dataset.installment;
+            currentAction = 'skip';
+            document.getElementById('notesModalLabel').textContent = `Skip Installment ${currentInstallment}`;
+            notesModal.show();
+        });
+    });
+    
+    // Reset buttons
+    document.querySelectorAll('.btn-reset').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentInstallment = this.dataset.installment;
+            currentAction = 'reset';
+            document.getElementById('notesModalLabel').textContent = `Reset Installment ${currentInstallment}`;
+            notesModal.show();
+        });
+    });
+    
+    // Confirm action
+    document.getElementById('confirmAction').addEventListener('click', function() {
+        const notes = document.getElementById('notesText').value;
+        
+        if (currentAction === 'edit') {
+            const row = document.getElementById(`installment-${currentInstallment}`);
+            const newDate = row.querySelector('.due-date-input').value;
+            overrideDueDate(currentInstallment, newDate, notes);
+        } else if (currentAction === 'skip') {
+            skipInstallment(currentInstallment, notes);
+        } else if (currentAction === 'reset') {
+            resetInstallment(currentInstallment);
+        }
+        
+        notesModal.hide();
+        document.getElementById('notesText').value = '';
+    });
+});
+
+function cancelEdit(installmentNum) {
+    const row = document.getElementById(`installment-${installmentNum}`);
+    const display = row.querySelector('.due-date-display');
+    const input = row.querySelector('.due-date-input');
+    const btn = row.querySelector('.btn-edit-date');
+    
+    display.classList.remove('d-none');
+    input.classList.add('d-none');
+    btn.innerHTML = '<i class="bi bi-pencil"></i>';
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-outline-primary');
+}
+
+function overrideDueDate(installmentNum, newDate, notes) {
+    fetch(`{{ url_for('loans.override_schedule', id=loan.id) }}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            installment_number: installmentNum,
+            new_due_date: newDate,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', data.message);
+            cancelEdit(installmentNum);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'An error occurred: ' + error);
+        cancelEdit(installmentNum);
+    });
+}
+
+function skipInstallment(installmentNum, notes) {
+    fetch(`{{ url_for('loans.skip_installment', id=loan.id) }}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            installment_number: installmentNum,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'An error occurred: ' + error);
+    });
+}
+
+function resetInstallment(installmentNum) {
+    fetch(`{{ url_for('loans.reset_installment', id=loan.id) }}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            installment_number: installmentNum
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', data.message);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'An error occurred: ' + error);
+    });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}

@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 import os
 from app import db
 from app.loans import loans_bp
-from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User
+from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride
 from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
 from app.utils.decorators import permission_required, admin_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch, generate_receipt_number
@@ -1493,3 +1493,232 @@ def receipt_entry():
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
+
+
+# Schedule Override Routes (Admin Only)
+@loans_bp.route('/<int:id>/schedule', methods=['GET'])
+@login_required
+@admin_required
+def view_schedule(id):
+    """View and manage payment schedule (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+    
+    # Generate payment schedule
+    schedule = loan.generate_payment_schedule()
+    
+    return render_template('loans/schedule.html',
+                         title=f'Payment Schedule: {loan.loan_number}',
+                         loan=loan,
+                         schedule=schedule)
+
+
+@loans_bp.route('/<int:id>/schedule/override', methods=['POST'])
+@login_required
+@admin_required
+def override_schedule(id):
+    """Override/edit due date for a specific installment (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        installment_number = int(data.get('installment_number'))
+        new_due_date = data.get('new_due_date')
+        notes = data.get('notes', '')
+        
+        # Validate installment number
+        schedule = loan.generate_payment_schedule()
+        if installment_number < 1 or installment_number > len(schedule):
+            return jsonify({'success': False, 'message': 'Invalid installment number'}), 400
+        
+        # Parse due date
+        if new_due_date:
+            new_due_date = datetime.strptime(new_due_date, '%Y-%m-%d').date()
+        
+        # Check if override already exists
+        override = LoanScheduleOverride.query.filter_by(
+            loan_id=loan.id,
+            installment_number=installment_number
+        ).first()
+        
+        if override:
+            # Update existing override
+            override.custom_due_date = new_due_date
+            override.is_skipped = False
+            override.updated_by = current_user.id
+            override.updated_at = datetime.utcnow()
+            if notes:
+                override.notes = notes
+        else:
+            # Create new override
+            override = LoanScheduleOverride(
+                loan_id=loan.id,
+                installment_number=installment_number,
+                custom_due_date=new_due_date,
+                is_skipped=False,
+                created_by=current_user.id,
+                notes=notes
+            )
+            db.session.add(override)
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='override_schedule',
+            entity_type='loan',
+            entity_id=loan.id,
+            description=f'Overrode installment {installment_number} due date to {new_due_date} for loan {loan.loan_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Installment {installment_number} due date updated successfully'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@loans_bp.route('/<int:id>/schedule/skip', methods=['POST'])
+@login_required
+@admin_required
+def skip_installment(id):
+    """Skip a specific installment (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        installment_number = int(data.get('installment_number'))
+        notes = data.get('notes', '')
+        
+        # Validate installment number
+        schedule = loan.generate_payment_schedule()
+        valid_installments = [inst['installment_number'] for inst in schedule]
+        if installment_number not in valid_installments:
+            return jsonify({'success': False, 'message': 'Invalid installment number'}), 400
+        
+        # Check if override already exists
+        override = LoanScheduleOverride.query.filter_by(
+            loan_id=loan.id,
+            installment_number=installment_number
+        ).first()
+        
+        if override:
+            # Update existing override to skip
+            override.is_skipped = True
+            override.custom_due_date = None
+            override.updated_by = current_user.id
+            override.updated_at = datetime.utcnow()
+            if notes:
+                override.notes = notes
+        else:
+            # Create new override as skipped
+            override = LoanScheduleOverride(
+                loan_id=loan.id,
+                installment_number=installment_number,
+                is_skipped=True,
+                custom_due_date=None,
+                created_by=current_user.id,
+                notes=notes
+            )
+            db.session.add(override)
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='skip_installment',
+            entity_type='loan',
+            entity_id=loan.id,
+            description=f'Skipped installment {installment_number} for loan {loan.loan_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Installment {installment_number} skipped successfully'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@loans_bp.route('/<int:id>/schedule/reset', methods=['POST'])
+@login_required
+@admin_required
+def reset_installment(id):
+    """Reset an installment to its original due date (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+    
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+    
+    try:
+        data = request.get_json()
+        installment_number = int(data.get('installment_number'))
+        
+        # Find and delete the override
+        override = LoanScheduleOverride.query.filter_by(
+            loan_id=loan.id,
+            installment_number=installment_number
+        ).first()
+        
+        if override:
+            db.session.delete(override)
+            
+            # Log activity
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='reset_installment',
+                entity_type='loan',
+                entity_id=loan.id,
+                description=f'Reset installment {installment_number} to original due date for loan {loan.loan_number}',
+                ip_address=request.remote_addr
+            )
+            db.session.add(log)
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Installment {installment_number} reset to original due date'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No override found for this installment'
+            }), 404
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
