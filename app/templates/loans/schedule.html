@@ -1,136 +1,138 @@
 {% extends "base.html" %}
 
-{% block title %}{{ title }}{% endblock %}
-
 {% block content %}
-<div class="container-fluid py-4">
-    <div class="row">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-calendar-check me-2"></i>
-                        Payment Schedule Management
-                    </h5>
-                    <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-light btn-sm">
-                        <i class="bi bi-arrow-left me-1"></i>Back to Loan
-                    </a>
-                </div>
-                <div class="card-body">
-                    <!-- Loan Summary -->
-                    <div class="row mb-4">
-                        <div class="col-md-3">
-                            <strong>Loan Number:</strong><br>
-                            {{ loan.loan_number }}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Customer:</strong><br>
-                            {{ loan.customer.full_name }}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Loan Type:</strong><br>
-                            {{ loan.loan_type.replace('_', ' ').title() }}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Status:</strong><br>
-                            <span class="badge bg-{{ 'success' if loan.status == 'active' else 'secondary' }}">
-                                {{ loan.status.upper() }}
-                            </span>
-                        </div>
-                    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4><i class="bi bi-calendar-check me-2"></i>Payment Schedule Management</h4>
+        <p class="text-muted mb-0">
+            Loan {{ loan.loan_number }} - {{ loan.customer.full_name }}
+        </p>
+    </div>
+    <div>
+        <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Loan
+        </a>
+    </div>
+</div>
 
-                    <hr>
-
-                    <!-- Instructions -->
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>Admin Functions:</strong> Click on any due date to edit it, or use the action buttons to skip/reset installments.
-                        Changes are logged and can be reversed.
-                    </div>
-
-                    <!-- Payment Schedule Table -->
-                    <div class="table-responsive">
-                        <table class="table table-hover" id="scheduleTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Installment #</th>
-                                    <th>Due Date</th>
-                                    <th>Amount</th>
-                                    <th>Principal</th>
-                                    <th>Interest</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if schedule %}
-                                    {% for installment in schedule %}
-                                    <tr id="installment-{{ installment.installment_number }}" 
-                                        class="{% if installment.is_customized %}table-warning{% endif %}">
-                                        <td>{{ installment.installment_number }}</td>
-                                        <td>
-                                            <span class="due-date-display">
-                                                {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
-                                                {% if installment.is_customized %}
-                                                    <i class="bi bi-pencil-square text-warning ms-1" 
-                                                       title="Customized by admin"></i>
-                                                {% endif %}
-                                            </span>
-                                            <input type="date" class="form-control form-control-sm d-none due-date-input"
-                                                   value="{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else '' }}"
-                                                   data-installment="{{ installment.installment_number }}">
-                                        </td>
-                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
-                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
-                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                        <td>
-                                            <span class="badge 
-                                                {% if installment.status == 'paid' %}bg-success
-                                                {% elif installment.status == 'overdue' %}bg-danger
-                                                {% elif installment.status == 'partial' %}bg-warning
-                                                {% else %}bg-secondary{% endif %}">
-                                                {{ installment.status|title }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm" role="group">
-                                                <button type="button" 
-                                                        class="btn btn-outline-primary btn-edit-date"
-                                                        data-installment="{{ installment.installment_number }}"
-                                                        title="Edit due date">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button type="button" 
-                                                        class="btn btn-outline-warning btn-skip"
-                                                        data-installment="{{ installment.installment_number }}"
-                                                        title="Skip this installment">
-                                                    <i class="bi bi-skip-forward"></i>
-                                                </button>
-                                                {% if installment.is_customized %}
-                                                <button type="button" 
-                                                        class="btn btn-outline-secondary btn-reset"
-                                                        data-installment="{{ installment.installment_number }}"
-                                                        title="Reset to original">
-                                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                                </button>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="7" class="text-center text-muted py-5">
-                                            <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
-                                            No payment schedule available for this loan.
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+<!-- Loan Summary Card -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Loan Summary</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Loan Number:</strong><br>
+                {{ loan.loan_number }}
             </div>
+            <div class="col-md-3">
+                <strong>Customer:</strong><br>
+                {{ loan.customer.full_name }}
+            </div>
+            <div class="col-md-3">
+                <strong>Loan Type:</strong><br>
+                {{ loan.loan_type.replace('_', ' ').title() }}
+            </div>
+            <div class="col-md-3">
+                <strong>Status:</strong><br>
+                <span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instructions Alert -->
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle me-2"></i>
+    <strong>Admin Functions:</strong> Click the edit icon to change a due date, skip icon to skip an installment, or reset icon to restore original date. All changes are logged.
+</div>
+
+<!-- Payment Schedule Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Payment Schedule</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Installment #</th>
+                        <th>Due Date</th>
+                        <th>Amount</th>
+                        <th>Principal</th>
+                        <th>Interest</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if schedule %}
+                        {% for installment in schedule %}
+                        <tr id="installment-{{ installment.installment_number }}" 
+                            class="{% if installment.is_customized %}table-warning{% endif %}">
+                            <td>{{ installment.installment_number }}</td>
+                            <td>
+                                <span class="due-date-display">
+                                    {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                    {% if installment.is_customized %}
+                                        <i class="bi bi-pencil-square text-warning ms-1" 
+                                           title="Customized by admin"></i>
+                                    {% endif %}
+                                </span>
+                                <input type="date" class="form-control form-control-sm d-none due-date-input"
+                                       value="{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else '' }}"
+                                       data-installment="{{ installment.installment_number }}">
+                            </td>
+                            <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
+                            <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
+                            <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if installment.status == 'paid' %}bg-success
+                                    {% elif installment.status == 'overdue' %}bg-danger
+                                    {% elif installment.status == 'partial' %}bg-warning
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ installment.status|title }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" 
+                                            class="btn btn-outline-primary btn-edit-date"
+                                            data-installment="{{ installment.installment_number }}"
+                                            title="Edit due date">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" 
+                                            class="btn btn-outline-warning btn-skip"
+                                            data-installment="{{ installment.installment_number }}"
+                                            title="Skip this installment">
+                                        <i class="bi bi-skip-forward"></i>
+                                    </button>
+                                    {% if installment.is_customized %}
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary btn-reset"
+                                            data-installment="{{ installment.installment_number }}"
+                                            title="Reset to original">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+                                No payment schedule available for this loan.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
