@@ -420,6 +420,14 @@
                         </a>
                     </div>
                     {% endif %}
+                    {% if loan.drive_link %}
+                    <div class="col-md-12 mb-3">
+                        <strong>Google Drive:</strong><br>
+                        <a href="{{ loan.drive_link }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-google me-2"></i>Open Drive Folder
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

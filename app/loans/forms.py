@@ -2,7 +2,7 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, SelectField, DecimalField, IntegerField, DateField, TextAreaField, BooleanField, SubmitField, HiddenField
-from wtforms.validators import DataRequired, Optional, NumberRange, Length
+from wtforms.validators import DataRequired, Optional, NumberRange, Length, URL
 from datetime import datetime
 
 class LoanForm(FlaskForm):
@@ -51,6 +51,7 @@ class LoanForm(FlaskForm):
     # Status field removed - all new loans start as 'pending' and go through approval workflow
     notes = TextAreaField('Notes', validators=[Optional()])
     document = FileField('Upload Document (PDF/ZIP)', validators=[Optional(), FileAllowed(['pdf', 'zip'], 'PDF and ZIP files only!')])
+    drive_link = StringField('Google Drive Link', validators=[Optional(), URL(message='Please enter a valid URL')])
     
     submit = SubmitField('Save Loan')
 

@@ -438,12 +438,30 @@
                                             {% set schedule = item.loan.generate_payment_schedule() %}
                                             {% if schedule %}
                                                 {% for installment in schedule %}
-                                                <tr>
-                                                    <td>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</td>
+                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
+                                                            <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
+                                                            <br><small class="text-muted"><s>{{ installment.due_date.strftime('%Y-%m-%d') }}</s></small>
+                                                        {% elif installment.is_skipped %}
+                                                            <s>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</s>
+                                                        {% else %}
+                                                            {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                                    <td><span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span></td>
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
+                                                        {% elif installment.is_skipped %}
+                                                            <span class="badge bg-secondary">Skipped</span>
+                                                        {% else %}
+                                                            <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
+                                                        {% endif %}
+                                                    </td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
@@ -481,12 +499,30 @@
                                             {% set schedule = item.loan.generate_payment_schedule() %}
                                             {% if schedule %}
                                                 {% for installment in schedule %}
-                                                <tr>
-                                                    <td>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</td>
+                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
+                                                            <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
+                                                            <br><small class="text-muted"><s>{{ installment.due_date.strftime('%Y-%m-%d') }}</s></small>
+                                                        {% elif installment.is_skipped %}
+                                                            <s>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</s>
+                                                        {% else %}
+                                                            {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                                    <td><span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span></td>
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
+                                                        {% elif installment.is_skipped %}
+                                                            <span class="badge bg-secondary">Skipped</span>
+                                                        {% else %}
+                                                            <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
+                                                        {% endif %}
+                                                    </td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
@@ -524,12 +560,30 @@
                                             {% set schedule = item.loan.generate_payment_schedule() %}
                                             {% if schedule %}
                                                 {% for installment in schedule %}
-                                                <tr>
-                                                    <td>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</td>
+                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
+                                                            <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
+                                                            <br><small class="text-muted"><s>{{ installment.due_date.strftime('%Y-%m-%d') }}</s></small>
+                                                        {% elif installment.is_skipped %}
+                                                            <s>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</s>
+                                                        {% else %}
+                                                            {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                                    <td><span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span></td>
+                                                    <td>
+                                                        {% if installment.is_skipped and installment.reschedule_date %}
+                                                            <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
+                                                        {% elif installment.is_skipped %}
+                                                            <span class="badge bg-secondary">Skipped</span>
+                                                        {% else %}
+                                                            <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
+                                                        {% endif %}
+                                                    </td>
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}

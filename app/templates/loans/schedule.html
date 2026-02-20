@@ -71,33 +71,75 @@
                     {% if schedule %}
                         {% for installment in schedule %}
                         <tr id="installment-{{ installment.installment_number }}" 
-                            class="{% if installment.is_customized %}table-warning{% endif %}">
+                            class="{% if installment.is_skipped %}table-danger{% elif installment.is_customized %}table-warning{% endif %}">
                             <td>{{ installment.installment_number }}</td>
                             <td>
-                                <span class="due-date-display">
-                                    {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
-                                    {% if installment.is_customized %}
-                                        <i class="bi bi-pencil-square text-warning ms-1" 
-                                           title="Customized by admin"></i>
+                                {% if installment.is_skipped %}
+                                    <span class="text-decoration-line-through text-muted">
+                                        {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                    </span>
+                                    {% if installment.reschedule_date %}
+                                        <br><small class="text-success fw-bold"><i class="bi bi-calendar-plus me-1"></i>Rescheduled: {{ installment.reschedule_date.strftime('%Y-%m-%d') }}</small>
+                                    {% else %}
+                                        <br><small class="text-muted fst-italic">No reschedule date set</small>
                                     {% endif %}
-                                </span>
-                                <input type="date" class="form-control form-control-sm d-none due-date-input"
-                                       value="{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else '' }}"
-                                       data-installment="{{ installment.installment_number }}">
+                                    <input type="date" class="form-control form-control-sm mt-1 reschedule-input"
+                                           id="reschedule-input-{{ installment.installment_number }}"
+                                           value="{{ installment.reschedule_date.strftime('%Y-%m-%d') if installment.reschedule_date else '' }}"
+                                           data-installment="{{ installment.installment_number }}"
+                                           style="display:none;">
+                                {% else %}
+                                    <span class="due-date-display">
+                                        {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
+                                        {% if installment.is_customized %}
+                                            <i class="bi bi-pencil-square text-warning ms-1" 
+                                               title="Customized by admin"></i>
+                                        {% endif %}
+                                    </span>
+                                    <input type="date" class="form-control form-control-sm d-none due-date-input"
+                                           value="{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else '' }}"
+                                           data-installment="{{ installment.installment_number }}">
+                                {% endif %}
                             </td>
                             <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
                             <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
                             <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
                             <td>
-                                <span class="badge 
-                                    {% if installment.status == 'paid' %}bg-success
-                                    {% elif installment.status == 'overdue' %}bg-danger
-                                    {% elif installment.status == 'partial' %}bg-warning
-                                    {% else %}bg-secondary{% endif %}">
-                                    {{ installment.status|title }}
-                                </span>
+                                {% if installment.is_skipped %}
+                                    {% if installment.status == 'overdue' %}
+                                        <span class="badge bg-danger">Overdue</span>
+                                    {% elif installment.status == 'pending' %}
+                                        <span class="badge bg-warning text-dark">Rescheduled</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Skipped</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge 
+                                        {% if installment.status == 'paid' %}bg-success
+                                        {% elif installment.status == 'overdue' %}bg-danger
+                                        {% elif installment.status == 'partial' %}bg-warning
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ installment.status|title }}
+                                    </span>
+                                {% endif %}
                             </td>
                             <td>
+                                {% if installment.is_skipped %}
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button"
+                                            class="btn btn-outline-success btn-set-reschedule"
+                                            data-installment="{{ installment.installment_number }}"
+                                            title="Set reschedule date">
+                                        <i class="bi bi-calendar-plus"></i>
+                                    </button>
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary btn-reset"
+                                            data-installment="{{ installment.installment_number }}"
+                                            title="Restore installment">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </button>
+                                </div>
+                                {% else %}
                                 <div class="btn-group btn-group-sm" role="group">
                                     <button type="button" 
                                             class="btn btn-outline-primary btn-edit-date"
@@ -120,6 +162,7 @@
                                     </button>
                                     {% endif %}
                                 </div>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -146,6 +189,11 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                <div id="reschedule-date-field" class="mb-3" style="display:none;">
+                    <label for="rescheduleDateInput" class="form-label fw-bold">New Date for Skipped Installment <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="date" class="form-control" id="rescheduleDateInput">
+                    <small class="text-muted">Set a new date to reschedule this installment to after skipping it.</small>
+                </div>
                 <div class="mb-3">
                     <label for="notesText" class="form-label">Reason for change (optional):</label>
                     <textarea class="form-control" id="notesText" rows="3" 
@@ -169,179 +217,277 @@
 <script>
 let currentAction = null;
 let currentInstallment = null;
+const currencySymbol = '{{ system_settings.currency_symbol }}';
 
 document.addEventListener('DOMContentLoaded', function() {
     const notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
-    
-    // Edit date buttons
-    document.querySelectorAll('.btn-edit-date').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const installmentNum = this.dataset.installment;
+
+    // Event delegation on tbody — works for dynamically replaced buttons too
+    document.querySelector('table tbody').addEventListener('click', function(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+
+        if (btn.classList.contains('btn-edit-date')) {
+            const installmentNum = btn.dataset.installment;
             const row = document.getElementById(`installment-${installmentNum}`);
             const display = row.querySelector('.due-date-display');
             const input = row.querySelector('.due-date-input');
-            
+
             if (display.classList.contains('d-none')) {
-                // Save mode
                 const newDate = input.value;
-                if (newDate && newDate !== display.textContent.trim()) {
+                if (newDate && newDate !== display.firstChild.textContent.trim()) {
                     currentAction = 'edit';
                     currentInstallment = installmentNum;
                     document.getElementById('notesModalLabel').textContent = `Edit Due Date for Installment ${installmentNum}`;
+                    document.getElementById('reschedule-date-field').style.display = 'none';
                     notesModal.show();
                 } else {
                     cancelEdit(installmentNum);
                 }
             } else {
-                // Edit mode
                 display.classList.add('d-none');
                 input.classList.remove('d-none');
-                this.innerHTML = '<i class="bi bi-check-lg"></i>';
-                this.classList.remove('btn-outline-primary');
-                this.classList.add('btn-success');
+                btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                btn.classList.replace('btn-outline-primary', 'btn-success');
             }
-        });
-    });
-    
-    // Skip buttons
-    document.querySelectorAll('.btn-skip').forEach(btn => {
-        btn.addEventListener('click', function() {
-            currentInstallment = this.dataset.installment;
+
+        } else if (btn.classList.contains('btn-skip')) {
+            currentInstallment = btn.dataset.installment;
             currentAction = 'skip';
             document.getElementById('notesModalLabel').textContent = `Skip Installment ${currentInstallment}`;
+            document.getElementById('reschedule-date-field').style.display = 'block';
+            document.getElementById('rescheduleDateInput').value = '';
             notesModal.show();
-        });
-    });
-    
-    // Reset buttons
-    document.querySelectorAll('.btn-reset').forEach(btn => {
-        btn.addEventListener('click', function() {
-            currentInstallment = this.dataset.installment;
+
+        } else if (btn.classList.contains('btn-set-reschedule')) {
+            currentInstallment = btn.dataset.installment;
+            currentAction = 'set-reschedule';
+            document.getElementById('notesModalLabel').textContent = `Set Reschedule Date for Installment ${currentInstallment}`;
+            document.getElementById('reschedule-date-field').style.display = 'block';
+            const existingVal = document.getElementById(`reschedule-input-${currentInstallment}`);
+            document.getElementById('rescheduleDateInput').value = existingVal ? existingVal.value : '';
+            notesModal.show();
+
+        } else if (btn.classList.contains('btn-reset')) {
+            currentInstallment = btn.dataset.installment;
             currentAction = 'reset';
             document.getElementById('notesModalLabel').textContent = `Reset Installment ${currentInstallment}`;
+            document.getElementById('reschedule-date-field').style.display = 'none';
             notesModal.show();
-        });
+        }
     });
-    
-    // Confirm action
+
+    // Confirm button in modal
     document.getElementById('confirmAction').addEventListener('click', function() {
         const notes = document.getElementById('notesText').value;
-        
+        const rescheduleDate = document.getElementById('rescheduleDateInput').value;
+
         if (currentAction === 'edit') {
             const row = document.getElementById(`installment-${currentInstallment}`);
             const newDate = row.querySelector('.due-date-input').value;
             overrideDueDate(currentInstallment, newDate, notes);
         } else if (currentAction === 'skip') {
-            skipInstallment(currentInstallment, notes);
+            skipInstallment(currentInstallment, notes, rescheduleDate);
+        } else if (currentAction === 'set-reschedule') {
+            skipInstallment(currentInstallment, notes, rescheduleDate);
         } else if (currentAction === 'reset') {
             resetInstallment(currentInstallment);
         }
-        
+
         notesModal.hide();
         document.getElementById('notesText').value = '';
+        document.getElementById('rescheduleDateInput').value = '';
+        document.getElementById('reschedule-date-field').style.display = 'none';
     });
 });
+
+// ── DOM update helpers ──────────────────────────────────────────────────────
 
 function cancelEdit(installmentNum) {
     const row = document.getElementById(`installment-${installmentNum}`);
     const display = row.querySelector('.due-date-display');
     const input = row.querySelector('.due-date-input');
     const btn = row.querySelector('.btn-edit-date');
-    
     display.classList.remove('d-none');
     input.classList.add('d-none');
     btn.innerHTML = '<i class="bi bi-pencil"></i>';
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-outline-primary');
+    btn.classList.replace('btn-success', 'btn-outline-primary');
 }
+
+function getSkippedStatusBadge(status, rescheduleDate) {
+    if (status === 'overdue') return '<span class="badge bg-danger">Overdue</span>';
+    if (status === 'pending' && rescheduleDate) return '<span class="badge bg-warning text-dark">Rescheduled</span>';
+    return '<span class="badge bg-secondary">Skipped</span>';
+}
+
+function getSkippedRowClass(status) {
+    return (status === 'pending') ? 'table-warning' : 'table-danger';
+}
+
+function buildSkippedDateHtml(originalDate, rescheduleDate, installmentNum) {
+    const reschedHtml = rescheduleDate
+        ? `<br><small class="text-success fw-bold"><i class="bi bi-calendar-plus me-1"></i>Rescheduled: ${rescheduleDate}</small>`
+        : `<br><small class="text-muted fst-italic">No reschedule date set</small>`;
+    return `<span class="text-decoration-line-through text-muted">${originalDate}</span>` +
+        reschedHtml +
+        `<input type="date" class="form-control form-control-sm mt-1 reschedule-input" ` +
+        `id="reschedule-input-${installmentNum}" value="${rescheduleDate || ''}" ` +
+        `data-installment="${installmentNum}" style="display:none;">`;
+}
+
+function applySkippedRow(installmentNum, rescheduleDate, serverData) {
+    const row = document.getElementById(`installment-${installmentNum}`);
+    // Read original date from the hidden input — always has the server-rendered date
+    const dateInput = row.querySelector('.due-date-input');
+    const originalDate = dateInput ? dateInput.value : 'N/A';
+    const status = (serverData && serverData.status) || 'skipped';
+
+    row.className = getSkippedRowClass(status);
+    row.cells[1].innerHTML = buildSkippedDateHtml(originalDate, rescheduleDate, installmentNum);
+
+    // Update principal & interest cells from server response
+    if (serverData && serverData.principal !== null && serverData.principal !== undefined) {
+        row.cells[3].textContent = `${currencySymbol} ${parseFloat(serverData.principal).toFixed(2)}`;
+        row.cells[4].textContent = `${currencySymbol} ${parseFloat(serverData.interest).toFixed(2)}`;
+    }
+
+    row.cells[5].innerHTML = getSkippedStatusBadge(status, rescheduleDate);
+    row.cells[6].innerHTML =
+        `<div class="btn-group btn-group-sm" role="group">` +
+        `<button type="button" class="btn btn-outline-success btn-set-reschedule" data-installment="${installmentNum}" title="Set reschedule date"><i class="bi bi-calendar-plus"></i></button>` +
+        `<button type="button" class="btn btn-outline-secondary btn-reset" data-installment="${installmentNum}" title="Restore installment"><i class="bi bi-arrow-counterclockwise"></i></button>` +
+        `</div>`;
+}
+
+function applyRescheduleDateUpdate(installmentNum, rescheduleDate, serverData) {
+    const row = document.getElementById(`installment-${installmentNum}`);
+    const struckSpan = row.cells[1].querySelector('.text-decoration-line-through');
+    const originalDate = struckSpan ? struckSpan.textContent.trim() : 'N/A';
+    const status = (serverData && serverData.status) || 'skipped';
+
+    row.className = getSkippedRowClass(status);
+    row.cells[1].innerHTML = buildSkippedDateHtml(originalDate, rescheduleDate, installmentNum);
+    row.cells[5].innerHTML = getSkippedStatusBadge(status, rescheduleDate);
+}
+
+function applyNormalRow(installmentNum, originalDate) {
+    const row = document.getElementById(`installment-${installmentNum}`);
+    row.className = '';
+
+    // Date cell
+    const dateCell = row.cells[1];
+    dateCell.innerHTML =
+        `<span class="due-date-display">${originalDate}</span>` +
+        `<input type="date" class="form-control form-control-sm d-none due-date-input" ` +
+        `value="${originalDate}" data-installment="${installmentNum}">`;
+
+    // Status badge — infer pending vs overdue from date
+    const today = new Date().toISOString().split('T')[0];
+    const status = originalDate && originalDate < today ? 'overdue' : 'pending';
+    const badgeClass = status === 'overdue' ? 'bg-danger' : 'bg-secondary';
+    row.cells[5].innerHTML = `<span class="badge ${badgeClass}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+
+    // Action buttons
+    row.cells[6].innerHTML =
+        `<div class="btn-group btn-group-sm" role="group">` +
+        `<button type="button" class="btn btn-outline-primary btn-edit-date" data-installment="${installmentNum}" title="Edit due date"><i class="bi bi-pencil"></i></button>` +
+        `<button type="button" class="btn btn-outline-warning btn-skip" data-installment="${installmentNum}" title="Skip this installment"><i class="bi bi-skip-forward"></i></button>` +
+        `</div>`;
+}
+
+function applyOverrideRow(installmentNum, newDate) {
+    const row = document.getElementById(`installment-${installmentNum}`);
+    row.className = 'table-warning';
+
+    const dateCell = row.cells[1];
+    dateCell.innerHTML =
+        `<span class="due-date-display">${newDate} <i class="bi bi-pencil-square text-warning ms-1" title="Customized by admin"></i></span>` +
+        `<input type="date" class="form-control form-control-sm d-none due-date-input" ` +
+        `value="${newDate}" data-installment="${installmentNum}">`;
+
+    // Restore edit button to pencil
+    const editBtn = row.cells[6].querySelector('.btn-edit-date');
+    if (editBtn) {
+        editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
+        editBtn.classList.replace('btn-success', 'btn-outline-primary');
+    }
+
+    // Ensure reset button exists
+    const btnGroup = row.cells[6].querySelector('.btn-group');
+    if (btnGroup && !btnGroup.querySelector('.btn-reset')) {
+        btnGroup.insertAdjacentHTML('beforeend',
+            `<button type="button" class="btn btn-outline-secondary btn-reset" data-installment="${installmentNum}" title="Reset to original"><i class="bi bi-arrow-counterclockwise"></i></button>`);
+    }
+}
+
+// ── API calls ───────────────────────────────────────────────────────────────
 
 function overrideDueDate(installmentNum, newDate, notes) {
     fetch(`{{ url_for('loans.override_schedule', id=loan.id) }}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            installment_number: installmentNum,
-            new_due_date: newDate,
-            notes: notes
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installment_number: installmentNum, new_due_date: newDate, notes: notes })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
+            applyOverrideRow(installmentNum, newDate);
             showAlert('success', data.message);
-            setTimeout(() => location.reload(), 1500);
         } else {
             showAlert('danger', data.message);
             cancelEdit(installmentNum);
         }
     })
-    .catch(error => {
-        showAlert('danger', 'An error occurred: ' + error);
-        cancelEdit(installmentNum);
-    });
+    .catch(err => { showAlert('danger', 'Error: ' + err); cancelEdit(installmentNum); });
 }
 
-function skipInstallment(installmentNum, notes) {
+function skipInstallment(installmentNum, notes, rescheduleDate) {
     fetch(`{{ url_for('loans.skip_installment', id=loan.id) }}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            installment_number: installmentNum,
-            notes: notes
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installment_number: installmentNum, notes: notes, reschedule_date: rescheduleDate || '' })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
+            if (currentAction === 'set-reschedule') {
+                applyRescheduleDateUpdate(installmentNum, rescheduleDate, data);
+            } else {
+                applySkippedRow(installmentNum, rescheduleDate, data);
+            }
             showAlert('success', data.message);
-            setTimeout(() => location.reload(), 1500);
         } else {
             showAlert('danger', data.message);
         }
     })
-    .catch(error => {
-        showAlert('danger', 'An error occurred: ' + error);
-    });
+    .catch(err => showAlert('danger', 'Error: ' + err));
 }
 
 function resetInstallment(installmentNum) {
     fetch(`{{ url_for('loans.reset_installment', id=loan.id) }}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            installment_number: installmentNum
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installment_number: installmentNum })
     })
-    .then(response => response.json())
+    .then(r => r.json())
     .then(data => {
         if (data.success) {
+            applyNormalRow(installmentNum, data.original_due_date || '');
             showAlert('success', data.message);
-            setTimeout(() => location.reload(), 1500);
         } else {
             showAlert('danger', data.message);
         }
     })
-    .catch(error => {
-        showAlert('danger', 'An error occurred: ' + error);
-    });
+    .catch(err => showAlert('danger', 'Error: ' + err));
 }
 
 function showAlert(type, message) {
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.row'));
-    
-    setTimeout(() => alertDiv.remove(), 5000);
+    alertDiv.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    const container = document.querySelector('.card');
+    container.insertAdjacentElement('beforebegin', alertDiv);
+    setTimeout(() => alertDiv.remove(), 4000);
 }
 </script>
 {% endblock %}

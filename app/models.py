@@ -387,6 +387,7 @@ class Loan(db.Model):
     purpose = db.Column(db.Text)
     security_details = db.Column(db.Text)  # Collateral information
     document_path = db.Column(db.String(255))  # Uploaded document (PDF)
+    drive_link = db.Column(db.String(500))  # Google Drive link
     guarantor_ids = db.Column(db.Text)  # Comma-separated guarantor customer IDs
     
     # Metadata
@@ -596,9 +597,17 @@ class Loan(db.Model):
             )) or self.interest_type == 'flat'
             
             if is_flat_rate_loan:
-                # For flat interest loans, calculate remaining total payable amount
-                # Use total_payable if available, otherwise calculate it
-                if self.total_payable:
+                # For type1_9weeks always recalculate total_payable using CEIL so it
+                # matches the frontend preview and corrects any stale DB values.
+                if self.loan_type == 'type1_9weeks':
+                    from decimal import ROUND_UP
+                    weeks = int(self.duration_weeks or 9)
+                    rate = Decimal(str(self.interest_rate or 0))
+                    interest = rate * Decimal('2')
+                    emi = ((Decimal('100') + interest) * disbursed) / (Decimal('100') * Decimal(str(weeks)))
+                    emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
+                    total_expected = emi * Decimal(str(weeks))
+                elif self.total_payable:
                     total_expected = Decimal(str(self.total_payable))
                 else:
                     total_expected = disbursed + self.get_total_expected_interest()
@@ -698,7 +707,57 @@ class Loan(db.Model):
             
             # Check if this installment is skipped by admin
             if installment_num in overrides and overrides[installment_num].is_skipped:
-                continue  # Skip this installment entirely
+                # Still include it in schedule but mark as skipped so UI can display it
+                override_obj = overrides[installment_num]
+                current_installment = installment_amount
+
+                # Calculate what the original due date would have been (don't advance current_due_date)
+                if frequency_delta:
+                    orig_due = current_due_date + frequency_delta
+                    if frequency_name == 'Daily':
+                        while orig_due.weekday() == 6:
+                            orig_due = orig_due + timedelta(days=1)
+                    original_due_date = orig_due
+                else:
+                    original_due_date = first_date + relativedelta(months=installment_num)
+                if is_monthly_reducing_balance:
+                    interest_rate = Decimal(str(self.interest_rate))
+                    if frequency_name == 'Monthly':
+                        period_rate = interest_rate / (Decimal('12') * Decimal('100'))
+                    elif frequency_name == 'Weekly':
+                        period_rate = interest_rate / (Decimal('52') * Decimal('100'))
+                    elif frequency_name == 'Daily':
+                        period_rate = interest_rate / (Decimal('365') * Decimal('100'))
+                    else:
+                        period_rate = interest_rate / (Decimal('12') * Decimal('100'))
+                    skip_interest = (outstanding_balance * period_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    skip_principal = current_installment - skip_interest
+                else:
+                    skip_interest = (total_interest / Decimal(str(num_installments))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    skip_principal = (loan_amount / Decimal(str(num_installments))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+                # Determine status based on reschedule_date vs today
+                today_date = datetime.utcnow().date()
+                if override_obj.reschedule_date:
+                    skip_status = 'overdue' if override_obj.reschedule_date < today_date else 'pending'
+                else:
+                    skip_status = 'skipped'
+
+                schedule.append({
+                    'installment_number': installment_num,
+                    'due_date': original_due_date,
+                    'amount': float(current_installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                    'principal': float(skip_principal),
+                    'interest': float(skip_interest),
+                    'status': skip_status,
+                    'is_customized': True,
+                    'is_skipped': True,
+                    'reschedule_date': override_obj.reschedule_date,
+                })
+                # Advance current_due_date so the next installment doesn't get the same date
+                if frequency_delta:
+                    current_due_date = original_due_date
+                continue
             
             # Calculate due date - start from next period, not today
             if frequency_delta:
@@ -791,7 +850,9 @@ class Loan(db.Model):
                 'principal': float(principal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'interest': float(interest.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'status': status,
-                'is_customized': installment_num in overrides  # Flag for UI
+                'is_customized': installment_num in overrides,  # Flag for UI
+                'is_skipped': False,
+                'reschedule_date': None,
             })
         
         return schedule
@@ -873,6 +934,7 @@ class LoanScheduleOverride(db.Model):
     # Override options
     custom_due_date = db.Column(db.Date)  # Custom due date (None if skipped)
     is_skipped = db.Column(db.Boolean, default=False)  # If True, skip this installment entirely
+    reschedule_date = db.Column(db.Date)  # New date assigned to a skipped installment
     
     # Audit trail
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)

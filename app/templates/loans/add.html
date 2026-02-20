@@ -162,6 +162,15 @@
                             {{ form.document(class="form-control") }}
                             <small class="text-muted">Upload loan agreement, application form, or related documents (PDF or ZIP, max 10MB)</small>
                         </div>
+
+                        <div class="mb-3">
+                            {{ form.drive_link.label(class="form-label") }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-google"></i></span>
+                                {{ form.drive_link(class="form-control", placeholder="https://drive.google.com/...") }}
+                            </div>
+                            <small class="text-muted">Paste a Google Drive link to the loan documents folder</small>
+                        </div>
                         
                         <div class="mt-4">
                             <button type="button" class="btn btn-primary" id="nextToStep2">Next: Add Guarantors</button>

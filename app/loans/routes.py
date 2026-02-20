@@ -157,7 +157,7 @@ def add_loan():
         loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=customer.branch_id)
         
         # Calculate EMI using Decimal arithmetic
-        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
         
         loan_amount = Decimal(str(form.loan_amount.data))
         interest_rate = Decimal(str(form.interest_rate.data))
@@ -172,11 +172,11 @@ def add_loan():
             duration_weeks = form.duration_weeks.data or 9
             duration_months = 0  # Not used for weekly loans
             # Type 1 calculation: Interest = Interest rate * 2
-            # Installment = ((100 + Interest) * Loan Amount) / (100 * weeks)
+            # Installment = CEIL(((100 + Interest) * Loan Amount) / (100 * weeks))
             interest = interest_rate * Decimal('2')
             emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
-            # Floor to whole number to get exact total
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            # Ceil to whole number (matches frontend add.html Math.ceil)
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
@@ -292,6 +292,7 @@ def add_loan():
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
+            drive_link=form.drive_link.data or None,
             guarantor_ids=request.form.get('guarantor_ids', ''),
             status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
@@ -469,7 +470,7 @@ def edit_loan(id):
             return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
         # Recalculate EMI and totals with updated values
-        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
+        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
         
         loan_amount = Decimal(str(form.loan_amount.data))
         interest_rate = Decimal(str(form.interest_rate.data))
@@ -484,7 +485,8 @@ def edit_loan(id):
             duration_months = 0
             interest = interest_rate * Decimal('2')
             emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_DOWN)
+            # Ceil to whole number (matches frontend add.html Math.ceil)
+            emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
@@ -1613,6 +1615,11 @@ def skip_installment(id):
         data = request.get_json()
         installment_number = int(data.get('installment_number'))
         notes = data.get('notes', '')
+        reschedule_date_str = data.get('reschedule_date', '')
+        reschedule_date = None
+        if reschedule_date_str:
+            from datetime import date as date_type
+            reschedule_date = datetime.strptime(reschedule_date_str, '%Y-%m-%d').date()
         
         # Validate installment number
         schedule = loan.generate_payment_schedule()
@@ -1630,6 +1637,7 @@ def skip_installment(id):
             # Update existing override to skip
             override.is_skipped = True
             override.custom_due_date = None
+            override.reschedule_date = reschedule_date
             override.updated_by = current_user.id
             override.updated_at = datetime.utcnow()
             if notes:
@@ -1641,6 +1649,7 @@ def skip_installment(id):
                 installment_number=installment_number,
                 is_skipped=True,
                 custom_due_date=None,
+                reschedule_date=reschedule_date,
                 created_by=current_user.id,
                 notes=notes
             )
@@ -1652,16 +1661,24 @@ def skip_installment(id):
             action='skip_installment',
             entity_type='loan',
             entity_id=loan.id,
-            description=f'Skipped installment {installment_number} for loan {loan.loan_number}',
+            description=f'Skipped installment {installment_number} for loan {loan.loan_number}' + (f', rescheduled to {reschedule_date_str}' if reschedule_date_str else ''),
             ip_address=request.remote_addr
         )
         db.session.add(log)
         
         db.session.commit()
         
+        # Regenerate schedule to get computed principal/interest/status for the skipped installment
+        refreshed_schedule = loan.generate_payment_schedule()
+        sched_item = next((x for x in refreshed_schedule if x['installment_number'] == installment_number), None)
+        
         return jsonify({
             'success': True,
-            'message': f'Installment {installment_number} skipped successfully'
+            'message': f'Installment {installment_number} skipped' + (f', rescheduled to {reschedule_date_str}' if reschedule_date_str else '') + ' successfully',
+            'principal': sched_item['principal'] if sched_item else None,
+            'interest': sched_item['interest'] if sched_item else None,
+            'status': sched_item['status'] if sched_item else 'skipped',
+            'reschedule_date': reschedule_date_str or ''
         })
     
     except Exception as e:
@@ -1708,9 +1725,15 @@ def reset_installment(id):
             
             db.session.commit()
             
+            # Regenerate schedule to get the original due date
+            refreshed_schedule = loan.generate_payment_schedule()
+            original_item = next((item for item in refreshed_schedule if item['installment_number'] == installment_number), None)
+            original_due_date = original_item['due_date'].strftime('%Y-%m-%d') if original_item and original_item.get('due_date') else None
+            
             return jsonify({
                 'success': True,
-                'message': f'Installment {installment_number} reset to original due date'
+                'message': f'Installment {installment_number} reset to original due date',
+                'original_due_date': original_due_date
             })
         else:
             return jsonify({
