@@ -164,9 +164,6 @@ class CustomerForm(FlaskForm):
             self.customer_type_investor.data = 'investor' in customer_types
             self.customer_type_guarantor.data = 'guarantor' in customer_types
             self.customer_type_family_guarantor.data = 'family_guarantor' in customer_types
-        elif not is_edit:
-            # Default for new customers
-            self.customer_type_customer.data = True
         
         # Make KYC fields required only when adding new customer
         if not is_edit:
