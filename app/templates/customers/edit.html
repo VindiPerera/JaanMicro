@@ -202,7 +202,7 @@
                             <div class="form-text">NIC front image (JPG, PNG, PDF) - Optional during edit</div>
                             {% if customer.nic_front_image %}
                                 <div class="mt-2">
-                                    <small class="text-muted">Current: <a href="/{{ customer.nic_front_image }}" target="_blank">View</a></small>
+                                    <small class="text-muted">Current: <a href="{{ url_for('static', filename=customer.nic_front_image) }}" target="_blank">View</a></small>
                                 </div>
                             {% endif %}
                         </div>
@@ -212,7 +212,7 @@
                             <div class="form-text">NIC back image (JPG, PNG, PDF) - Optional during edit</div>
                             {% if customer.nic_back_image %}
                                 <div class="mt-2">
-                                    <small class="text-muted">Current: <a href="/{{ customer.nic_back_image }}" target="_blank">View</a></small>
+                                    <small class="text-muted">Current: <a href="{{ url_for('static', filename=customer.nic_back_image) }}" target="_blank">View</a></small>
                                 </div>
                             {% endif %}
                         </div>
@@ -225,7 +225,7 @@
                             <div class="form-text">Customer photo (JPG, PNG) - Optional during edit</div>
                             {% if customer.photo %}
                                 <div class="mt-2">
-                                    <small class="text-muted">Current: <a href="/{{ customer.photo }}" target="_blank">View</a></small>
+                                    <small class="text-muted">Current: <a href="{{ url_for('static', filename=customer.photo) }}" target="_blank">View</a></small>
                                 </div>
                             {% endif %}
                         </div>
@@ -235,7 +235,7 @@
                             <div class="form-text">Proof of address (utility bill, etc.) - Optional during edit</div>
                             {% if customer.proof_of_address %}
                                 <div class="mt-2">
-                                    <small class="text-muted">Current: <a href="/{{ customer.proof_of_address }}" target="_blank">View</a></small>
+                                    <small class="text-muted">Current: <a href="{{ url_for('static', filename=customer.proof_of_address) }}" target="_blank">View</a></small>
                                 </div>
                             {% endif %}
                         </div>
@@ -248,7 +248,7 @@
                             <div class="form-text">Bank book front page (JPG, PNG, PDF)</div>
                             {% if customer.bank_book_image %}
                                 <div class="mt-2">
-                                    <small class="text-muted">Current: <a href="/{{ customer.bank_book_image }}" target="_blank">View</a></small>
+                                    <small class="text-muted">Current: <a href="{{ url_for('static', filename=customer.bank_book_image) }}" target="_blank">View</a></small>
                                 </div>
                             {% endif %}
                         </div>
