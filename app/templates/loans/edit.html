@@ -330,9 +330,8 @@ $(document).ready(function() {
             
             if (principal > 0 && rate > 0 && weeks > 0) {
                 var interest = rate * 2;
-                emi = ((100 + interest) * principal) / (100 * weeks);
-                emi = Math.floor(emi);
-                totalPayable = emi * weeks;
+                totalPayable = principal * (100 + interest) / 100;
+                emi = Math.ceil(totalPayable / weeks);
                 
                 if ($('#emi-display').length === 0) {
                     $('#durationWeeksField').after(

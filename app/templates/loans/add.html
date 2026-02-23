@@ -781,12 +781,11 @@ $(document).ready(function() {
             
             if (principal > 0 && rate > 0 && weeks > 0) {
                 // Type 1 formula: Interest = rate * 2
-                // Installment = ((100 + Interest) * Amount) / (100 * weeks)
+                // Total Payable = Amount * (100 + Interest) / 100  ← computed first
+                // EMI = CEIL(Total Payable / weeks)  ← last installment absorbs remainder
                 var interest = rate * 2;
-                emi = ((100 + interest) * principal) / (100 * weeks);
-                // Ceil to whole number so installment covers the total
-                emi = Math.ceil(emi);
-                totalPayable = emi * weeks;
+                totalPayable = principal * (100 + interest) / 100;
+                emi = Math.ceil(totalPayable / weeks);
                 
                 // Show calculated values
                 if ($('#emi-display').length === 0) {

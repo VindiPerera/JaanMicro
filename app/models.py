@@ -600,13 +600,10 @@ class Loan(db.Model):
                 # For type1_9weeks always recalculate total_payable using CEIL so it
                 # matches the frontend preview and corrects any stale DB values.
                 if self.loan_type == 'type1_9weeks':
-                    from decimal import ROUND_UP
                     weeks = int(self.duration_weeks or 9)
                     rate = Decimal(str(self.interest_rate or 0))
                     interest = rate * Decimal('2')
-                    emi = ((Decimal('100') + interest) * disbursed) / (Decimal('100') * Decimal(str(weeks)))
-                    emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
-                    total_expected = emi * Decimal(str(weeks))
+                    total_expected = (disbursed * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                 elif self.total_payable:
                     total_expected = Decimal(str(self.total_payable))
                 else:

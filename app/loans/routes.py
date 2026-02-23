@@ -172,12 +172,11 @@ def add_loan():
             duration_weeks = form.duration_weeks.data or 9
             duration_months = 0  # Not used for weekly loans
             # Type 1 calculation: Interest = Interest rate * 2
-            # Installment = CEIL(((100 + Interest) * Loan Amount) / (100 * weeks))
+            # Total Payable = Loan Amount * (100 + Interest) / 100  ← computed first to avoid rounding drift
+            # EMI = CEIL(Total Payable / weeks)  ← last installment absorbs remainder
             interest = interest_rate * Decimal('2')
-            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
-            # Ceil to whole number (matches frontend add.html Math.ceil)
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
-            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (loan_amount * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = (total_payable / Decimal(str(duration_weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
             duration_months = 0  # Not used for daily loans
@@ -484,10 +483,8 @@ def edit_loan(id):
             duration_weeks = form.duration_weeks.data or 9
             duration_months = 0
             interest = interest_rate * Decimal('2')
-            emi = ((Decimal('100') + interest) * loan_amount) / (Decimal('100') * Decimal(str(duration_weeks)))
-            # Ceil to whole number (matches frontend add.html Math.ceil)
-            emi = emi.quantize(Decimal('1'), rounding=ROUND_UP)
-            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (loan_amount * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = (total_payable / Decimal(str(duration_weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
             duration_months = 0
