@@ -8,7 +8,7 @@ import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride
-from app.loans.forms import LoanForm, LoanPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
+from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
 from app.utils.decorators import permission_required, admin_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
@@ -395,13 +395,17 @@ def view_loan(id):
     # Get arrears details
     arrears_details = loan.get_arrears_details()
     
+    # Get payment history for this loan
+    payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
+    
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
                          guarantors=guarantors,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
-                         arrears_details=arrears_details)
+                         arrears_details=arrears_details,
+                         payments=payments)
 
 @loans_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1391,6 +1395,78 @@ def search_guarantors():
         'success': True,
         'guarantors': guarantor_list
     })
+
+
+@loans_bp.route('/payment/<int:payment_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_payment(payment_id):
+    """Edit an existing loan payment (Admin only)"""
+    payment = LoanPayment.query.get_or_404(payment_id)
+    loan = payment.loan
+
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Payment not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+
+    form = EditPaymentForm()
+
+    if request.method == 'GET':
+        form.payment_date.data = payment.payment_date
+        form.payment_amount.data = payment.payment_amount
+        form.principal_amount.data = payment.principal_amount
+        form.interest_amount.data = payment.interest_amount
+        form.penalty_amount.data = payment.penalty_amount or 0
+        form.balance_after.data = payment.balance_after
+        form.payment_method.data = payment.payment_method
+        form.reference_number.data = payment.reference_number
+        form.notes.data = payment.notes
+
+    if form.validate_on_submit():
+        from decimal import Decimal, ROUND_HALF_UP
+
+        old_amount = Decimal(str(payment.payment_amount))
+        new_amount = Decimal(str(form.payment_amount.data)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        diff = new_amount - old_amount
+
+        payment.payment_date = form.payment_date.data
+        payment.payment_amount = float(new_amount)
+        payment.principal_amount = float(form.principal_amount.data) if form.principal_amount.data is not None else payment.principal_amount
+        payment.interest_amount = float(form.interest_amount.data) if form.interest_amount.data is not None else payment.interest_amount
+        payment.penalty_amount = float(form.penalty_amount.data or 0)
+        payment.balance_after = float(form.balance_after.data) if form.balance_after.data is not None else payment.balance_after
+        payment.payment_method = form.payment_method.data
+        payment.reference_number = form.reference_number.data
+        payment.notes = form.notes.data
+
+        # Adjust loan paid_amount by the difference
+        if diff != 0:
+            loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + diff).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            loan.update_outstanding_amount()
+
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='edit_payment',
+            entity_type='loan',
+            entity_id=loan.id,
+            description=f'Edited payment {payment.receipt_number} for loan {loan.loan_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        flash(f'Payment {payment.receipt_number} updated successfully!', 'success')
+        return redirect(url_for('loans.view_loan', id=loan.id))
+
+    return render_template('loans/edit_payment.html',
+                           title=f'Edit Payment: {payment.receipt_number}',
+                           form=form,
+                           payment=payment,
+                           loan=loan)
 
 
 @loans_bp.route('/receipt-entry')

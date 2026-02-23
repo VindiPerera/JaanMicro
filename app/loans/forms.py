@@ -97,6 +97,25 @@ class LoanPaymentForm(FlaskForm):
     send_receipt = BooleanField('Send Payment Receipt', default=True)
     submit = SubmitField('Add Payment')
 
+class EditPaymentForm(FlaskForm):
+    """Edit existing loan payment (Admin only)"""
+    payment_date = DateField('Payment Date', validators=[DataRequired()])
+    payment_amount = DecimalField('Payment Amount', validators=[DataRequired(), NumberRange(min=0)], places=2)
+    principal_amount = DecimalField('Principal Amount', validators=[Optional(), NumberRange(min=0)], places=2)
+    interest_amount = DecimalField('Interest Amount', validators=[Optional(), NumberRange(min=0)], places=2)
+    penalty_amount = DecimalField('Penalty Amount', validators=[Optional(), NumberRange(min=0)], places=2, default=0)
+    balance_after = DecimalField('Balance After', validators=[Optional(), NumberRange(min=0)], places=2)
+    payment_method = SelectField('Payment Method', choices=[
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('cheque', 'Cheque'),
+        ('card', 'Card'),
+        ('online', 'Online Payment')
+    ], validators=[DataRequired()])
+    reference_number = StringField('Reference Number', validators=[Optional(), Length(max=100)])
+    notes = TextAreaField('Notes', validators=[Optional()])
+    submit = SubmitField('Save Changes')
+
 class StaffApprovalForm(FlaskForm):
     """Staff approval form (First stage)"""
     approval_status = SelectField('Approval Decision', choices=[

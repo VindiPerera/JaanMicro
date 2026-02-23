@@ -431,7 +431,67 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- Payment History Card -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
+                {% if loan.status == 'active' %}
+                <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-sm btn-success">
+                    <i class="bi bi-plus-circle me-1"></i>Add Payment
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if payments %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Receipt #</th>
+                                <th>Amount</th>
+                                <th>Principal</th>
+                                <th>Interest</th>
+                                <th>Penalty</th>
+                                <th>Balance After</th>
+                                <th>Method</th>
+                                <th>Collected By</th>
+                                {% if current_user.role == 'admin' %}<th>Actions</th>{% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in payments %}
+                            <tr>
+                                <td>{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else 'N/A' }}</td>
+                                <td><span class="badge bg-secondary">{{ payment.receipt_number }}</span></td>
+                                <td><strong class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.payment_amount|float) }}</strong></td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount|float) if payment.principal_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount|float) if payment.interest_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.penalty_amount|float) if payment.penalty_amount else '0.00' }}</td>
+                                <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.balance_after|float) if payment.balance_after else '0.00' }}</td>
+                                <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
+                                <td>{{ payment.collected_by_user.full_name if payment.collected_by else 'N/A' }}</td>
+                                {% if current_user.role == 'admin' %}
+                                <td>
+                                    <a href="{{ url_for('loans.edit_payment', payment_id=payment.id) }}" class="btn btn-sm btn-outline-warning" title="Edit Payment">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-clock-history fs-2 text-muted mb-2"></i>
+                    <p class="text-muted mb-0">No payments recorded for this loan yet.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
 
     </div>
 </div>
