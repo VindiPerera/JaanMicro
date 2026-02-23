@@ -81,17 +81,17 @@
                                 <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
                                 <p class="mt-2">PDF Document</p>
                                 {% else %}
-                                <img src="{{ url_for('static', filename=customer.nic_front_image) }}" class="img-fluid" style="max-height: 200px;" alt="NIC Front" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="{{ upload_url(customer.nic_front_image) }}" class="img-fluid" style="max-height: 200px;" alt="NIC Front" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>
                                 </div>
                                 {% endif %}
                                 <div class="mt-2">
-                                    <a href="{{ url_for('static', filename=customer.nic_front_image) }}" target="_blank" class="btn btn-sm btn-info">
+                                    <a href="{{ upload_url(customer.nic_front_image) }}" target="_blank" class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                    <a href="{{ url_for('static', filename=customer.nic_front_image) }}" download class="btn btn-sm btn-primary">
+                                    <a href="{{ upload_url(customer.nic_front_image) }}" download class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 </div>
@@ -110,17 +110,17 @@
                                 <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
                                 <p class="mt-2">PDF Document</p>
                                 {% else %}
-                                <img src="{{ url_for('static', filename=customer.nic_back_image) }}" class="img-fluid" style="max-height: 200px;" alt="NIC Back" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="{{ upload_url(customer.nic_back_image) }}" class="img-fluid" style="max-height: 200px;" alt="NIC Back" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>
                                 </div>
                                 {% endif %}
                                 <div class="mt-2">
-                                    <a href="{{ url_for('static', filename=customer.nic_back_image) }}" target="_blank" class="btn btn-sm btn-info">
+                                    <a href="{{ upload_url(customer.nic_back_image) }}" target="_blank" class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                    <a href="{{ url_for('static', filename=customer.nic_back_image) }}" download class="btn btn-sm btn-primary">
+                                    <a href="{{ upload_url(customer.nic_back_image) }}" download class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 </div>
@@ -135,16 +135,16 @@
                                 <i class="bi bi-person-badge me-2"></i>Member Photo
                             </div>
                             <div class="card-body text-center">
-                                <img src="{{ url_for('static', filename=customer.photo) }}" class="img-fluid rounded" style="max-height: 200px;" alt="Member Photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="{{ upload_url(customer.photo) }}" class="img-fluid rounded" style="max-height: 200px;" alt="Member Photo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>
                                 </div>>
                                 <div class="mt-2">
-                                    <a href="{{ url_for('static', filename=customer.photo) }}" target="_blank" class="btn btn-sm btn-info">
+                                    <a href="{{ upload_url(customer.photo) }}" target="_blank" class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                    <a href="{{ url_for('static', filename=customer.photo) }}" download class="btn btn-sm btn-primary">
+                                    <a href="{{ upload_url(customer.photo) }}" download class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 </div>
@@ -163,17 +163,17 @@
                                 <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
                                 <p class="mt-2">PDF Document</p>
                                 {% else %}
-                                <img src="{{ url_for('static', filename=customer.proof_of_address) }}" class="img-fluid" style="max-height: 200px;" alt="Address Proof" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="{{ upload_url(customer.proof_of_address) }}" class="img-fluid" style="max-height: 200px;" alt="Address Proof" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>
                                 </div>
                                 {% endif %}
                                 <div class="mt-2">
-                                    <a href="{{ url_for('static', filename=customer.proof_of_address) }}" target="_blank" class="btn btn-sm btn-info">
+                                    <a href="{{ upload_url(customer.proof_of_address) }}" target="_blank" class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                    <a href="{{ url_for('static', filename=customer.proof_of_address) }}" download class="btn btn-sm btn-primary">
+                                    <a href="{{ upload_url(customer.proof_of_address) }}" download class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 </div>
@@ -192,17 +192,17 @@
                                 <i class="bi bi-file-pdf text-danger" style="font-size: 4rem;"></i>
                                 <p class="mt-2">PDF Document</p>
                                 {% else %}
-                                <img src="{{ url_for('static', filename=customer.bank_book_image) }}" class="img-fluid" style="max-height: 200px;" alt="Bank Book" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                <img src="{{ upload_url(customer.bank_book_image) }}" class="img-fluid" style="max-height: 200px;" alt="Bank Book" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                 <div style="display: none;" class="text-danger">
                                     <i class="bi bi-exclamation-triangle fs-1"></i>
                                     <p class="mt-2">Image not found</p>
                                 </div>
                                 {% endif %}
                                 <div class="mt-2">
-                                    <a href="{{ url_for('static', filename=customer.bank_book_image) }}" target="_blank" class="btn btn-sm btn-info">
+                                    <a href="{{ upload_url(customer.bank_book_image) }}" target="_blank" class="btn btn-sm btn-info">
                                         <i class="bi bi-eye"></i> View
                                     </a>
-                                    <a href="{{ url_for('static', filename=customer.bank_book_image) }}" download class="btn btn-sm btn-primary">
+                                    <a href="{{ upload_url(customer.bank_book_image) }}" download class="btn btn-sm btn-primary">
                                         <i class="bi bi-download"></i> Download
                                     </a>
                                 </div>

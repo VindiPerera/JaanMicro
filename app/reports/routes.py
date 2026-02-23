@@ -972,6 +972,10 @@ def view_kyc_document(customer_id, document_type):
     if not document_path:
         abort(404, description="Document not found")
     
+    # Strip leading 'uploads/' if present (handles old DB records)
+    if document_path.startswith('uploads/'):
+        document_path = document_path[len('uploads/'):]
+    
     # Construct full path
     upload_folder = current_app.config.get('UPLOAD_FOLDER', 'app/static/uploads')
     full_path = os.path.join(upload_folder, document_path)

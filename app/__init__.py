@@ -34,7 +34,7 @@ def create_app(config_name='default'):
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'info'
     
-    # Route to serve uploaded files with security
+    # Route to serve uploaded files with security (fallback for /uploads/ URLs)
     @app.route('/uploads/<path:filename>')
     def uploaded_file(filename):
         from flask_login import login_required, current_user
@@ -43,6 +43,10 @@ def create_app(config_name='default'):
         # Ensure user is logged in
         if not current_user.is_authenticated:
             abort(404)
+        
+        # Strip leading 'uploads/' if present (handles old DB records with double prefix)
+        if filename.startswith('uploads/'):
+            filename = filename[len('uploads/'):]
         
         # Add basic security check for customer files
         if filename.startswith('customers/'):
@@ -69,6 +73,20 @@ def create_app(config_name='default'):
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(settings_bp, url_prefix='/settings')
     
+    # Jinja2 global helper: build the correct /static/uploads/... URL for any
+    # stored upload path, regardless of whether it has an "uploads/" prefix or not.
+    @app.template_global()
+    def upload_url(path):
+        """Return the full URL path for an uploaded file.
+        Handles both old DB records (uploads/customers/1/file.jpg)
+        and new DB records (customers/1/file.jpg)."""
+        if not path:
+            return ''
+        # Strip leading 'uploads/' if present so we never get double uploads
+        if path.startswith('uploads/'):
+            path = path[len('uploads/'):]
+        return f'/static/uploads/{path}'
+
     # Context processor for global variables
     @app.context_processor
     def inject_settings():

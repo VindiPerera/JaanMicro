@@ -20,7 +20,7 @@
             <div class="card-header">
                 <h5 class="mb-0">
                     {% if customer.profile_picture %}
-                        <img src="{{ url_for('static', filename='uploads/' + customer.profile_picture) }}" 
+                        <img src="{{ upload_url(customer.profile_picture) }}" 
                              alt="Profile Picture" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
                     {% else %}
                         <i class="bi bi-person-circle me-2"></i>
@@ -80,27 +80,27 @@
                     <strong>KYC Documents:</strong><br>
                     <div class="mt-2">
                         {% if customer.nic_front_image %}
-                        <a href="{{ url_for('static', filename=customer.nic_front_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                        <a href="{{ upload_url(customer.nic_front_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
                             <i class="bi bi-card-heading"></i> NIC Front
                         </a>
                         {% endif %}
                         {% if customer.nic_back_image %}
-                        <a href="{{ url_for('static', filename=customer.nic_back_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                        <a href="{{ upload_url(customer.nic_back_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
                             <i class="bi bi-card-heading"></i> NIC Back
                         </a>
                         {% endif %}
                         {% if customer.photo %}
-                        <a href="{{ url_for('static', filename=customer.photo) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                        <a href="{{ upload_url(customer.photo) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
                             <i class="bi bi-person-badge"></i> Photo
                         </a>
                         {% endif %}
                         {% if customer.proof_of_address %}
-                        <a href="{{ url_for('static', filename=customer.proof_of_address) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                        <a href="{{ upload_url(customer.proof_of_address) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
                             <i class="bi bi-house"></i> Address Proof
                         </a>
                         {% endif %}
                         {% if customer.bank_book_image %}
-                        <a href="{{ url_for('static', filename=customer.bank_book_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
+                        <a href="{{ upload_url(customer.bank_book_image) }}" target="_blank" class="btn btn-sm btn-outline-primary me-1 mb-1">
                             <i class="bi bi-bank"></i> Bank Book
                         </a>
                         {% endif %}

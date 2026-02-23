@@ -146,7 +146,7 @@
                         {{ form.document.label(class="form-label") }}
                         {{ form.document(class="form-control") }}
                         {% if loan.document_path %}
-                        <small class="text-muted">Current: <a href="{{ url_for('static', filename='uploads/' + loan.document_path) }}" target="_blank">View Document</a></small><br>
+                        <small class="text-muted">Current: <a href="{{ upload_url(loan.document_path) }}" target="_blank">View Document</a></small><br>
                         {% endif %}
                         <small class="text-muted">Upload new document to replace existing (PDF or ZIP, max 10MB)</small>
                     </div>
