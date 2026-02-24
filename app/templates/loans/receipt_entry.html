@@ -93,8 +93,11 @@
     <!-- Weekly Loans Tab -->
     <div class="tab-pane fade show active" id="weekly" role="tabpanel" aria-labelledby="weekly-tab">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Weekly Loan Payments</h5>
+                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='weekly', collector=collector or '') }}" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                </a>
             </div>
             <div class="card-body">
                 {% if weekly_payments %}
@@ -107,6 +110,7 @@
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
                                 <th>Next Payment</th>
+                                <th>Referred By</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
                             </tr>
@@ -135,6 +139,7 @@
                                         N/A
                                     {% endif %}
                                 </td>
+                                <td>{{ item.loan.referrer.full_name if item.loan.referrer else 'N/A' }}</td>
                                 <td>
                                     {% if item.recent_payments %}
                                         {% for payment in item.recent_payments[:3] %}
@@ -179,8 +184,11 @@
     <!-- Daily Loans Tab -->
     <div class="tab-pane fade" id="daily" role="tabpanel" aria-labelledby="daily-tab">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Daily Loan Payments</h5>
+                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='daily', collector=collector or '') }}" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                </a>
             </div>
             <div class="card-body">
                 {% if daily_payments %}
@@ -193,6 +201,7 @@
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
                                 <th>Next Payment</th>
+                                <th>Referred By</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
                             </tr>
@@ -221,6 +230,7 @@
                                         N/A
                                     {% endif %}
                                 </td>
+                                <td>{{ item.loan.referrer.full_name if item.loan.referrer else 'N/A' }}</td>
                                 <td>
                                     {% if item.recent_payments %}
                                         {% for payment in item.recent_payments[:3] %}
@@ -265,8 +275,11 @@
     <!-- Monthly Loans Tab -->
     <div class="tab-pane fade" id="monthly" role="tabpanel" aria-labelledby="monthly-tab">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Monthly Loan Payments</h5>
+                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='monthly', collector=collector or '') }}" class="btn btn-sm btn-success">
+                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                </a>
             </div>
             <div class="card-body">
                 {% if monthly_payments %}
@@ -279,6 +292,7 @@
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
                                 <th>Next Payment</th>
+                                <th>Referred By</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
                             </tr>
@@ -307,6 +321,7 @@
                                         N/A
                                     {% endif %}
                                 </td>
+                                <td>{{ item.loan.referrer.full_name if item.loan.referrer else 'N/A' }}</td>
                                 <td>
                                     {% if item.recent_payments %}
                                         {% for payment in item.recent_payments[:3] %}

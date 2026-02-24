@@ -1,6 +1,7 @@
 """Loan management routes"""
-from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
+from flask import render_template, redirect, url_for, flash, request, current_app, jsonify, make_response
 from flask_login import login_required, current_user
+import io
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -1568,6 +1569,102 @@ def receipt_entry():
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
+
+
+@loans_bp.route('/receipt-entry/export/<loan_frequency>')
+@login_required
+@permission_required('collect_payments')
+def receipt_entry_export(loan_frequency):
+    """Export weekly/daily/monthly loans to Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    frequency_map = {
+        'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
+        'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
+        'monthly': (['monthly_loan'], 'Monthly Loans'),
+    }
+    if loan_frequency not in frequency_map:
+        from flask import abort
+        abort(404)
+
+    loan_types, sheet_title = frequency_map[loan_frequency]
+    referrer = request.args.get('collector', type=int)
+
+    query = Loan.query.filter(
+        Loan.loan_type.in_(loan_types),
+        Loan.status == 'active'
+    )
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    if referrer:
+        query = query.filter(Loan.referred_by == referrer)
+
+    loans = query.order_by(Loan.created_at.desc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = sheet_title
+
+    headers = [
+        'Loan Number', 'Loan Type', 'Customer Name', 'NIC Number',
+        'Loan Amount', 'Disbursed Amount', 'Outstanding Amount',
+        'Interest Rate', 'Duration', 'Next Payment Date',
+        'Disbursement Date', 'Maturity Date', 'Status', 'Referred By'
+    ]
+
+    header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
+    for loan in loans:
+        if loan_frequency == 'weekly':
+            duration = f"{loan.duration_weeks} weeks" if loan.duration_weeks else 'N/A'
+        elif loan_frequency == 'daily':
+            duration = f"{loan.duration_days} days" if loan.duration_days else 'N/A'
+        else:
+            duration = f"{loan.duration_months} months" if loan.duration_months else 'N/A'
+
+        next_payment_date = getattr(loan, 'next_payment_date', None)
+        next_payment = next_payment_date.strftime('%Y-%m-%d') if next_payment_date else 'N/A'
+        referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
+
+        ws.append([
+            loan.loan_number,
+            loan.loan_type.replace('_', ' ').title() if loan.loan_type else 'N/A',
+            loan.customer.full_name if loan.customer else 'N/A',
+            loan.customer.nic_number if loan.customer else 'N/A',
+            float(loan.loan_amount) if loan.loan_amount else 0,
+            float(loan.disbursed_amount) if loan.disbursed_amount else 0,
+            float(loan.outstanding_amount) if loan.outstanding_amount else 0,
+            float(loan.interest_rate) if loan.interest_rate else 0,
+            duration,
+            next_payment,
+            loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
+            loan.maturity_date.strftime('%Y-%m-%d') if loan.maturity_date else 'N/A',
+            loan.status or 'N/A',
+            referred_by_name
+        ])
+
+    for col in ws.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename={loan_frequency}_loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    return response
 
 
 # Schedule Override Routes (Admin Only)
