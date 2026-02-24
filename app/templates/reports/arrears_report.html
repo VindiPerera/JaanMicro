@@ -60,6 +60,15 @@
         <div class="card stats-card border-danger">
             <div class="card-body">
                 <div class="stats-label"><i class="bi bi-exclamation-triangle me-1"></i>Total Arrears</div>
+                <div class="stats-value text-danger">{{ summary.total_num_arrears }}</div>
+                <small class="text-muted">missed payments</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-warning">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-cash-stack me-1"></i>Arrears Amount</div>
                 <div class="stats-value text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</div>
             </div>
         </div>
@@ -85,15 +94,6 @@
             <div class="card-body">
                 <div class="stats-label">Penalties</div>
                 <div class="stats-value text-warning">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2">
-        <div class="card stats-card border-warning">
-            <div class="card-body">
-                <div class="stats-label"><i class="bi bi-clock-history me-1"></i>Overdue</div>
-                <div class="stats-value text-warning">{{ summary.overdue_accounts }}</div>
-                <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.overdue_amount|float) if summary.overdue_amount else '0.00' }}</small>
             </div>
         </div>
     </div>
@@ -140,16 +140,11 @@
                 <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>About Arrears</h5>
             </div>
             <div class="card-body">
-                <p class="mb-2"><strong>Arrears:</strong> The total amount that remains to be paid by customers.</p>
-                <p class="mb-2"><strong>Principal Outstanding:</strong> Original loan/pawning amount not yet repaid.</p>
-                <p class="mb-2"><strong>Interest Outstanding:</strong> 
-                    <ul class="mb-0 mt-1">
-                        <li><small>Flat rate loans (Type 1, Type 4 Micro, 54 Daily): Total fixed interest minus interest paid</small></li>
-                        <li><small>Reducing balance loans: Accrued interest plus estimated future interest on remaining principal</small></li>
-                    </ul>
-                </p>
+                <p class="mb-2"><strong>Arrears:</strong> Each missed scheduled payment counts as one arrear. For example, if a daily loan customer misses 3 days of payments, they have 3 arrears.</p>
+                <p class="mb-2"><strong>No. of Arrears:</strong> Total number of missed/overdue scheduled installments.</p>
+                <p class="mb-2"><strong>Arrears Amount:</strong> Total amount of all overdue installments (principal + interest).</p>
                 <p class="mb-2"><strong>Penalties:</strong> Additional charges for late payments.</p>
-                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-1"></i><strong>Overdue:</strong> Accounts past their maturity date.</p>
+                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-1"></i><strong>Days Overdue:</strong> Days since the oldest missed payment.</p>
             </div>
         </div>
     </div>
@@ -175,16 +170,17 @@
                         <th>Disbursement</th>
                         <th>Maturity</th>
                         <th>Original Amount</th>
-                        <th>Principal Outstanding</th>
-                        <th>Interest Outstanding</th>
+                        <th>No. of Arrears</th>
+                        <th>Principal Arrears</th>
+                        <th>Interest Arrears</th>
                         <th>Penalty</th>
                         <th>Total Arrears</th>
-                        <th>Status</th>
+                        <th>Days Overdue</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in arrears_data %}
-                    <tr class="{% if item.is_overdue %}table-warning{% endif %}">
+                    <tr class="{% if item.num_arrears >= 5 %}table-danger{% elif item.num_arrears >= 3 %}table-warning{% endif %}">
                         <td>
                             <span class="badge bg-{% if item.product_type == 'Loan' %}primary{% else %}danger{% endif %}">
                                 {{ item.product_type }}
@@ -199,11 +195,13 @@
                         <td>{{ item.disbursement_date.strftime('%Y-%m-%d') if item.disbursement_date else 'N/A' }}</td>
                         <td>
                             {{ item.maturity_date.strftime('%Y-%m-%d') if item.maturity_date else 'N/A' }}
-                            {% if item.is_overdue %}
-                                <br><small class="text-danger"><i class="bi bi-exclamation-circle"></i> {{ item.overdue_days }} days overdue</small>
-                            {% endif %}
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.original_amount|float) }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{% if item.num_arrears >= 5 %}danger{% elif item.num_arrears >= 3 %}warning{% else %}secondary{% endif %} fs-6">
+                                {{ item.num_arrears }}
+                            </span>
+                        </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.principal_outstanding|float) }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.interest_outstanding|float) }}</td>
                         <td>
@@ -215,20 +213,22 @@
                         </td>
                         <td class="fw-bold text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.total_arrears|float) }}</td>
                         <td>
-                            {% if item.is_overdue %}
-                                <span class="badge bg-danger">Overdue</span>
+                            {% if item.overdue_days > 0 %}
+                                <span class="badge bg-danger">{{ item.overdue_days }} days</span>
                             {% else %}
-                                <span class="badge bg-success">Current</span>
+                                <span class="badge bg-secondary">0</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="15" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    <tr><td colspan="16" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr class="table-danger fw-bold">
-                        <td colspan="11">TOTAL</td>
+                        <td colspan="10">TOTAL</td>
+                        <td class="text-center">{{ summary.total_num_arrears }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
