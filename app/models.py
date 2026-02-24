@@ -837,7 +837,7 @@ class Loan(db.Model):
                 status = 'paid'
             elif total_paid >= (installment_threshold - current_installment) and total_paid > 0:
                 status = 'partial'
-            elif due_date < datetime.utcnow().date():
+            elif due_date <= datetime.utcnow().date():
                 status = 'overdue'
             
             schedule.append({
