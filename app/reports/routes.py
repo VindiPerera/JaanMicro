@@ -903,51 +903,76 @@ def arrears_report():
 @login_required
 @permission_required('view_reports')
 def export_loans():
-    """Export loans to CSV"""
+    """Export all loans to Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
     query = Loan.query
-    
+
     # Apply branch filtering
     loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
     if loan_branch_filter is not None:
         query = query.filter(loan_branch_filter)
-    
+
     loans = query.all()
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write header
-    writer.writerow(['Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type', 'Loan Amount', 'Interest Rate', 
-                    'Duration', 'Outstanding Amount', 'Status', 'Created Date'])
-    
-    # Write data
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Loan Report'
+
+    headers = [
+        'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
+        'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Duration',
+        'Outstanding Amount', 'Status', 'Referred By', 'Created Date'
+    ]
+
+    header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
     for loan in loans:
-        # Handle duration display
         if loan.duration_weeks:
             duration = f"{loan.duration_weeks} weeks"
         elif loan.duration_months:
             duration = f"{loan.duration_months} months"
         else:
-            duration = "N/A"
-            
-        writer.writerow([
+            duration = 'N/A'
+
+        referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
+
+        ws.append([
             loan.loan_number,
-            loan.customer.full_name,
+            loan.customer.full_name if loan.customer else 'N/A',
             loan.loan_purpose or 'N/A',
             loan.loan_type or 'N/A',
-            loan.loan_amount,
-            loan.interest_rate,
+            loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
+            float(loan.loan_amount) if loan.loan_amount else 0,
+            float(loan.interest_rate) if loan.interest_rate else 0,
             duration,
-            loan.outstanding_amount,
-            loan.status,
-            loan.created_at.strftime('%Y-%m-%d')
+            float(loan.outstanding_amount) if loan.outstanding_amount else 0,
+            loan.status or 'N/A',
+            referred_by_name,
+            loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
         ])
-    
+
+    # Auto-fit column widths
+    for col in ws.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
+
     response = make_response(output.getvalue())
-    response.headers['Content-Type'] = 'text/csv'
-    response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.csv'
-    
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
+
     return response
 
 @reports_bp.route('/customer/<int:customer_id>/kyc/<document_type>')

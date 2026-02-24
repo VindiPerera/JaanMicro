@@ -4,9 +4,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Loan Report</h4>
     <div>
-        <button onclick="exportToExcel()" class="btn btn-success">
+        <a href="{{ url_for('reports.export_loans') }}" class="btn btn-success">
             <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
-        </button>
+        </a>
         <button onclick="window.print()" class="btn btn-secondary">
             <i class="bi bi-printer me-2"></i>Print
         </button>
@@ -125,6 +125,7 @@
                         <th>Interest Collected</th>
                         <th>Expected Interest</th>
                         <th>Total Collected</th>
+                        <th>Referred By</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -164,6 +165,7 @@
                             {% endif %}
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(total_paid) }}</td>
+                        <td>{{ loan.referrer.full_name if loan.referrer else 'N/A' }}</td>
                         <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
                     </tr>
                     {% else %}
@@ -181,6 +183,7 @@
                         <td>-</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_collected|float) if summary.total_collected else '0.00' }}</td>
                         <td>-</td>
+                        <td>-</td>
                     </tr>
                 </tfoot>
             </table>
@@ -189,14 +192,7 @@
 </div>
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-function exportToExcel() {
-    var table = document.getElementById('loan-report-table');
-    var wb = XLSX.utils.table_to_book(table, {sheet: "Loan Report"});
-    XLSX.writeFile(wb, 'loan_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
-}
-
 // Print styles
 var style = document.createElement('style');
 style.innerHTML = '@media print { .btn, .card-header, .top-navbar, .sidebar { display: none !important; } }';
