@@ -671,6 +671,7 @@ def arrears_report():
         
         loans = loan_query.all()
         
+        overdue_loans = []
         for loan in loans:
             if loan.maturity_date and loan.maturity_date < today:
                 overdue_loans.append(loan)
