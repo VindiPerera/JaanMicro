@@ -46,6 +46,43 @@
                     </div>
                 </div>
                 
+                {% if advance_balance > 0 %}
+                <div class="alert alert-success">
+                    <h6 class="mb-1"><i class="bi bi-wallet2 me-2"></i>Advance Balance (Overpayment Credit)</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Available Credit:</strong> <span class="fs-5 fw-bold text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(advance_balance|float) }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">This amount has been auto-deducted from the installment below. You can edit the amount.</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if arrears_details and arrears_details.total_overdue_amount|float > 0 %}
+                <div class="alert alert-danger">
+                    <h6 class="mb-1"><i class="bi bi-exclamation-triangle me-2"></i>Arrears</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Total Overdue:</strong> <span class="fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears_details.total_overdue_amount|float) }}</span>
+                            {% if arrears_details.overdue_installments > 0 %}
+                            <br><small>{{ arrears_details.overdue_installments }} fully overdue installment(s)</small>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {% if arrears_details.partial_overdue_installments > 0 %}
+                            <strong>Partial Remaining:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears_details.partial_overdue_amount|float) }}
+                            <br><small>{{ arrears_details.partial_overdue_installments }} partially paid installment(s)</small>
+                            {% endif %}
+                            {% if arrears_details.days_overdue > 0 %}
+                            <br><strong>Days Overdue:</strong> {{ arrears_details.days_overdue }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
                 <form method="POST" action="">
                     {{ form.hidden_tag() }}
                     

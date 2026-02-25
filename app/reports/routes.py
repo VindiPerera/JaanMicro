@@ -639,7 +639,9 @@ def pawning_report():
 @login_required
 @permission_required('view_reports')
 def arrears_report():
-    """Arrears report - overdue amounts that customers need to pay"""
+    """Arrears report - overdue amounts that customers need to pay
+    Includes: loans past maturity AND loans with overdue/partial installments before maturity
+    """
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     status = request.args.get('status', 'active')  # Default to active
@@ -649,13 +651,13 @@ def arrears_report():
     current_branch_id = get_current_branch_id()
     
     from datetime import date
+    from decimal import Decimal, ROUND_HALF_UP
     today = date.today()
     
     arrears_data = []
     
-    # Loan arrears - only active loans past maturity date
+    # Loan arrears - active loans with ANY overdue/partial installments OR past maturity
     if product_type in ['', 'loan']:
-        # Temporarily show all active loans for debugging
         loan_query = Loan.query.filter_by(status='active')
         
         loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
@@ -669,75 +671,40 @@ def arrears_report():
         
         loans = loan_query.all()
         
-        # Filter loans that are actually overdue (past maturity date)
-        overdue_loans = []
         for loan in loans:
-            if loan.maturity_date and loan.maturity_date < today:
-                overdue_loans.append(loan)
-        
-        loans = overdue_loans
-        
-        for loan in loans:
-            from decimal import Decimal, ROUND_HALF_UP
+            # Use the improved get_arrears_details which includes partial payments
+            arrears_details = loan.get_arrears_details()
             
-            # Calculate what's left to pay
+            # Skip loans with no arrears at all
+            total_overdue_amount = arrears_details['total_overdue_amount']
+            if total_overdue_amount <= Decimal('0'):
+                continue
+            
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
             principal_paid = loan.get_total_paid_principal()
             outstanding_principal = disbursed - principal_paid
-            
-            # Calculate remaining interest based on loan type
             interest_paid = loan.get_total_paid_interest()
             
-            # Handle special loan types that use flat interest calculations
+            # Calculate remaining interest
             if loan.loan_type in ['type1_9weeks', '54_daily', 'type4_micro', 'type4_daily']:
-                # For these special types, calculate total expected interest based on the original calculation
-                from decimal import Decimal, ROUND_HALF_UP
-                
-                disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
                 interest_rate = Decimal(str(loan.interest_rate))
-                
-                if loan.loan_type == 'type1_9weeks':
-                    # Type 1: Interest = Interest rate * 2, Total Interest = (Interest * disbursed) / 100
+                if loan.loan_type in ['type1_9weeks', '54_daily']:
                     total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
-                elif loan.loan_type == '54_daily':
-                    # 54 Daily: Same as Type 1
-                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
-                elif loan.loan_type == 'type4_micro':
-                    # Type 4 Micro: Full Interest = Interest Rate * Months
-                    months = Decimal(str(loan.duration_months))
-                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
-                elif loan.loan_type == 'type4_daily':
-                    # Type 4 Daily: Same as Type 4 Micro
-                    months = Decimal(str(loan.duration_months))
-                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
                 else:
-                    # Fallback
-                    total_interest = loan.get_total_expected_interest()
-                
-                remaining_interest = total_interest - interest_paid
+                    months = Decimal(str(loan.duration_months or 0))
+                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
+                remaining_interest = max(Decimal('0'), total_interest - interest_paid)
             elif loan.interest_type == 'flat':
-                # Standard flat interest loans
                 total_expected_interest = loan.get_total_expected_interest()
-                remaining_interest = total_expected_interest - interest_paid
+                remaining_interest = max(Decimal('0'), total_expected_interest - interest_paid)
             else:
-                # For reducing balance loans
-                # The remaining interest is not fixed - it depends on remaining principal
-                # Show accrued interest + estimated future interest on remaining principal
                 accrued_interest = loan.calculate_accrued_interest()
-                
-                # Estimate remaining interest based on outstanding principal
-                # This is an approximation for arrears reporting
                 if loan.duration_months and outstanding_principal > 0:
-                    # Calculate remaining months (approximate)
                     total_paid = Decimal(str(loan.paid_amount or 0))
-                    installment = Decimal(str(loan.installment_amount))
+                    installment = Decimal(str(loan.installment_amount or 1))
                     if installment > 0:
                         paid_installments = (total_paid / installment).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
                         remaining_installments = max(Decimal('0'), Decimal(str(loan.duration_months)) - paid_installments)
-                        
-                        # Estimate average interest per remaining installment
-                        # This is a rough estimate: (Outstanding Principal * Rate * Remaining Time) / 2
-                        # Divided by 2 because principal reduces over time
                         annual_rate = Decimal(str(loan.interest_rate)) / Decimal('100')
                         remaining_time = remaining_installments / Decimal('12')
                         estimated_future_interest = (outstanding_principal * annual_rate * remaining_time) / Decimal('2')
@@ -747,21 +714,20 @@ def arrears_report():
                 else:
                     remaining_interest = accrued_interest
             
-            # Total arrears
             penalty = Decimal(str(loan.penalty_amount or 0))
-            total_arrears = outstanding_principal + remaining_interest + penalty
+            advance_balance = Decimal(str(loan.advance_balance or 0))
             
-            # Calculate overdue status (all arrears are overdue by definition)
-            from datetime import date
-            overdue_days = 0
-            is_overdue = True  # All arrears are overdue
-            if loan.maturity_date:
-                days_diff = (date.today() - loan.maturity_date).days
-                overdue_days = max(0, days_diff)  # Ensure non-negative
+            # Determine arrears type: past maturity vs installment overdue
+            is_past_maturity = loan.maturity_date and loan.maturity_date < today
+            overdue_days = arrears_details['days_overdue']
+            
+            # The overdue amount from schedule (includes partial remainders)
+            installment_overdue_amount = float(total_overdue_amount)
             
             arrears_data.append({
                 'product_type': 'Loan',
                 'reference_number': loan.loan_number,
+                'loan_id': loan.id,
                 'customer_name': loan.customer.full_name,
                 'customer_id': loan.customer.customer_id,
                 'customer_phone': loan.customer.phone_primary,
@@ -773,8 +739,14 @@ def arrears_report():
                 'principal_outstanding': float(outstanding_principal),
                 'interest_outstanding': float(remaining_interest),
                 'penalty': float(penalty),
-                'total_arrears': float(total_arrears),
-                'is_overdue': is_overdue,
+                'installment_overdue': installment_overdue_amount,
+                'overdue_installments': arrears_details['overdue_installments'],
+                'partial_overdue_amount': float(arrears_details['partial_overdue_amount']),
+                'partial_overdue_installments': arrears_details['partial_overdue_installments'],
+                'advance_balance': float(advance_balance),
+                'total_arrears': installment_overdue_amount,
+                'is_overdue': True,
+                'is_past_maturity': is_past_maturity,
                 'overdue_days': overdue_days,
                 'loan_type': loan.loan_type,
                 'interest_type': loan.interest_type
@@ -782,7 +754,6 @@ def arrears_report():
     
     # Pawning arrears - only active pawnings past maturity date
     if product_type in ['', 'pawning']:
-        # Temporarily show all active pawnings for debugging
         pawning_query = Pawning.query.filter_by(status='active')
         
         pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
@@ -806,31 +777,23 @@ def arrears_report():
         pawnings = overdue_pawnings
         
         for pawning in pawnings:
-            from decimal import Decimal
-            
-            # Calculate what's left to pay
             loan_amount = Decimal(str(pawning.loan_amount))
             principal_paid = Decimal(str(pawning.principal_paid or 0))
             outstanding_principal = loan_amount - principal_paid
-            
-            # Calculate interest due
             interest_due = Decimal(str(pawning.interest_due or 0))
             penalty = Decimal(str(pawning.total_penalty or 0))
-            
             total_arrears = outstanding_principal + interest_due + penalty
             
-            # Calculate overdue status (all arrears are overdue by definition)
-            from datetime import date
             overdue_days = 0
-            is_overdue = True  # All arrears are overdue
             maturity_date = pawning.extended_date or pawning.maturity_date
             if maturity_date:
-                days_diff = (date.today() - maturity_date).days
-                overdue_days = max(0, days_diff)  # Ensure non-negative
+                days_diff = (today - maturity_date).days
+                overdue_days = max(0, days_diff)
             
             arrears_data.append({
                 'product_type': 'Pawning',
                 'reference_number': pawning.pawning_number,
+                'loan_id': None,
                 'customer_name': pawning.customer.full_name,
                 'customer_id': pawning.customer.customer_id,
                 'customer_phone': pawning.customer.phone_primary,
@@ -842,8 +805,14 @@ def arrears_report():
                 'principal_outstanding': float(outstanding_principal),
                 'interest_outstanding': float(interest_due),
                 'penalty': float(penalty),
+                'installment_overdue': float(total_arrears),
+                'overdue_installments': 0,
+                'partial_overdue_amount': 0,
+                'partial_overdue_installments': 0,
+                'advance_balance': 0,
                 'total_arrears': float(total_arrears),
-                'is_overdue': is_overdue,
+                'is_overdue': True,
+                'is_past_maturity': True,
                 'overdue_days': overdue_days,
                 'loan_type': pawning.item_type,
                 'interest_type': 'monthly'
@@ -853,14 +822,15 @@ def arrears_report():
     arrears_data.sort(key=lambda x: x['total_arrears'], reverse=True)
     
     # Calculate summary statistics
-    from decimal import Decimal
     total_arrears = sum(Decimal(str(item['total_arrears'])) for item in arrears_data)
     total_principal = sum(Decimal(str(item['principal_outstanding'])) for item in arrears_data)
     total_interest = sum(Decimal(str(item['interest_outstanding'])) for item in arrears_data)
     total_penalty = sum(Decimal(str(item['penalty'])) for item in arrears_data)
+    total_installment_overdue = sum(Decimal(str(item['installment_overdue'])) for item in arrears_data)
+    total_partial = sum(Decimal(str(item['partial_overdue_amount'])) for item in arrears_data)
     
-    overdue_items = [item for item in arrears_data if item['is_overdue']]
-    overdue_amount = sum(Decimal(str(item['total_arrears'])) for item in overdue_items)
+    past_maturity_items = [item for item in arrears_data if item.get('is_past_maturity')]
+    installment_only_items = [item for item in arrears_data if not item.get('is_past_maturity')]
     
     summary = {
         'total_accounts': len(arrears_data),
@@ -868,8 +838,12 @@ def arrears_report():
         'total_principal': float(total_principal),
         'total_interest': float(total_interest),
         'total_penalty': float(total_penalty),
-        'overdue_accounts': len(overdue_items),
-        'overdue_amount': float(overdue_amount)
+        'total_installment_overdue': float(total_installment_overdue),
+        'total_partial_overdue': float(total_partial),
+        'overdue_accounts': len(arrears_data),
+        'overdue_amount': float(total_arrears),
+        'past_maturity_accounts': len(past_maturity_items),
+        'installment_overdue_accounts': len(installment_only_items)
     }
     
     # Breakdown by product type
@@ -947,6 +921,134 @@ def export_loans():
     response = make_response(output.getvalue())
     response.headers['Content-Type'] = 'text/csv'
     response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.csv'
+    
+    return response
+
+@reports_bp.route('/export/arrears')
+@login_required
+@permission_required('view_reports')
+def export_arrears():
+    """Export arrears report to CSV with full detail"""
+    from datetime import date
+    from decimal import Decimal, ROUND_HALF_UP
+    today = date.today()
+    
+    product_type = request.args.get('product_type', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    
+    arrears_data = []
+    
+    # Loan arrears
+    if product_type in ['', 'loan']:
+        loan_query = Loan.query.filter_by(status='active')
+        loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+        if loan_branch_filter is not None:
+            loan_query = loan_query.filter(loan_branch_filter)
+        if start_date:
+            loan_query = loan_query.filter(Loan.disbursement_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            loan_query = loan_query.filter(Loan.disbursement_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+        
+        for loan in loan_query.all():
+            details = loan.get_arrears_details()
+            total_overdue = details['total_overdue_amount']
+            if total_overdue <= Decimal('0'):
+                continue
+            
+            disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
+            is_past_maturity = loan.maturity_date and loan.maturity_date < today
+            
+            arrears_data.append({
+                'type': 'Loan',
+                'reference': loan.loan_number,
+                'customer': loan.customer.full_name,
+                'customer_id': loan.customer.customer_id,
+                'phone': loan.customer.phone_primary,
+                'nic': loan.customer.nic_number,
+                'address': f"{loan.customer.address_line1}, {loan.customer.city}, {loan.customer.district}",
+                'loan_type': loan.loan_type,
+                'disbursement_date': loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
+                'maturity_date': loan.maturity_date.strftime('%Y-%m-%d') if loan.maturity_date else 'N/A',
+                'original_amount': float(disbursed),
+                'outstanding': float(loan.outstanding_amount or 0),
+                'overdue_installments': details['overdue_installments'],
+                'partial_installments': details['partial_overdue_installments'],
+                'overdue_amount': float(total_overdue),
+                'partial_overdue': float(details['partial_overdue_amount']),
+                'advance_balance': float(loan.advance_balance or 0),
+                'days_overdue': details['days_overdue'],
+                'status': 'Past Maturity' if is_past_maturity else 'Installment Overdue',
+            })
+    
+    # Pawning arrears
+    if product_type in ['', 'pawning']:
+        pawning_query = Pawning.query.filter_by(status='active')
+        pawning_branch_filter = get_branch_filter_for_query(Pawning.branch_id)
+        if pawning_branch_filter is not None:
+            pawning_query = pawning_query.filter(pawning_branch_filter)
+        
+        for pawning in pawning_query.all():
+            maturity_date = pawning.extended_date or pawning.maturity_date
+            if not (maturity_date and maturity_date < today):
+                continue
+            
+            loan_amount = Decimal(str(pawning.loan_amount))
+            principal_paid = Decimal(str(pawning.principal_paid or 0))
+            outstanding_principal = loan_amount - principal_paid
+            interest_due = Decimal(str(pawning.interest_due or 0))
+            penalty = Decimal(str(pawning.total_penalty or 0))
+            total_arrears = outstanding_principal + interest_due + penalty
+            overdue_days = max(0, (today - maturity_date).days) if maturity_date else 0
+            
+            arrears_data.append({
+                'type': 'Pawning',
+                'reference': pawning.pawning_number,
+                'customer': pawning.customer.full_name,
+                'customer_id': pawning.customer.customer_id,
+                'phone': pawning.customer.phone_primary,
+                'nic': pawning.customer.nic_number,
+                'address': f"{pawning.customer.address_line1}, {pawning.customer.city}, {pawning.customer.district}",
+                'loan_type': pawning.item_type,
+                'disbursement_date': pawning.pawning_date.strftime('%Y-%m-%d') if pawning.pawning_date else 'N/A',
+                'maturity_date': maturity_date.strftime('%Y-%m-%d') if maturity_date else 'N/A',
+                'original_amount': float(loan_amount),
+                'outstanding': float(outstanding_principal + interest_due),
+                'overdue_installments': 0,
+                'partial_installments': 0,
+                'overdue_amount': float(total_arrears),
+                'partial_overdue': 0,
+                'advance_balance': 0,
+                'days_overdue': overdue_days,
+                'status': 'Past Maturity',
+            })
+    
+    arrears_data.sort(key=lambda x: x['overdue_amount'], reverse=True)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    writer.writerow([
+        'Type', 'Reference #', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address',
+        'Loan Type', 'Disbursement Date', 'Maturity Date', 'Original Amount',
+        'Outstanding', 'Overdue Installments', 'Partial Installments',
+        'Overdue Amount', 'Partial Overdue', 'Advance Balance', 'Days Overdue', 'Status'
+    ])
+    
+    for item in arrears_data:
+        writer.writerow([
+            item['type'], item['reference'], item['customer'], item['customer_id'],
+            item['phone'], item['nic'], item['address'], item['loan_type'],
+            item['disbursement_date'], item['maturity_date'], item['original_amount'],
+            item['outstanding'], item['overdue_installments'], item['partial_installments'],
+            item['overdue_amount'], item['partial_overdue'], item['advance_balance'],
+            item['days_overdue'], item['status']
+        ])
+    
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'text/csv'
+    response.headers['Content-Disposition'] = f'attachment; filename=arrears_report_{datetime.now().strftime("%Y%m%d")}.csv'
     
     return response
 

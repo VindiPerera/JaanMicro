@@ -99,10 +99,16 @@
                 </div>
                 <div class="mb-3">
                     <strong>Arrears Status:</strong><br>
-                    {% if arrears_details.overdue_installments > 0 %}
+                    {% if arrears_details.overdue_installments > 0 or arrears_details.partial_overdue_installments > 0 %}
                     <span class="text-danger">
-                        {{ arrears_details.overdue_installments }} overdue installment{{ 's' if arrears_details.overdue_installments > 1 else '' }}<br>
-                        {{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears_details.total_overdue_amount|float) }} overdue amount<br>
+                        {% if arrears_details.overdue_installments > 0 %}
+                        {{ arrears_details.overdue_installments }} fully overdue installment{{ 's' if arrears_details.overdue_installments > 1 else '' }}<br>
+                        {% endif %}
+                        {% if arrears_details.partial_overdue_installments > 0 %}
+                        {{ arrears_details.partial_overdue_installments }} partially paid overdue installment{{ 's' if arrears_details.partial_overdue_installments > 1 else '' }}
+                        <br><small class="text-warning">Partial remaining: {{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears_details.partial_overdue_amount|float) }}</small><br>
+                        {% endif %}
+                        {{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears_details.total_overdue_amount|float) }} total overdue<br>
                         {% if arrears_details.days_overdue > 0 %}
                         {{ arrears_details.days_overdue }} days overdue
                         {% endif %}
@@ -113,6 +119,13 @@
                     </span>
                     {% endif %}
                 </div>
+                {% if advance_balance > 0 %}
+                <div class="mb-3">
+                    <strong>Advance Balance (Credit):</strong><br>
+                    <span class="fs-5 text-info"><i class="bi bi-wallet2 me-1"></i>{{ system_settings.currency_symbol }} {{ "%.2f"|format(advance_balance|float) }}</span>
+                    <br><small class="text-muted">Overpayment credit - will be auto-deducted from next installment</small>
+                </div>
+                {% endif %}
             </div>
         </div>
         

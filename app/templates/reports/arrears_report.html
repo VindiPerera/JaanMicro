@@ -4,8 +4,11 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Arrears Report</h4>
     <div>
-        <button onclick="exportToExcel()" class="btn btn-success">
-            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        <a href="{{ url_for('reports.export_arrears', start_date=start_date, end_date=end_date, product_type=product_type) }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export CSV
+        </a>
+        <button onclick="exportToExcel()" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Export Excel
         </button>
         <button onclick="window.print()" class="btn btn-secondary">
             <i class="bi bi-printer me-2"></i>Print
@@ -65,35 +68,36 @@
         </div>
     </div>
     <div class="col-md-2">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="stats-label">Principal Outstanding</div>
-                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="stats-label">Interest Outstanding</div>
-                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="stats-label">Penalties</div>
-                <div class="stats-value text-warning">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-2">
         <div class="card stats-card border-warning">
             <div class="card-body">
-                <div class="stats-label"><i class="bi bi-clock-history me-1"></i>Overdue</div>
-                <div class="stats-value text-warning">{{ summary.overdue_accounts }}</div>
-                <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.overdue_amount|float) if summary.overdue_amount else '0.00' }}</small>
+                <div class="stats-label"><i class="bi bi-clock-history me-1"></i>Past Maturity</div>
+                <div class="stats-value text-warning">{{ summary.past_maturity_accounts }}</div>
+                <small class="text-muted">accounts</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-info">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-exclamation-circle me-1"></i>Installment Overdue</div>
+                <div class="stats-value text-info">{{ summary.installment_overdue_accounts }}</div>
+                <small class="text-muted">accounts</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label"><i class="bi bi-pie-chart me-1"></i>Partial Overdue</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_partial_overdue|float) if summary.total_partial_overdue else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Outstanding</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
             </div>
         </div>
     </div>
@@ -140,16 +144,11 @@
                 <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>About Arrears</h5>
             </div>
             <div class="card-body">
-                <p class="mb-2"><strong>Arrears:</strong> The total amount that remains to be paid by customers.</p>
-                <p class="mb-2"><strong>Principal Outstanding:</strong> Original loan/pawning amount not yet repaid.</p>
-                <p class="mb-2"><strong>Interest Outstanding:</strong> 
-                    <ul class="mb-0 mt-1">
-                        <li><small>Flat rate loans (Type 1, Type 4 Micro, 54 Daily): Total fixed interest minus interest paid</small></li>
-                        <li><small>Reducing balance loans: Accrued interest plus estimated future interest on remaining principal</small></li>
-                    </ul>
-                </p>
-                <p class="mb-2"><strong>Penalties:</strong> Additional charges for late payments.</p>
-                <p class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-1"></i><strong>Overdue:</strong> Accounts past their maturity date.</p>
+                <p class="mb-2"><strong>Past Maturity:</strong> Loans/pawnings that have passed their maturity date with outstanding balance.</p>
+                <p class="mb-2"><strong>Installment Overdue:</strong> Active loans (before maturity) that have overdue installments — fully unpaid or partially paid.</p>
+                <p class="mb-2"><strong>Partial Overdue:</strong> Installments that were partially paid, with remaining balance counted as overdue.</p>
+                <p class="mb-2"><strong>Advance Balance:</strong> Overpayment credit — excess amount from previous payments auto-deducted in next payment.</p>
+                <p class="mb-0 text-info"><i class="bi bi-info-circle me-1"></i>This report includes <strong>both</strong> past maturity accounts and active loans with overdue installments.</p>
             </div>
         </div>
     </div>
@@ -172,67 +171,109 @@
                         <th>NIC</th>
                         <th>Address</th>
                         <th>Member ID</th>
+                        <th>Loan Type</th>
                         <th>Disbursement</th>
                         <th>Maturity</th>
                         <th>Original Amount</th>
-                        <th>Principal Outstanding</th>
-                        <th>Interest Outstanding</th>
-                        <th>Penalty</th>
-                        <th>Total Arrears</th>
+                        <th>Outstanding</th>
+                        <th>Overdue Inst.</th>
+                        <th>Partial Inst.</th>
+                        <th>Overdue Amount</th>
+                        <th>Partial Overdue</th>
+                        <th>Advance Balance</th>
+                        <th>Days Overdue</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in arrears_data %}
-                    <tr class="{% if item.is_overdue %}table-warning{% endif %}">
+                    <tr class="{% if item.is_past_maturity %}table-warning{% elif item.installment_overdue %}table-info{% endif %}">
                         <td>
                             <span class="badge bg-{% if item.product_type == 'Loan' %}primary{% else %}danger{% endif %}">
                                 {{ item.product_type }}
                             </span>
                         </td>
-                        <td>{{ item.reference_number }}</td>
+                        <td>
+                            {% if item.product_type == 'Loan' %}
+                                <a href="{{ url_for('loans.view_loan', id=item.loan_id) }}">{{ item.reference_number }}</a>
+                            {% else %}
+                                {{ item.reference_number }}
+                            {% endif %}
+                        </td>
                         <td>{{ item.customer_name }}</td>
                         <td>{{ item.customer_phone or 'N/A' }}</td>
                         <td>{{ item.customer_nic or 'N/A' }}</td>
                         <td>{{ item.customer_address or 'N/A' }}</td>
                         <td>{{ item.customer_id }}</td>
+                        <td><small>{{ item.loan_type|replace('_', ' ')|title if item.loan_type else 'N/A' }}</small></td>
                         <td>{{ item.disbursement_date.strftime('%Y-%m-%d') if item.disbursement_date else 'N/A' }}</td>
                         <td>
                             {{ item.maturity_date.strftime('%Y-%m-%d') if item.maturity_date else 'N/A' }}
-                            {% if item.is_overdue %}
-                                <br><small class="text-danger"><i class="bi bi-exclamation-circle"></i> {{ item.overdue_days }} days overdue</small>
-                            {% endif %}
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.original_amount|float) }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.principal_outstanding|float) }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.interest_outstanding|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.outstanding|float) }}</td>
                         <td>
-                            {% if item.penalty > 0 %}
-                                <span class="text-warning">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.penalty|float) }}</span>
+                            {% if item.overdue_installments > 0 %}
+                                <span class="badge bg-danger">{{ item.overdue_installments }}</span>
                             {% else %}
-                                {{ system_settings.currency_symbol }} 0.00
+                                <span class="text-muted">-</span>
                             {% endif %}
                         </td>
-                        <td class="fw-bold text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.total_arrears|float) }}</td>
                         <td>
-                            {% if item.is_overdue %}
-                                <span class="badge bg-danger">Overdue</span>
+                            {% if item.partial_overdue_installments > 0 %}
+                                <span class="badge bg-info">{{ item.partial_overdue_installments }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.overdue_amount|float > 0 %}
+                                <span class="text-danger fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.overdue_amount|float) }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.partial_overdue_amount|float > 0 %}
+                                <span class="text-info fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.partial_overdue_amount|float) }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.advance_balance|float > 0 %}
+                                <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.advance_balance|float) }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.days_overdue > 0 %}
+                                <span class="text-danger">{{ item.days_overdue }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.is_past_maturity %}
+                                <span class="badge bg-danger">Past Maturity</span>
+                            {% elif item.installment_overdue %}
+                                <span class="badge bg-warning text-dark">Installment Overdue</span>
                             {% else %}
                                 <span class="badge bg-success">Current</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="15" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    <tr><td colspan="19" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr class="table-danger fw-bold">
-                        <td colspan="11">TOTAL</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_penalty|float) if summary.total_penalty else '0.00' }}</td>
+                        <td colspan="14">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
-                        <td>-</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_partial_overdue|float) if summary.total_partial_overdue else '0.00' }}</td>
+                        <td colspan="3">-</td>
                     </tr>
                 </tfoot>
             </table>

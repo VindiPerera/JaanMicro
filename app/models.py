@@ -341,6 +341,7 @@ class Loan(db.Model):
     paid_amount = db.Column(db.Numeric(15, 2), default=0)
     outstanding_amount = db.Column(db.Numeric(15, 2))
     penalty_amount = db.Column(db.Numeric(15, 2), default=0)
+    advance_balance = db.Column(db.Numeric(15, 2), default=0)  # Overpayment credit carried forward
     documentation_fee = db.Column(db.Numeric(15, 2), default=0)  # 1% documentation cost
     
     # Dates
@@ -676,7 +677,7 @@ class Loan(db.Model):
             frequency_delta = None  # Will use relativedelta for months
             frequency_name = 'Monthly'
         
-        # Get total paid amount
+        # Get total paid amount (including any advance balance already applied)
         total_paid = Decimal(str(self.paid_amount or 0))
         
         # Calculate total interest
@@ -829,16 +830,23 @@ class Loan(db.Model):
                 cumulative_principal_paid += principal
                 cumulative_interest_paid += interest
             
-            # Determine status based on payments
-            status = 'pending'
+            # Determine status based on payments - track partial amounts precisely
             installment_threshold = installment_amount * Decimal(str(installment_num))
+            previous_threshold = installment_amount * Decimal(str(installment_num - 1))
             
-            if total_paid >= installment_threshold:
+            # How much of this specific installment has been paid
+            paid_for_this = max(Decimal('0'), min(current_installment, total_paid - previous_threshold))
+            remaining_for_this = current_installment - paid_for_this
+            
+            if paid_for_this >= current_installment - Decimal('0.02'):
                 status = 'paid'
-            elif total_paid >= (installment_threshold - current_installment) and total_paid > 0:
+                remaining_for_this = Decimal('0')
+            elif paid_for_this > Decimal('0'):
                 status = 'partial'
             elif due_date < datetime.utcnow().date():
                 status = 'overdue'
+            else:
+                status = 'pending'
             
             schedule.append({
                 'installment_number': installment_num,
@@ -847,6 +855,8 @@ class Loan(db.Model):
                 'principal': float(principal.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'interest': float(interest.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'status': status,
+                'paid_amount': float(paid_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'remaining_amount': float(remaining_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'is_customized': installment_num in overrides,  # Flag for UI
                 'is_skipped': False,
                 'reschedule_date': None,
@@ -855,7 +865,7 @@ class Loan(db.Model):
         return schedule
     
     def get_arrears_details(self):
-        """Calculate arrears details for overdue payments"""
+        """Calculate arrears details for overdue payments including partial payment remainders"""
         from decimal import Decimal
         from datetime import date
         
@@ -863,32 +873,49 @@ class Loan(db.Model):
             return {
                 'total_overdue_amount': Decimal('0'),
                 'overdue_installments': 0,
+                'partial_overdue_amount': Decimal('0'),
+                'partial_overdue_installments': 0,
                 'days_overdue': 0,
-                'oldest_overdue_date': None
+                'oldest_overdue_date': None,
+                'advance_balance': Decimal(str(self.advance_balance or 0))
             }
         
         schedule = self.generate_payment_schedule()
         total_overdue = Decimal('0')
         overdue_count = 0
+        partial_overdue = Decimal('0')
+        partial_count = 0
         oldest_overdue_date = None
         today = date.today()
         
         for installment in schedule:
             if installment['status'] == 'overdue':
+                # Fully unpaid overdue installment
                 total_overdue += Decimal(str(installment['amount']))
                 overdue_count += 1
                 if oldest_overdue_date is None or installment['due_date'] < oldest_overdue_date:
                     oldest_overdue_date = installment['due_date']
+            elif installment['status'] == 'partial' and installment['due_date'] < today:
+                # Partially paid overdue installment - only the remaining amount is overdue
+                remaining = Decimal(str(installment['remaining_amount']))
+                if remaining > Decimal('0'):
+                    partial_overdue += remaining
+                    partial_count += 1
+                    if oldest_overdue_date is None or installment['due_date'] < oldest_overdue_date:
+                        oldest_overdue_date = installment['due_date']
         
         days_overdue = 0
         if oldest_overdue_date and oldest_overdue_date < today:
             days_overdue = (today - oldest_overdue_date).days
         
         return {
-            'total_overdue_amount': total_overdue,
+            'total_overdue_amount': total_overdue + partial_overdue,
             'overdue_installments': overdue_count,
+            'partial_overdue_amount': partial_overdue,
+            'partial_overdue_installments': partial_count,
             'days_overdue': days_overdue,
-            'oldest_overdue_date': oldest_overdue_date
+            'oldest_overdue_date': oldest_overdue_date,
+            'advance_balance': Decimal(str(self.advance_balance or 0))
         }
     
     def __repr__(self):

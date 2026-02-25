@@ -395,6 +395,9 @@ def view_loan(id):
     # Get arrears details
     arrears_details = loan.get_arrears_details()
     
+    # Get advance balance
+    advance_balance = float(loan.advance_balance or 0)
+    
     # Get payment history for this loan
     payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
     
@@ -405,6 +408,7 @@ def view_loan(id):
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
                          arrears_details=arrears_details,
+                         advance_balance=advance_balance,
                          payments=payments)
 
 @loans_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -1114,6 +1118,21 @@ def add_payment(id):
         loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + payment_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         loan.update_outstanding_amount()  # Use our new method to calculate current outstanding
         
+        # Calculate advance balance (overpayment credit)
+        # Check if total paid exceeds what's due up to the current point in time
+        schedule = loan.generate_payment_schedule()
+        today = form.payment_date.data or datetime.now().date()
+        total_due_so_far = Decimal('0')
+        for inst in schedule:
+            if inst['due_date'] <= today and not inst.get('is_skipped', False):
+                total_due_so_far += Decimal(str(inst['amount']))
+        
+        new_total_paid = Decimal(str(loan.paid_amount or 0))
+        if new_total_paid > total_due_so_far:
+            loan.advance_balance = (new_total_paid - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            loan.advance_balance = Decimal('0')
+        
         # Set balance_after for the payment record
         payment.balance_after = float(loan.outstanding_amount or 0)
         
@@ -1121,6 +1140,7 @@ def add_payment(id):
         if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences
             loan.status = 'completed'
             loan.outstanding_amount = Decimal('0')
+            loan.advance_balance = Decimal('0')
             loan.closing_date = form.payment_date.data  # Set closing date to payment date
             
         # Log activity
@@ -1141,12 +1161,23 @@ def add_payment(id):
     
     # Set default values only for GET requests and calculate current amounts
     if request.method == 'GET':
-        form.payment_amount.data = loan.installment_amount
+        # Auto-deduct advance balance from installment amount
+        from decimal import Decimal
+        installment = Decimal(str(loan.installment_amount or 0))
+        advance = Decimal(str(loan.advance_balance or 0))
+        if advance > Decimal('0') and installment > advance:
+            form.payment_amount.data = float((installment - advance).quantize(Decimal('0.01')))
+        else:
+            form.payment_amount.data = loan.installment_amount
         form.payment_date.data = datetime.now().date()
     
     # Get current outstanding amount with accrued interest for display
     current_outstanding = loan.calculate_current_outstanding()
     accrued_interest = loan.calculate_accrued_interest()
+    
+    # Get arrears details for display
+    arrears_details = loan.get_arrears_details()
+    advance_balance = float(loan.advance_balance or 0)
     
     # Update stored outstanding amount to match current calculation
     loan.update_outstanding_amount()
@@ -1157,7 +1188,9 @@ def add_payment(id):
                          form=form,
                          loan=loan,
                          current_outstanding=current_outstanding,
-                         accrued_interest=accrued_interest)
+                         accrued_interest=accrued_interest,
+                         arrears_details=arrears_details,
+                         advance_balance=advance_balance)
 
 @loans_bp.route('/search')
 @login_required

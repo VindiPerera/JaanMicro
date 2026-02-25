@@ -106,6 +106,8 @@
                                 <th>Customer</th>
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
+                                <th>Overdue</th>
+                                <th>Advance</th>
                                 <th>Next Payment</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
@@ -113,7 +115,8 @@
                         </thead>
                         <tbody>
                             {% for item in weekly_payments %}
-                            <tr>
+                            {% set arrears = item.loan.get_arrears_details() %}
+                            <tr class="{% if arrears.total_overdue_amount|float > 0 %}table-warning{% endif %}">
                                 <td>
                                     <strong>{{ item.loan.loan_number }}</strong>
                                     <br>
@@ -127,6 +130,21 @@
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.loan_amount|float) }}</td>
                                 <td>
                                     <span class="badge bg-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.outstanding_amount|float) }}</span>
+                                </td>
+                                <td>
+                                    {% if arrears.total_overdue_amount|float > 0 %}
+                                        <span class="text-danger fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears.total_overdue_amount|float) }}</span>
+                                        <br><small class="text-muted">{{ arrears.overdue_installments + arrears.partial_overdue_installments }} inst.</small>
+                                    {% else %}
+                                        <span class="text-success">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                        <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if item.loan.next_payment_date %}
@@ -192,6 +210,8 @@
                                 <th>Customer</th>
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
+                                <th>Overdue</th>
+                                <th>Advance</th>
                                 <th>Next Payment</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
@@ -199,7 +219,8 @@
                         </thead>
                         <tbody>
                             {% for item in daily_payments %}
-                            <tr>
+                            {% set arrears = item.loan.get_arrears_details() %}
+                            <tr class="{% if arrears.total_overdue_amount|float > 0 %}table-warning{% endif %}">
                                 <td>
                                     <strong>{{ item.loan.loan_number }}</strong>
                                     <br>
@@ -213,6 +234,21 @@
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.loan_amount|float) }}</td>
                                 <td>
                                     <span class="badge bg-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.outstanding_amount|float) }}</span>
+                                </td>
+                                <td>
+                                    {% if arrears.total_overdue_amount|float > 0 %}
+                                        <span class="text-danger fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears.total_overdue_amount|float) }}</span>
+                                        <br><small class="text-muted">{{ arrears.overdue_installments + arrears.partial_overdue_installments }} inst.</small>
+                                    {% else %}
+                                        <span class="text-success">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                        <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if item.loan.next_payment_date %}
@@ -278,6 +314,8 @@
                                 <th>Customer</th>
                                 <th>Loan Amount</th>
                                 <th>Outstanding</th>
+                                <th>Overdue</th>
+                                <th>Advance</th>
                                 <th>Next Payment</th>
                                 <th>Recent Payments</th>
                                 <th>Actions</th>
@@ -285,7 +323,8 @@
                         </thead>
                         <tbody>
                             {% for item in monthly_payments %}
-                            <tr>
+                            {% set arrears = item.loan.get_arrears_details() %}
+                            <tr class="{% if arrears.total_overdue_amount|float > 0 %}table-warning{% endif %}">
                                 <td>
                                     <strong>{{ item.loan.loan_number }}</strong>
                                     <br>
@@ -299,6 +338,21 @@
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.loan_amount|float) }}</td>
                                 <td>
                                     <span class="badge bg-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.outstanding_amount|float) }}</span>
+                                </td>
+                                <td>
+                                    {% if arrears.total_overdue_amount|float > 0 %}
+                                        <span class="text-danger fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears.total_overdue_amount|float) }}</span>
+                                        <br><small class="text-muted">{{ arrears.overdue_installments + arrears.partial_overdue_installments }} inst.</small>
+                                    {% else %}
+                                        <span class="text-success">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                        <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if item.loan.next_payment_date %}
@@ -414,82 +468,37 @@
             <div class="card-body">
                 {% if weekly_payments or daily_payments or monthly_payments %}
                 <div class="accordion" id="scheduleAccordion">
-                    {% for item in weekly_payments %}
+                    {% set all_schedule_items = [] %}
+                    {% for item in weekly_payments %}{% if all_schedule_items.append({'item': item, 'type': 'Weekly'}) %}{% endif %}{% endfor %}
+                    {% for item in daily_payments %}{% if all_schedule_items.append({'item': item, 'type': 'Daily'}) %}{% endif %}{% endfor %}
+                    {% for item in monthly_payments %}{% if all_schedule_items.append({'item': item, 'type': 'Monthly'}) %}{% endif %}{% endfor %}
+                    
+                    {% for entry in all_schedule_items %}
+                    {% set item = entry.item %}
                     <div class="accordion-item">
                         <h2 class="accordion-header" id="heading{{ item.loan.id }}">
-                            <button class="accordion-button {% if loop.first %} {% else %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ item.loan.id }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ item.loan.id }}">
-                                <strong>{{ item.loan.loan_number }}</strong> - {{ item.loan.customer.full_name }} (Weekly)
+                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ item.loan.id }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapse{{ item.loan.id }}">
+                                <strong>{{ item.loan.loan_number }}</strong> - {{ item.loan.customer.full_name }} ({{ entry.type }})
+                                {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                    <span class="badge bg-success ms-2">Credit: {{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                {% endif %}
                             </button>
                         </h2>
                         <div id="collapse{{ item.loan.id }}" class="accordion-collapse {% if loop.first %}show{% else %}collapse{% endif %}" aria-labelledby="heading{{ item.loan.id }}" data-bs-parent="#scheduleAccordion">
                             <div class="accordion-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Due Date</th>
-                                                <th>Installment</th>
-                                                <th>Principal</th>
-                                                <th>Interest</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% set schedule = item.loan.generate_payment_schedule() %}
-                                            {% if schedule %}
-                                                {% for installment in schedule %}
-                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
-                                                    <td>
-                                                        {% if installment.is_skipped and installment.reschedule_date %}
-                                                            {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
-                                                            <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
-                                                            <br><small class="text-muted"><s>{{ installment.due_date.strftime('%Y-%m-%d') }}</s></small>
-                                                        {% elif installment.is_skipped %}
-                                                            <s>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</s>
-                                                        {% else %}
-                                                            {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                                    <td>
-                                                        {% if installment.is_skipped and installment.reschedule_date %}
-                                                            <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
-                                                        {% elif installment.is_skipped %}
-                                                            <span class="badge bg-secondary">Skipped</span>
-                                                        {% else %}
-                                                            <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endfor %}
-                                            {% else %}
-                                                <tr><td colspan="5" class="text-center text-muted">No payment schedule available</td></tr>
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
+                                {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                <div class="alert alert-success py-1 mb-2">
+                                    <small><i class="bi bi-wallet2 me-1"></i>Advance Balance: <strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.loan.advance_balance|float) }}</strong> — will be auto-deducted from next payment</small>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    
-                    {% for item in daily_payments %}
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading{{ item.loan.id }}">
-                            <button class="accordion-button {% if loop.first and not weekly_payments %} {% else %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ item.loan.id }}" aria-expanded="{% if loop.first and not weekly_payments %}true{% else %}false{% endif %}" aria-controls="collapse{{ item.loan.id }}">
-                                <strong>{{ item.loan.loan_number }}</strong> - {{ item.loan.customer.full_name }} (Daily)
-                            </button>
-                        </h2>
-                        <div id="collapse{{ item.loan.id }}" class="accordion-collapse {% if loop.first and not weekly_payments %}show{% else %}collapse{% endif %}" aria-labelledby="heading{{ item.loan.id }}" data-bs-parent="#scheduleAccordion">
-                            <div class="accordion-body">
+                                {% endif %}
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <thead>
                                             <tr>
                                                 <th>Due Date</th>
                                                 <th>Installment</th>
+                                                <th>Paid</th>
+                                                <th>Remaining</th>
                                                 <th>Principal</th>
                                                 <th>Interest</th>
                                                 <th>Status</th>
@@ -499,7 +508,7 @@
                                             {% set schedule = item.loan.generate_payment_schedule() %}
                                             {% if schedule %}
                                                 {% for installment in schedule %}
-                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
+                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% elif installment.status == 'partial' %}table-info{% elif installment.status == 'overdue' %}table-danger{% endif %}">
                                                     <td>
                                                         {% if installment.is_skipped and installment.reschedule_date %}
                                                             {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
@@ -512,6 +521,20 @@
                                                         {% endif %}
                                                     </td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
+                                                    <td>
+                                                        {% if installment.paid_amount|float > 0 %}
+                                                            <span class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.paid_amount|float) }}</span>
+                                                        {% else %}
+                                                            <span class="text-muted">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if installment.remaining_amount|float > 0 %}
+                                                            <span class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.remaining_amount|float) }}</span>
+                                                        {% else %}
+                                                            <span class="text-muted">-</span>
+                                                        {% endif %}
+                                                    </td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
                                                     <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
                                                     <td>
@@ -519,6 +542,10 @@
                                                             <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
                                                         {% elif installment.is_skipped %}
                                                             <span class="badge bg-secondary">Skipped</span>
+                                                        {% elif installment.status == 'partial' %}
+                                                            <span class="badge bg-info">Partial</span>
+                                                        {% elif installment.status == 'overdue' %}
+                                                            <span class="badge bg-danger">Overdue</span>
                                                         {% else %}
                                                             <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
                                                         {% endif %}
@@ -526,68 +553,7 @@
                                                 </tr>
                                                 {% endfor %}
                                             {% else %}
-                                                <tr><td colspan="5" class="text-center text-muted">No payment schedule available</td></tr>
-                                            {% endif %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                    
-                    {% for item in monthly_payments %}
-                    <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading{{ item.loan.id }}">
-                            <button class="accordion-button {% if loop.first and not weekly_payments and not daily_payments %} {% else %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ item.loan.id }}" aria-expanded="{% if loop.first and not weekly_payments and not daily_payments %}true{% else %}false{% endif %}" aria-controls="collapse{{ item.loan.id }}">
-                                <strong>{{ item.loan.loan_number }}</strong> - {{ item.loan.customer.full_name }} (Monthly)
-                            </button>
-                        </h2>
-                        <div id="collapse{{ item.loan.id }}" class="accordion-collapse {% if loop.first and not weekly_payments and not daily_payments %}show{% else %}collapse{% endif %}" aria-labelledby="heading{{ item.loan.id }}" data-bs-parent="#scheduleAccordion">
-                            <div class="accordion-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Due Date</th>
-                                                <th>Installment</th>
-                                                <th>Principal</th>
-                                                <th>Interest</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% set schedule = item.loan.generate_payment_schedule() %}
-                                            {% if schedule %}
-                                                {% for installment in schedule %}
-                                                <tr class="{% if installment.is_skipped and installment.reschedule_date %}table-warning{% elif installment.is_skipped %}table-secondary{% endif %}">
-                                                    <td>
-                                                        {% if installment.is_skipped and installment.reschedule_date %}
-                                                            {{ installment.reschedule_date.strftime('%Y-%m-%d') }}
-                                                            <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
-                                                            <br><small class="text-muted"><s>{{ installment.due_date.strftime('%Y-%m-%d') }}</s></small>
-                                                        {% elif installment.is_skipped %}
-                                                            <s>{{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}</s>
-                                                        {% else %}
-                                                            {{ installment.due_date.strftime('%Y-%m-%d') if installment.due_date else 'N/A' }}
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.amount|float) }}</td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.principal|float) if installment.principal else 'N/A' }}</td>
-                                                    <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.interest|float) if installment.interest else 'N/A' }}</td>
-                                                    <td>
-                                                        {% if installment.is_skipped and installment.reschedule_date %}
-                                                            <span class="badge bg-warning text-dark">{{ installment.status|title }}</span>
-                                                        {% elif installment.is_skipped %}
-                                                            <span class="badge bg-secondary">Skipped</span>
-                                                        {% else %}
-                                                            <span class="badge status-{{ installment.status }}">{{ installment.status|title }}</span>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                                {% endfor %}
-                                            {% else %}
-                                                <tr><td colspan="5" class="text-center text-muted">No payment schedule available</td></tr>
+                                                <tr><td colspan="7" class="text-center text-muted">No payment schedule available</td></tr>
                                             {% endif %}
                                         </tbody>
                                     </table>
