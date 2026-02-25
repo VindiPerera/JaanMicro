@@ -1,6 +1,7 @@
 """Loan management routes"""
-from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
+from flask import render_template, redirect, url_for, flash, request, current_app, jsonify, make_response
 from flask_login import login_required, current_user
+import io
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -1601,6 +1602,182 @@ def receipt_entry():
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
+
+
+@loans_bp.route('/receipt-entry/export/<loan_frequency>')
+@login_required
+@permission_required('collect_payments')
+def receipt_entry_export(loan_frequency):
+    """Export weekly/daily/monthly loans to Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    frequency_map = {
+        'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
+        'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
+        'monthly': (['monthly_loan'], 'Monthly Loans'),
+    }
+    if loan_frequency not in frequency_map:
+        from flask import abort
+        abort(404)
+
+    loan_types, sheet_title = frequency_map[loan_frequency]
+    referrer = request.args.get('collector', type=int)
+
+    query = Loan.query.filter(
+        Loan.loan_type.in_(loan_types),
+        Loan.status == 'active'
+    )
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    if referrer:
+        query = query.filter(Loan.referred_by == referrer)
+
+    loans = query.order_by(Loan.created_at.desc()).all()
+
+    # Build schedules and collect all unique due dates
+    loan_schedules = {}
+    for loan in loans:
+        schedule = loan.generate_payment_schedule()
+        loan_schedules[loan.id] = {
+            'num_arrears': sum(1 for inst in schedule if inst['status'] == 'overdue'),
+        }
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = sheet_title
+
+    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    fixed_headers = ['Loan Number', 'Customer Name', 'Address', 'Mobile No.', 'Loan Amount', 'Arrears']
+    n_fixed = len(fixed_headers)           # columns 1-6
+    # Each weekday takes 2 columns: Date + Amount
+    # Signature takes 1 column at the end
+    total_cols = n_fixed + len(weekdays) * 2 + 1
+
+    header_fill  = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font  = Font(bold=True, color='FFFFFF', size=9)
+    sub_fill     = PatternFill(start_color='2E75B6', end_color='2E75B6', fill_type='solid')
+    sub_font     = Font(bold=True, color='FFFFFF', size=8)
+    thin_border  = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    def style_cell(cell, fill, font, h_align='center'):
+        cell.fill = fill
+        cell.font = font
+        cell.alignment = Alignment(horizontal=h_align, vertical='center', wrap_text=True)
+        cell.border = thin_border
+
+    # --- Row 1: fixed headers (merge rows 1-2), day names (merge 2 cols), Signature (merge rows 1-2) ---
+    for col_idx, name in enumerate(fixed_headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=name)
+        style_cell(cell, header_fill, header_font)
+        ws.merge_cells(start_row=1, start_column=col_idx, end_row=2, end_column=col_idx)
+
+    for day_idx, day in enumerate(weekdays):
+        day_col = n_fixed + day_idx * 2 + 1          # first of the 2 cols for this day
+        cell = ws.cell(row=1, column=day_col, value=day)
+        style_cell(cell, header_fill, header_font)
+        ws.merge_cells(start_row=1, start_column=day_col, end_row=1, end_column=day_col + 1)
+
+    sig_col = total_cols
+    cell = ws.cell(row=1, column=sig_col, value='Signature')
+    style_cell(cell, header_fill, header_font)
+    ws.merge_cells(start_row=1, start_column=sig_col, end_row=2, end_column=sig_col)
+
+    # --- Row 2: "Date" / "Amount" sub-headers for each weekday ---
+    for day_idx in range(len(weekdays)):
+        day_col = n_fixed + day_idx * 2 + 1
+        cell_d = ws.cell(row=2, column=day_col, value='Date')
+        cell_a = ws.cell(row=2, column=day_col + 1, value='Amount')
+        style_cell(cell_d, sub_fill, sub_font)
+        style_cell(cell_a, sub_fill, sub_font)
+
+    # --- Data rows (start at row 3) ---
+    data_font = Font(size=9)
+    for loan in loans:
+        sched_data = loan_schedules.get(loan.id, {})
+        num_arrears = sched_data.get('num_arrears', 0)
+        customer = loan.customer
+        address = f"{customer.address_line1}, {customer.city}" if customer else 'N/A'
+
+        row_values = [
+            loan.loan_number,
+            customer.full_name if customer else 'N/A',
+            address,
+            customer.phone_primary if customer else 'N/A',
+            float(loan.loan_amount) if loan.loan_amount else 0,
+            num_arrears,
+        ]
+        # 7 weekdays × 2 blank sub-columns + 1 blank Signature
+        row_values += ['', ''] * len(weekdays) + ['']
+
+        ws.append(row_values)
+        row_num = ws.max_row
+        for col_idx in range(1, total_cols + 1):
+            cell = ws.cell(row=row_num, column=col_idx)
+            cell.font = data_font
+            cell.border = thin_border
+            cell.alignment = Alignment(
+                horizontal='center' if col_idx > n_fixed else 'left'
+            )
+
+    # --- TOTAL row ---
+    total_fill = PatternFill(start_color='D9D9D9', end_color='D9D9D9', fill_type='solid')
+    total_font = Font(bold=True, size=9)
+    data_start_row = 3
+    data_end_row   = ws.max_row
+    total_row = []
+
+    for col_idx in range(1, total_cols + 1):
+        if col_idx == 1:
+            total_row.append('TOTAL')
+        elif col_idx in (2, 3, 4):
+            total_row.append('')
+        elif col_idx in (5, 6):
+            col_letter = get_column_letter(col_idx)
+            total_row.append(
+                f'=SUM({col_letter}{data_start_row}:{col_letter}{data_end_row})'
+                if data_end_row >= data_start_row else 0
+            )
+        else:
+            total_row.append('')
+
+    ws.append(total_row)
+    total_row_num = ws.max_row
+    for col_idx in range(1, total_cols + 1):
+        cell = ws.cell(row=total_row_num, column=col_idx)
+        cell.fill = total_fill
+        cell.font = total_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center' if col_idx > 1 else 'left')
+
+    # --- Column widths ---
+    fixed_widths = [14, 22, 30, 15, 14, 10]
+    for i, w in enumerate(fixed_widths):
+        ws.column_dimensions[get_column_letter(i + 1)].width = w
+    for day_idx in range(len(weekdays)):
+        day_col = n_fixed + day_idx * 2 + 1
+        ws.column_dimensions[get_column_letter(day_col)].width = 12
+        ws.column_dimensions[get_column_letter(day_col + 1)].width = 10
+    ws.column_dimensions[get_column_letter(sig_col)].width = 16
+
+    ws.row_dimensions[1].height = 20
+    ws.row_dimensions[2].height = 16
+    ws.freeze_panes = ws.cell(row=3, column=n_fixed + 1)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename={loan_frequency}_loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    return response
 
 
 # Schedule Override Routes (Admin Only)

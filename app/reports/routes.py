@@ -656,7 +656,7 @@ def arrears_report():
     
     arrears_data = []
     
-    # Loan arrears - active loans with ANY overdue/partial installments OR past maturity
+    # Loan arrears - only active loans past maturity date
     if product_type in ['', 'loan']:
         loan_query = Loan.query.filter_by(status='active')
         
@@ -672,39 +672,72 @@ def arrears_report():
         loans = loan_query.all()
         
         for loan in loans:
-            # Use the improved get_arrears_details which includes partial payments
-            arrears_details = loan.get_arrears_details()
+            if loan.maturity_date and loan.maturity_date < today:
+                overdue_loans.append(loan)
+        
+        loans = overdue_loans
+        
+        for loan in loans:
+            from decimal import Decimal, ROUND_HALF_UP
             
-            # Skip loans with no arrears at all
-            total_overdue_amount = arrears_details['total_overdue_amount']
-            if total_overdue_amount <= Decimal('0'):
-                continue
-            
+            # Calculate what's left to pay
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
             principal_paid = loan.get_total_paid_principal()
             outstanding_principal = disbursed - principal_paid
+            
+            # Calculate remaining interest based on loan type
             interest_paid = loan.get_total_paid_interest()
             
-            # Calculate remaining interest
+            # Handle special loan types that use flat interest calculations
             if loan.loan_type in ['type1_9weeks', '54_daily', 'type4_micro', 'type4_daily']:
+                # For these special types, calculate total expected interest based on the original calculation
+                from decimal import Decimal, ROUND_HALF_UP
+                
+                disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
                 interest_rate = Decimal(str(loan.interest_rate))
-                if loan.loan_type in ['type1_9weeks', '54_daily']:
+                
+                if loan.loan_type == 'type1_9weeks':
+                    # Type 1: Interest = Interest rate * 2, Total Interest = (Interest * disbursed) / 100
                     total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
-                else:
-                    months = Decimal(str(loan.duration_months or 0))
+                elif loan.loan_type == '54_daily':
+                    # 54 Daily: Same as Type 1
+                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
+                elif loan.loan_type == 'type4_micro':
+                    # Type 4 Micro: Full Interest = Interest Rate * Months
+                    months = Decimal(str(loan.duration_months))
                     total_interest = (interest_rate * months * disbursed) / Decimal('100')
-                remaining_interest = max(Decimal('0'), total_interest - interest_paid)
+                elif loan.loan_type == 'type4_daily':
+                    # Type 4 Daily: Same as Type 4 Micro
+                    months = Decimal(str(loan.duration_months))
+                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
+                else:
+                    # Fallback
+                    total_interest = loan.get_total_expected_interest()
+                
+                remaining_interest = total_interest - interest_paid
             elif loan.interest_type == 'flat':
+                # Standard flat interest loans
                 total_expected_interest = loan.get_total_expected_interest()
-                remaining_interest = max(Decimal('0'), total_expected_interest - interest_paid)
+                remaining_interest = total_expected_interest - interest_paid
             else:
+                # For reducing balance loans
+                # The remaining interest is not fixed - it depends on remaining principal
+                # Show accrued interest + estimated future interest on remaining principal
                 accrued_interest = loan.calculate_accrued_interest()
+                
+                # Estimate remaining interest based on outstanding principal
+                # This is an approximation for arrears reporting
                 if loan.duration_months and outstanding_principal > 0:
+                    # Calculate remaining months (approximate)
                     total_paid = Decimal(str(loan.paid_amount or 0))
-                    installment = Decimal(str(loan.installment_amount or 1))
+                    installment = Decimal(str(loan.installment_amount))
                     if installment > 0:
                         paid_installments = (total_paid / installment).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
                         remaining_installments = max(Decimal('0'), Decimal(str(loan.duration_months)) - paid_installments)
+                        
+                        # Estimate average interest per remaining installment
+                        # This is a rough estimate: (Outstanding Principal * Rate * Remaining Time) / 2
+                        # Divided by 2 because principal reduces over time
                         annual_rate = Decimal(str(loan.interest_rate)) / Decimal('100')
                         remaining_time = remaining_installments / Decimal('12')
                         estimated_future_interest = (outstanding_principal * annual_rate * remaining_time) / Decimal('2')
@@ -714,6 +747,7 @@ def arrears_report():
                 else:
                     remaining_interest = accrued_interest
             
+            # Total arrears
             penalty = Decimal(str(loan.penalty_amount or 0))
             advance_balance = Decimal(str(loan.advance_balance or 0))
             
@@ -736,8 +770,8 @@ def arrears_report():
                 'disbursement_date': loan.disbursement_date,
                 'maturity_date': loan.maturity_date,
                 'original_amount': float(disbursed),
-                'principal_outstanding': float(outstanding_principal),
-                'interest_outstanding': float(remaining_interest),
+                'principal_outstanding': float(arrears_principal),
+                'interest_outstanding': float(arrears_interest),
                 'penalty': float(penalty),
                 'installment_overdue': installment_overdue_amount,
                 'overdue_installments': arrears_details['overdue_installments'],
@@ -748,6 +782,7 @@ def arrears_report():
                 'is_overdue': True,
                 'is_past_maturity': is_past_maturity,
                 'overdue_days': overdue_days,
+                'oldest_overdue_date': oldest_overdue_date,
                 'loan_type': loan.loan_type,
                 'interest_type': loan.interest_type
             })
@@ -811,15 +846,17 @@ def arrears_report():
                 'partial_overdue_installments': 0,
                 'advance_balance': 0,
                 'total_arrears': float(total_arrears),
+                'num_arrears': 1,
                 'is_overdue': True,
                 'is_past_maturity': True,
                 'overdue_days': overdue_days,
+                'oldest_overdue_date': maturity_date,
                 'loan_type': pawning.item_type,
                 'interest_type': 'monthly'
             })
     
-    # Sort by total arrears descending
-    arrears_data.sort(key=lambda x: x['total_arrears'], reverse=True)
+    # Sort by number of arrears descending, then total arrears
+    arrears_data.sort(key=lambda x: (x['num_arrears'], x['total_arrears']), reverse=True)
     
     # Calculate summary statistics
     total_arrears = sum(Decimal(str(item['total_arrears'])) for item in arrears_data)
@@ -828,6 +865,7 @@ def arrears_report():
     total_penalty = sum(Decimal(str(item['penalty'])) for item in arrears_data)
     total_installment_overdue = sum(Decimal(str(item['installment_overdue'])) for item in arrears_data)
     total_partial = sum(Decimal(str(item['partial_overdue_amount'])) for item in arrears_data)
+    total_num_arrears = sum(item['num_arrears'] for item in arrears_data)
     
     past_maturity_items = [item for item in arrears_data if item.get('is_past_maturity')]
     installment_only_items = [item for item in arrears_data if not item.get('is_past_maturity')]
@@ -840,6 +878,7 @@ def arrears_report():
         'total_penalty': float(total_penalty),
         'total_installment_overdue': float(total_installment_overdue),
         'total_partial_overdue': float(total_partial),
+        'total_num_arrears': total_num_arrears,
         'overdue_accounts': len(arrears_data),
         'overdue_amount': float(total_arrears),
         'past_maturity_accounts': len(past_maturity_items),
@@ -877,51 +916,76 @@ def arrears_report():
 @login_required
 @permission_required('view_reports')
 def export_loans():
-    """Export loans to CSV"""
+    """Export all loans to Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
     query = Loan.query
-    
+
     # Apply branch filtering
     loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
     if loan_branch_filter is not None:
         query = query.filter(loan_branch_filter)
-    
+
     loans = query.all()
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write header
-    writer.writerow(['Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type', 'Loan Amount', 'Interest Rate', 
-                    'Duration', 'Outstanding Amount', 'Status', 'Created Date'])
-    
-    # Write data
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Loan Report'
+
+    headers = [
+        'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
+        'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Duration',
+        'Outstanding Amount', 'Status', 'Referred By', 'Created Date'
+    ]
+
+    header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
     for loan in loans:
-        # Handle duration display
         if loan.duration_weeks:
             duration = f"{loan.duration_weeks} weeks"
         elif loan.duration_months:
             duration = f"{loan.duration_months} months"
         else:
-            duration = "N/A"
-            
-        writer.writerow([
+            duration = 'N/A'
+
+        referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
+
+        ws.append([
             loan.loan_number,
-            loan.customer.full_name,
+            loan.customer.full_name if loan.customer else 'N/A',
             loan.loan_purpose or 'N/A',
             loan.loan_type or 'N/A',
-            loan.loan_amount,
-            loan.interest_rate,
+            loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
+            float(loan.loan_amount) if loan.loan_amount else 0,
+            float(loan.interest_rate) if loan.interest_rate else 0,
             duration,
-            loan.outstanding_amount,
-            loan.status,
-            loan.created_at.strftime('%Y-%m-%d')
+            float(loan.outstanding_amount) if loan.outstanding_amount else 0,
+            loan.status or 'N/A',
+            referred_by_name,
+            loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
         ])
-    
+
+    # Auto-fit column widths
+    for col in ws.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
+
     response = make_response(output.getvalue())
-    response.headers['Content-Type'] = 'text/csv'
-    response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.csv'
-    
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
+
     return response
 
 @reports_bp.route('/export/arrears')

@@ -843,7 +843,7 @@ class Loan(db.Model):
                 remaining_for_this = Decimal('0')
             elif paid_for_this > Decimal('0'):
                 status = 'partial'
-            elif due_date < datetime.utcnow().date():
+            elif due_date <= datetime.utcnow().date():
                 status = 'overdue'
             else:
                 status = 'pending'
