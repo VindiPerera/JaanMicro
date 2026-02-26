@@ -228,6 +228,48 @@
                         
                         <input type="hidden" name="guarantor_ids" id="guarantorIds" value="">
                         
+                        <!-- Final Approver Selection -->
+                        <div class="mt-4">
+                            <h6 class="border-bottom pb-2 mb-3">
+                                <i class="bi bi-shield-check me-2"></i>Final Approver
+                            </h6>
+                            <div class="mb-3">
+                                <label for="final_approver_id" class="form-label">
+                                    Assign Final Approver <span class="text-danger">*</span>
+                                </label>
+                                <select name="final_approver_id" id="final_approver_id" class="form-select" required>
+                                    <option value="">— Select Final Approver —</option>
+                                    {% set admins = (final_approvers | default([])) | selectattr('role', 'equalto', 'admin') | list %}
+                                    {% set accountants = (final_approvers | default([])) | selectattr('role', 'equalto', 'accountant') | list %}
+                                    {% if admins %}
+                                    <optgroup label="Administrators">
+                                        {% for approver in admins %}
+                                        <option value="{{ approver.id }}">{{ approver.full_name }} (Admin)</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endif %}
+                                    {% if accountants %}
+                                    <optgroup label="Accountants">
+                                        {% for approver in accountants %}
+                                        <option value="{{ approver.id }}">{{ approver.full_name }} (Accountant)</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                    {% endif %}
+                                </select>
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Only this person will be able to perform the final Admin Approval step for this loan.
+                                    Others can still view the loan.
+                                </small>
+                            </div>
+                            {% if not (final_approvers | default([])) %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                No Admin or Accountant users found. Please create one in Settings before adding loans.
+                            </div>
+                            {% endif %}
+                        </div>
+                        
                         <div class="mt-4">
                             <button type="button" class="btn btn-secondary" id="backToStep1">
                                 <i class="bi bi-arrow-left me-2"></i>Back
@@ -726,6 +768,15 @@ $(document).ready(function() {
         if (addedGuarantors.length !== 2) {
             e.preventDefault();
             alert('You must add exactly 2 guarantors before submitting the loan application.');
+            return false;
+        }
+        
+        // Validate final approver selection
+        var finalApprover = $('#final_approver_id').val();
+        if (!finalApprover) {
+            e.preventDefault();
+            alert('Please select a Final Approver before submitting the loan application.');
+            $('#final_approver_id').focus();
             return false;
         }
         

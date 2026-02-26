@@ -31,17 +31,25 @@
         </a>
         {% endif %}
         
-        {% if loan.status == 'initiated' and current_user.role == 'admin' %}
+        {% if loan.status == 'initiated' and current_user.role in ['admin', 'regional_manager', 'accountant'] %}
+        {% if not loan.final_approver_id or loan.final_approver_id == current_user.id %}
         <a href="{{ url_for('loans.approve_loan_admin', id=loan.id) }}" class="btn btn-danger">
             <i class="bi bi-shield-check me-2"></i>Admin Approval & Disburse
         </a>
+        {% else %}
+        <span class="btn btn-outline-secondary disabled" title="Only {{ loan.final_approver.full_name if loan.final_approver else 'designated approver' }} can approve this loan">
+            <i class="bi bi-lock me-2"></i>Approval Locked
+        </span>
+        {% endif %}
         {% endif %}
         
         {# Legacy single-stage approval (kept for backward compatibility) #}
         {% if loan.status == 'pending' and current_user.role == 'admin' %}
+        {% if not loan.final_approver_id or loan.final_approver_id == current_user.id %}
         <a href="{{ url_for('loans.approve_loan', id=loan.id) }}" class="btn btn-warning">
             <i class="bi bi-lightning-fill me-2"></i>Quick Approve (Admin)
         </a>
+        {% endif %}
         {% endif %}
         
         {# Deactivation button for active loans #}
@@ -288,9 +296,21 @@
                         <div class="badge bg-warning text-dark mb-2">Pending</div>
                         <div><i class="bi bi-clock fs-3 text-warning"></i></div>
                         <div class="small mt-1"><strong>Admin Approval</strong></div>
+                        {% if loan.final_approver %}
+                        <div class="small text-primary mt-1">
+                            <i class="bi bi-person-badge me-1"></i>
+                            Assigned: <strong>{{ loan.final_approver.full_name }}</strong>
+                            <br><span class="badge bg-light text-dark">{{ loan.final_approver.role | title }}</span>
+                        </div>
+                        {% endif %}
                         {% else %}
                         <div><i class="bi bi-circle fs-3 text-muted"></i></div>
                         <div class="small mt-1 text-muted"><strong>Admin Approval</strong></div>
+                        {% if loan.final_approver %}
+                        <div class="small text-muted mt-1">
+                            <i class="bi bi-person-badge me-1"></i>{{ loan.final_approver.full_name }}
+                        </div>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -369,6 +389,17 @@
                             {{ loan.referrer.full_name }} ({{ loan.referrer.username }})
                         {% else %}
                             N/A
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Final Approver:</strong><br>
+                        {% if loan.final_approver %}
+                            <span class="badge bg-{{ 'danger' if loan.final_approver.role == 'admin' else 'info' }} me-1">
+                                {{ loan.final_approver.role | title }}
+                            </span>
+                            {{ loan.final_approver.full_name }}
+                        {% else %}
+                            <span class="text-muted">Not assigned</span>
                         {% endif %}
                     </div>
                     <div class="col-md-6 mb-3">

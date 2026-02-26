@@ -89,6 +89,19 @@ def add_loan():
     users = user_query.order_by(User.full_name).all()
     form.referred_by.choices = [(0, 'Select User (Optional)')] + [(u.id, f'{u.full_name} ({u.username})') for u in users]
     
+    # Get admin and accountant users as final approver candidates
+    final_approver_query = User.query.filter(
+        User.is_active == True,
+        User.role.in_(['admin', 'accountant'])
+    )
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            final_approver_query = final_approver_query.filter(
+                db.or_(User.role == 'admin', User.branch_id == current_branch_id)
+            )
+    final_approvers = final_approver_query.order_by(User.role.desc(), User.full_name).all()
+    
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
         settings = SystemSettings.get_settings()
@@ -103,56 +116,56 @@ def add_loan():
             # For Type 1 loans, validate weeks instead of months
             if not form.duration_weeks.data:
                 flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         elif form.loan_type.data == '54_daily':
             # For 54 Daily loans, validate days instead of months
             if not form.duration_days.data:
                 flash('Duration (Days) is required for 54 Daily Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         elif form.loan_type.data == 'type4_micro':
             # For Type 4 Micro loans, validate months (will convert to weeks internally)
             if not form.duration_months.data:
                 flash('Duration (Months) is required for Type 4 - Micro Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         elif form.loan_type.data == 'type4_daily':
             # For Type 4 Daily loans, validate months (will convert to days internally)
             if not form.duration_months.data:
                 flash('Duration (Months) is required for Type 4 - Daily Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         elif form.loan_type.data == 'monthly_loan':
             # For Monthly loans, validate months, interest type, and installment frequency
             if not form.duration_months.data:
                 flash('Duration (Months) is required for Monthly Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
             if not form.interest_type.data:
                 flash('Interest Type is required for Monthly Loan!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         else:
             # For other loan types, validate months, interest type, and installment frequency
             if not form.duration_months.data:
                 flash('Duration (Months) is required!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
             if not form.interest_type.data:
                 flash('Interest Type is required!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
             if not form.installment_frequency.data:
                 flash('Installment Frequency is required!', 'error')
-                return render_template('loans/add.html', title='Add Loan', form=form)
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
         # Validate customer selection
         if form.customer_id.data == 0:
             flash('Please select a customer!', 'error')
-            return render_template('loans/add.html', title='Add Loan', form=form)
+            return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
         # Get customer to determine branch
         customer = Customer.query.get(form.customer_id.data)
         if not customer:
             flash('Customer not found!', 'error')
-            return render_template('loans/add.html', title='Add Loan', form=form)
+            return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
         if not customer.branch_id:
             flash('Customer does not have a valid branch assigned!', 'error')
-            return render_template('loans/add.html', title='Add Loan', form=form)
+            return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
         # Generate loan number with new format: YY/B##/TYPE/#####
         loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=customer.branch_id)
@@ -294,6 +307,7 @@ def add_loan():
             document_path=document_filename,
             drive_link=form.drive_link.data or None,
             guarantor_ids=request.form.get('guarantor_ids', ''),
+            final_approver_id=request.form.get('final_approver_id', type=int) or None,
             status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
             referred_by=form.referred_by.data if form.referred_by.data != 0 else None,
@@ -319,7 +333,7 @@ def add_loan():
         flash(f'Loan {loan.loan_number} created successfully!', 'success')
         return redirect(url_for('loans.view_loan', id=loan.id))
     
-    return render_template('loans/add.html', title='Add Loan', form=form)
+    return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
 
 @loans_bp.route('/edit-loan-select')
 @login_required
@@ -634,6 +648,13 @@ def approve_loan(id):
         flash('Only pending loans can be approved!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
+    # Check if this loan has a designated final approver
+    if loan.final_approver_id and current_user.id != loan.final_approver_id:
+        designated = User.query.get(loan.final_approver_id)
+        name = designated.full_name if designated else 'Unknown'
+        flash(f'This loan can only be finally approved by the designated approver: {name}.', 'danger')
+        return redirect(url_for('loans.view_loan', id=id))
+    
     form = LoanApprovalForm()
     
     if form.validate_on_submit():
@@ -847,9 +868,16 @@ def approve_loan_admin(id):
         flash('Only initiated loans can be approved by admin!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
-    # Check if user is admin
+    # Check if user is admin or regional_manager
     if current_user.role not in ['admin', 'regional_manager']:
         flash('Only admins can perform final approval and disbursement!', 'warning')
+        return redirect(url_for('loans.view_loan', id=id))
+    
+    # Check if this loan has a designated final approver
+    if loan.final_approver_id and current_user.id != loan.final_approver_id:
+        designated = User.query.get(loan.final_approver_id)
+        name = designated.full_name if designated else 'Unknown'
+        flash(f'This loan can only be finally approved by the designated approver: {name}.', 'danger')
         return redirect(url_for('loans.view_loan', id=id))
     
     form = AdminApprovalForm()

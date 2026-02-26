@@ -371,6 +371,9 @@ class Loan(db.Model):
     admin_approval_date = db.Column(db.Date)
     admin_approval_notes = db.Column(db.Text)
     
+    # Designated final approver (Admin or Accountant selected during loan creation)
+    final_approver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    
     # Legacy fields (kept for backward compatibility)
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     approval_notes = db.Column(db.Text)
@@ -403,6 +406,7 @@ class Loan(db.Model):
     staff_approver = db.relationship('User', foreign_keys=[staff_approved_by], backref='staff_approved_loans')
     manager_approver = db.relationship('User', foreign_keys=[manager_approved_by], backref='manager_approved_loans')
     admin_approver = db.relationship('User', foreign_keys=[admin_approved_by], backref='admin_approved_loans')
+    final_approver = db.relationship('User', foreign_keys=[final_approver_id], backref='final_approval_loans')
     referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
     deactivator = db.relationship('User', foreign_keys=[deactivated_by], backref='deactivated_loans')
     
