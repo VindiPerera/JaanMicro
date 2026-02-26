@@ -95,9 +95,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Weekly Loan Payments</h5>
-                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='weekly', collector=collector or '') }}" class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                </a>
+                <div>
+                    <a href="{{ url_for('loans.receipt_entry_pdf', loan_frequency='weekly', collector=collector or '') }}" class="btn btn-sm btn-danger">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+                    </a>
+                    <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='weekly', collector=collector or '') }}" class="btn btn-sm btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 {% if weekly_payments %}
@@ -204,9 +209,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Daily Loan Payments</h5>
-                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='daily', collector=collector or '') }}" class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                </a>
+                <div>
+                    <a href="{{ url_for('loans.receipt_entry_pdf', loan_frequency='daily', collector=collector or '') }}" class="btn btn-sm btn-danger">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+                    </a>
+                    <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='daily', collector=collector or '') }}" class="btn btn-sm btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 {% if daily_payments %}
@@ -313,9 +323,14 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Monthly Loan Payments</h5>
-                <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='monthly', collector=collector or '') }}" class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                </a>
+                <div>
+                    <a href="{{ url_for('loans.receipt_entry_pdf', loan_frequency='monthly', collector=collector or '') }}" class="btn btn-sm btn-danger">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+                    </a>
+                    <a href="{{ url_for('loans.receipt_entry_export', loan_frequency='monthly', collector=collector or '') }}" class="btn btn-sm btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+                    </a>
+                </div>
             </div>
             <div class="card-body">
                 {% if monthly_payments %}

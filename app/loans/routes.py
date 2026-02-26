@@ -1784,6 +1784,201 @@ def receipt_entry_export(loan_frequency):
     return response
 
 
+@loans_bp.route('/receipt-entry/pdf/<loan_frequency>')
+@login_required
+@permission_required('collect_payments')
+def receipt_entry_pdf(loan_frequency):
+    """Export receipt entry loan list to landscape PDF"""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    frequency_map = {
+        'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
+        'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
+        'monthly': (['monthly_loan'], 'Monthly Loans'),
+    }
+    if loan_frequency not in frequency_map:
+        from flask import abort
+        abort(404)
+
+    loan_types, title = frequency_map[loan_frequency]
+    referrer = request.args.get('collector', type=int)
+
+    query = Loan.query.filter(
+        Loan.loan_type.in_(loan_types),
+        Loan.status == 'active'
+    )
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id:
+            query = query.filter_by(branch_id=current_branch_id)
+    if referrer:
+        query = query.filter(Loan.referred_by == referrer)
+
+    loans = query.order_by(Loan.created_at.desc()).all()
+
+    # --- Build PDF ---
+    buf = io.BytesIO()
+    page_w, page_h = landscape(A4)
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=landscape(A4),
+        leftMargin=8 * mm,
+        rightMargin=8 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'PDFTitle', parent=styles['Heading2'], fontSize=11, alignment=TA_CENTER, spaceAfter=4 * mm
+    )
+    cell_style = ParagraphStyle(
+        'Cell', parent=styles['Normal'], fontSize=6.5, leading=8
+    )
+    cell_bold = ParagraphStyle(
+        'CellBold', parent=cell_style, fontName='Helvetica-Bold'
+    )
+    cell_right = ParagraphStyle(
+        'CellRight', parent=cell_style, alignment=TA_RIGHT
+    )
+    cell_center = ParagraphStyle(
+        'CellCenter', parent=cell_style, alignment=TA_CENTER
+    )
+    header_style = ParagraphStyle(
+        'Header', parent=styles['Normal'], fontSize=7, fontName='Helvetica-Bold',
+        textColor=colors.white, alignment=TA_CENTER, leading=9
+    )
+
+    elements = []
+
+    # Title
+    from app.models import SystemSettings
+    settings = SystemSettings.get_settings()
+    report_date = datetime.now().strftime('%Y-%m-%d')
+    elements.append(Paragraph(f'{title} — {report_date}', title_style))
+
+    if not loans:
+        elements.append(Paragraph('No active loans found.', cell_style))
+        doc.build(elements)
+        buf.seek(0)
+        response = make_response(buf.getvalue())
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename={loan_frequency}_loans_{report_date}.pdf'
+        return response
+
+    # Table headers
+    headers = [
+        Paragraph('#', header_style),
+        Paragraph('Loan Number', header_style),
+        Paragraph('Customer', header_style),
+        Paragraph('Phone', header_style),
+        Paragraph('Loan Amt', header_style),
+        Paragraph('Installment', header_style),
+        Paragraph('Outstanding', header_style),
+        Paragraph('Paid', header_style),
+        Paragraph('Overdue', header_style),
+        Paragraph('Advance', header_style),
+        Paragraph('Referred By', header_style),
+        Paragraph('Signature', header_style),
+    ]
+
+    table_data = [headers]
+
+    for idx, loan in enumerate(loans, 1):
+        arrears = loan.get_arrears_details()
+        overdue_text = ''
+        if float(arrears['total_overdue_amount']) > 0:
+            overdue_text = f"{settings.currency_symbol} {float(arrears['total_overdue_amount']):.2f}"
+            n_inst = arrears['overdue_installments'] + arrears['partial_overdue_installments']
+            if n_inst:
+                overdue_text += f" ({n_inst})"
+        else:
+            overdue_text = '-'
+
+        adv = float(loan.advance_balance or 0)
+        adv_text = f"{settings.currency_symbol} {adv:.2f}" if adv > 0 else '-'
+
+        row = [
+            Paragraph(str(idx), cell_center),
+            Paragraph(loan.loan_number, cell_style),
+            Paragraph(f"{loan.customer.full_name}<br/><font size='5' color='grey'>{loan.customer.nic_number or ''}</font>", cell_style),
+            Paragraph(str(loan.customer.phone_primary or ''), cell_style),
+            Paragraph(f"{settings.currency_symbol} {float(loan.loan_amount):.2f}", cell_right),
+            Paragraph(f"{settings.currency_symbol} {float(loan.installment_amount or 0):.2f}", cell_right),
+            Paragraph(f"{settings.currency_symbol} {float(loan.outstanding_amount or 0):.2f}", cell_right),
+            Paragraph(f"{settings.currency_symbol} {float(loan.paid_amount or 0):.2f}", cell_right),
+            Paragraph(overdue_text, cell_center),
+            Paragraph(adv_text, cell_center),
+            Paragraph(loan.referrer.full_name if loan.referrer else '-', cell_style),
+            Paragraph('', cell_style),  # signature blank
+        ]
+        table_data.append(row)
+
+    # Column widths — fit landscape A4 (usable ~277mm)
+    usable = page_w - 16 * mm  # total minus margins
+    col_widths = [
+        usable * 0.03,   # #
+        usable * 0.14,   # Loan Number
+        usable * 0.14,   # Customer
+        usable * 0.09,   # Phone
+        usable * 0.08,   # Loan Amt
+        usable * 0.08,   # Installment
+        usable * 0.09,   # Outstanding
+        usable * 0.08,   # Paid
+        usable * 0.08,   # Overdue
+        usable * 0.06,   # Advance
+        usable * 0.07,   # Referred By
+        usable * 0.06,   # Signature
+    ]
+
+    tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 4),
+
+        # Data rows
+        ('FONTSIZE', (0, 1), (-1, -1), 6.5),
+        ('TOPPADDING', (0, 1), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+
+        # Grid
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.grey),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black),
+
+        # Alternating row colors
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+
+        # Vertical alignment
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+
+    elements.append(tbl)
+    elements.append(Spacer(1, 4 * mm))
+    elements.append(Paragraph(
+        f"Total: {len(loans)} loan(s) — Generated {report_date}",
+        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=7, textColor=colors.grey)
+    ))
+
+    doc.build(elements)
+    buf.seek(0)
+
+    response = make_response(buf.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename={loan_frequency}_loans_{report_date}.pdf'
+    return response
+
+
 # Schedule Override Routes (Admin Only)
 @loans_bp.route('/<int:id>/schedule', methods=['GET'])
 @login_required
