@@ -671,93 +671,38 @@ def arrears_report():
         
         loans = loan_query.all()
         
-        overdue_loans = []
-        for loan in loans:
-            if loan.maturity_date and loan.maturity_date < today:
-                overdue_loans.append(loan)
-        
-        loans = overdue_loans
-        
         for loan in loans:
             from decimal import Decimal, ROUND_HALF_UP
             
-            # Calculate what's left to pay
+            # Get arrears details using the schedule-based method
+            arrears_details = loan.get_arrears_details()
+            total_overdue_amount = arrears_details['total_overdue_amount']
+            
+            # Skip loans with no overdue amounts (neither past maturity nor installment overdue)
+            if total_overdue_amount <= Decimal('0'):
+                continue
+            
+            # Calculate outstanding amounts
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
-            principal_paid = loan.get_total_paid_principal()
-            outstanding_principal = disbursed - principal_paid
+            outstanding_principal = Decimal(str(loan.outstanding_amount or 0))
             
-            # Calculate remaining interest based on loan type
-            interest_paid = loan.get_total_paid_interest()
-            
-            # Handle special loan types that use flat interest calculations
-            if loan.loan_type in ['type1_9weeks', '54_daily', 'type4_micro', 'type4_daily']:
-                # For these special types, calculate total expected interest based on the original calculation
-                from decimal import Decimal, ROUND_HALF_UP
-                
-                disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
-                interest_rate = Decimal(str(loan.interest_rate))
-                
-                if loan.loan_type == 'type1_9weeks':
-                    # Type 1: Interest = Interest rate * 2, Total Interest = (Interest * disbursed) / 100
-                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
-                elif loan.loan_type == '54_daily':
-                    # 54 Daily: Same as Type 1
-                    total_interest = (interest_rate * Decimal('2') * disbursed) / Decimal('100')
-                elif loan.loan_type == 'type4_micro':
-                    # Type 4 Micro: Full Interest = Interest Rate * Months
-                    months = Decimal(str(loan.duration_months))
-                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
-                elif loan.loan_type == 'type4_daily':
-                    # Type 4 Daily: Same as Type 4 Micro
-                    months = Decimal(str(loan.duration_months))
-                    total_interest = (interest_rate * months * disbursed) / Decimal('100')
-                else:
-                    # Fallback
-                    total_interest = loan.get_total_expected_interest()
-                
-                remaining_interest = total_interest - interest_paid
-            elif loan.interest_type == 'flat':
-                # Standard flat interest loans
-                total_expected_interest = loan.get_total_expected_interest()
-                remaining_interest = total_expected_interest - interest_paid
-            else:
-                # For reducing balance loans
-                # The remaining interest is not fixed - it depends on remaining principal
-                # Show accrued interest + estimated future interest on remaining principal
-                accrued_interest = loan.calculate_accrued_interest()
-                
-                # Estimate remaining interest based on outstanding principal
-                # This is an approximation for arrears reporting
-                if loan.duration_months and outstanding_principal > 0:
-                    # Calculate remaining months (approximate)
-                    total_paid = Decimal(str(loan.paid_amount or 0))
-                    installment = Decimal(str(loan.installment_amount))
-                    if installment > 0:
-                        paid_installments = (total_paid / installment).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
-                        remaining_installments = max(Decimal('0'), Decimal(str(loan.duration_months)) - paid_installments)
-                        
-                        # Estimate average interest per remaining installment
-                        # This is a rough estimate: (Outstanding Principal * Rate * Remaining Time) / 2
-                        # Divided by 2 because principal reduces over time
-                        annual_rate = Decimal(str(loan.interest_rate)) / Decimal('100')
-                        remaining_time = remaining_installments / Decimal('12')
-                        estimated_future_interest = (outstanding_principal * annual_rate * remaining_time) / Decimal('2')
-                        remaining_interest = accrued_interest + estimated_future_interest
-                    else:
-                        remaining_interest = accrued_interest
-                else:
-                    remaining_interest = accrued_interest
+            # For display: principal portion of overdue vs interest portion
+            # Use the installment amount split to estimate
+            arrears_principal = outstanding_principal
+            arrears_interest = Decimal('0')
             
             # Total arrears
             penalty = Decimal(str(loan.penalty_amount or 0))
             advance_balance = Decimal(str(loan.advance_balance or 0))
             
             # Determine arrears type: past maturity vs installment overdue
-            is_past_maturity = loan.maturity_date and loan.maturity_date < today
+            is_past_maturity = bool(loan.maturity_date and loan.maturity_date < today)
             overdue_days = arrears_details['days_overdue']
+            oldest_overdue_date = arrears_details['oldest_overdue_date']
             
             # The overdue amount from schedule (includes partial remainders)
             installment_overdue_amount = float(total_overdue_amount)
+            num_arrears = arrears_details['overdue_installments'] + arrears_details['partial_overdue_installments']
             
             arrears_data.append({
                 'product_type': 'Loan',
@@ -779,10 +724,13 @@ def arrears_report():
                 'partial_overdue_amount': float(arrears_details['partial_overdue_amount']),
                 'partial_overdue_installments': arrears_details['partial_overdue_installments'],
                 'advance_balance': float(advance_balance),
+                'outstanding': float(outstanding_principal),
+                'overdue_amount': installment_overdue_amount,
                 'total_arrears': installment_overdue_amount,
+                'num_arrears': num_arrears,
                 'is_overdue': True,
                 'is_past_maturity': is_past_maturity,
-                'overdue_days': overdue_days,
+                'days_overdue': overdue_days,
                 'oldest_overdue_date': oldest_overdue_date,
                 'loan_type': loan.loan_type,
                 'interest_type': loan.interest_type
@@ -846,11 +794,13 @@ def arrears_report():
                 'partial_overdue_amount': 0,
                 'partial_overdue_installments': 0,
                 'advance_balance': 0,
+                'outstanding': float(outstanding_principal + interest_due),
+                'overdue_amount': float(total_arrears),
                 'total_arrears': float(total_arrears),
                 'num_arrears': 1,
                 'is_overdue': True,
                 'is_past_maturity': True,
-                'overdue_days': overdue_days,
+                'days_overdue': overdue_days,
                 'oldest_overdue_date': maturity_date,
                 'loan_type': pawning.item_type,
                 'interest_type': 'monthly'

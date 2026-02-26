@@ -184,6 +184,7 @@
                         <th>Disbursement</th>
                         <th>Maturity</th>
                         <th>Original Amount</th>
+                        <th>Num Arrears</th>
                         <th>Outstanding</th>
                         <th>Overdue Inst.</th>
                         <th>Partial Inst.</th>
@@ -279,12 +280,12 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="19" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    <tr><td colspan="20" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr class="table-danger fw-bold">
-                        <td colspan="14">TOTAL</td>
+                        <td colspan="15">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_partial_overdue|float) if summary.total_partial_overdue else '0.00' }}</td>
                         <td colspan="3">-</td>

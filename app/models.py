@@ -895,8 +895,9 @@ class Loan(db.Model):
                 overdue_count += 1
                 if oldest_overdue_date is None or installment['due_date'] < oldest_overdue_date:
                     oldest_overdue_date = installment['due_date']
-            elif installment['status'] == 'partial' and installment['due_date'] < today:
+            elif installment['status'] == 'partial' and installment['due_date'] <= today:
                 # Partially paid overdue installment - only the remaining amount is overdue
+                # Use <= to include installments due today that are partially paid
                 remaining = Decimal(str(installment['remaining_amount']))
                 if remaining > Decimal('0'):
                     partial_overdue += remaining
@@ -905,7 +906,7 @@ class Loan(db.Model):
                         oldest_overdue_date = installment['due_date']
         
         days_overdue = 0
-        if oldest_overdue_date and oldest_overdue_date < today:
+        if oldest_overdue_date and oldest_overdue_date <= today:
             days_overdue = (today - oldest_overdue_date).days
         
         return {

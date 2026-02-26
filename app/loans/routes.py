@@ -402,6 +402,9 @@ def view_loan(id):
     # Get payment history for this loan
     payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
     
+    # Generate payment schedule for display
+    schedule = loan.generate_payment_schedule()
+    
     return render_template('loans/view.html',
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
@@ -410,7 +413,8 @@ def view_loan(id):
                          accrued_interest=accrued_interest,
                          arrears_details=arrears_details,
                          advance_balance=advance_balance,
-                         payments=payments)
+                         payments=payments,
+                         schedule=schedule)
 
 @loans_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
