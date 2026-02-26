@@ -31,7 +31,8 @@ if __name__ == '__main__':
     import os
 
     # Add the project root to the path so we can import the app
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    # From migrations/versions/ → go up 2 levels to reach project root
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     sys.path.insert(0, project_root)
 
     try:
