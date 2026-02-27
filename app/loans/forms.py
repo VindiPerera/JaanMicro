@@ -33,7 +33,7 @@ class LoanForm(FlaskForm):
     loan_amount = DecimalField('Loan Amount', validators=[DataRequired(), NumberRange(min=0)], places=2)
     duration_weeks = IntegerField('Duration (Weeks)', validators=[Optional(), NumberRange(min=1, max=52)])
     duration_days = IntegerField('Duration (Days)', validators=[Optional(), NumberRange(min=1, max=365)])
-    interest_rate = DecimalField('Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0, max=100)], places=2)
+    interest_rate = DecimalField('Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0)], places=2)
     interest_type = SelectField('Interest Type', choices=[
         ('reducing_balance', 'Reducing Balance'),
         ('flat', 'Flat Rate')

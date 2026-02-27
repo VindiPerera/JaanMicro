@@ -59,7 +59,7 @@ class SystemSettingsForm(FlaskForm):
     company_registration = StringField('Registration Number', validators=[Optional(), Length(max=100)])
     
     # Loan Settings
-    default_loan_interest_rate = DecimalField('Default Loan Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0, max=100)], places=2)
+    default_loan_interest_rate = DecimalField('Default Loan Interest Rate (%)', validators=[DataRequired(), NumberRange(min=0)], places=2)
     default_loan_duration = IntegerField('Default Loan Duration (Months)', validators=[DataRequired(), NumberRange(min=1)])
     interest_calculation_method = SelectField('Interest Calculation Method', choices=[
         ('reducing_balance', 'Reducing Balance'),
