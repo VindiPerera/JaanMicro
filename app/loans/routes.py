@@ -1817,12 +1817,17 @@ def receipt_entry_export(loan_frequency):
 @permission_required('collect_payments')
 def receipt_entry_pdf(loan_frequency):
     """Export receipt entry loan list to landscape PDF"""
+    import html as _html
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    def esc(value):
+        """Escape a value for safe use inside a ReportLab Paragraph XML string."""
+        return _html.escape(str(value) if value is not None else '')
 
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
@@ -1933,16 +1938,16 @@ def receipt_entry_pdf(loan_frequency):
 
         row = [
             Paragraph(str(idx), cell_center),
-            Paragraph(loan.loan_number, cell_style),
-            Paragraph(f"{loan.customer.full_name}<br/><font size='5' color='grey'>{loan.customer.nic_number or ''}</font>", cell_style),
-            Paragraph(str(loan.customer.phone_primary or ''), cell_style),
-            Paragraph(f"{settings.currency_symbol} {float(loan.loan_amount):.2f}", cell_right),
-            Paragraph(f"{settings.currency_symbol} {float(loan.installment_amount or 0):.2f}", cell_right),
-            Paragraph(f"{settings.currency_symbol} {float(loan.outstanding_amount or 0):.2f}", cell_right),
-            Paragraph(f"{settings.currency_symbol} {float(loan.paid_amount or 0):.2f}", cell_right),
-            Paragraph(overdue_text, cell_center),
-            Paragraph(adv_text, cell_center),
-            Paragraph(loan.referrer.full_name if loan.referrer else '-', cell_style),
+            Paragraph(esc(loan.loan_number), cell_style),
+            Paragraph(f"{esc(loan.customer.full_name)}<br/><font size='5' color='grey'>{esc(loan.customer.nic_number or '')}</font>", cell_style),
+            Paragraph(esc(loan.customer.phone_primary or ''), cell_style),
+            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.loan_amount):.2f}", cell_right),
+            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.installment_amount or 0):.2f}", cell_right),
+            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.outstanding_amount or 0):.2f}", cell_right),
+            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.paid_amount or 0):.2f}", cell_right),
+            Paragraph(esc(overdue_text), cell_center),
+            Paragraph(esc(adv_text), cell_center),
+            Paragraph(esc(loan.referrer.full_name if loan.referrer else '-'), cell_style),
             Paragraph('', cell_style),  # signature blank
         ]
         table_data.append(row)
