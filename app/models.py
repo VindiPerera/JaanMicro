@@ -447,7 +447,7 @@ class Loan(db.Model):
         # Check if this is a Type 4 Daily Loan
         if self.loan_type and 'Type 4' in self.loan_type and 'Daily' in self.loan_type and self.duration_days and self.duration_months:
             # Type 4 Daily: Full Interest = Interest Rate * Months
-            # Days = Months * 25
+            # Days = Months * 26
             # Installment = LA * ((Full Interest + 100) / 100) / Days
             full_interest = interest_rate * Decimal(str(self.duration_months))
             installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_days))

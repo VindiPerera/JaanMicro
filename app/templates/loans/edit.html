@@ -449,7 +449,7 @@ $(document).ready(function() {
             
             if (principal > 0 && rate > 0 && months > 0) {
                 var fullInterest = rate * months;
-                var days = months * 25;
+                var days = months * 26;
                 emi = (principal * ((fullInterest + 100) / 100)) / days;
                 emi = Math.round(emi * 100) / 100;
                 totalPayable = emi * days;

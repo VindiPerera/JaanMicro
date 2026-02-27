@@ -223,12 +223,12 @@ def add_loan():
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_daily':
-            # Type 4 Daily Loan: Uses months as input, converts to days (1 month = 25 days)
+            # Type 4 Daily Loan: Uses months as input, converts to days (1 month = 26 days)
             # Full Interest = Interest Rate * Months
-            # Days = Months * 25
+            # Days = Months * 26
             # Installment = LA * ((Full Interest + 100) / 100) / Days
             months = form.duration_months.data
-            duration_days = months * 25
+            duration_days = months * 26
             full_interest = interest_rate * Decimal(str(months))
             emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -563,7 +563,7 @@ def edit_loan(id):
             total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_daily':
             months = form.duration_months.data
-            duration_days = months * 30
+            duration_days = months * 26
             full_interest = interest_rate * Decimal(str(months))
             emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)

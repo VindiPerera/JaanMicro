@@ -183,7 +183,7 @@ def test_other_loan_types():
         print("=" * 80)
         
         months_daily = 2
-        duration_days_t4 = months_daily * 25
+        duration_days_t4 = months_daily * 26
         full_interest_daily = interest_rate * Decimal(str(months_daily))
         installment_t4daily = (loan_amount * ((full_interest_daily + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days_t4))
         installment_t4daily = installment_t4daily.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)

@@ -975,10 +975,10 @@ $(document).ready(function() {
             
             if (principal > 0 && rate > 0 && months > 0) {
                 // Type 4 Daily: Full Interest = Interest Rate * Months
-                // Days = Months * 25
+                // Days = Months * 26
                 // Installment = LA * ((Full Interest + 100) / 100) / Days
                 var fullInterest = rate * months;
-                var days = months * 25;
+                var days = months * 26;
                 emi = (principal * ((fullInterest + 100) / 100)) / days;
                 // Round EMI to 2 decimal places first
                 emi = Math.round(emi * 100) / 100;
