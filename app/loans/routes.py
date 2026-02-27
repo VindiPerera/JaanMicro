@@ -1682,12 +1682,12 @@ def receipt_entry_export(loan_frequency):
     ws = wb.active
     ws.title = sheet_title
 
-    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    fixed_headers = ['Loan Number', 'Customer Name', 'Address', 'Mobile No.', 'Loan Amount', 'Arrears']
-    n_fixed = len(fixed_headers)           # columns 1-6
-    # Each weekday takes 2 columns: Date + Amount
-    # Signature takes 1 column at the end
-    total_cols = n_fixed + len(weekdays) * 2 + 1
+    # Match Repayment.pdf header exactly (including spelling)
+    weekdays = ['Monday', 'Tuesday', 'Wednessday', 'Thursday', 'Friday', 'Saturday']
+    fixed_headers = ['Loan Number', 'Customer', 'Phone', 'loan Amount', 'Installment', 'Arreas']
+    n_fixed = len(fixed_headers)
+    # Each weekday takes 1 column + Signature at the end
+    total_cols = n_fixed + len(weekdays) + 1
 
     header_fill  = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
     header_font  = Font(bold=True, color='FFFFFF', size=9)
@@ -1704,30 +1704,28 @@ def receipt_entry_export(loan_frequency):
         cell.alignment = Alignment(horizontal=h_align, vertical='center', wrap_text=True)
         cell.border = thin_border
 
-    # --- Row 1: fixed headers (merge rows 1-2), day names (merge 2 cols), Signature (merge rows 1-2) ---
-    for col_idx, name in enumerate(fixed_headers, start=1):
-        cell = ws.cell(row=1, column=col_idx, value=name)
-        style_cell(cell, header_fill, header_font)
-        ws.merge_cells(start_row=1, start_column=col_idx, end_row=2, end_column=col_idx)
+    # --- Row 1: empty header row (blank tabs above weekday names, as in Repayment.pdf) ---
+    for c in range(1, total_cols + 1):
+        cell = ws.cell(row=1, column=c, value='')
+        # Keep borders so the "tabs" are visible
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
 
-    for day_idx, day in enumerate(weekdays):
-        day_col = n_fixed + day_idx * 2 + 1          # first of the 2 cols for this day
-        cell = ws.cell(row=1, column=day_col, value=day)
+    # --- Row 2: actual header row (matches Repayment.pdf) ---
+    col_idx = 1
+    for name in fixed_headers:
+        cell = ws.cell(row=2, column=col_idx, value=name)
         style_cell(cell, header_fill, header_font)
-        ws.merge_cells(start_row=1, start_column=day_col, end_row=1, end_column=day_col + 1)
+        col_idx += 1
+
+    for day in weekdays:
+        cell = ws.cell(row=2, column=col_idx, value=day)
+        style_cell(cell, header_fill, header_font)
+        col_idx += 1
 
     sig_col = total_cols
-    cell = ws.cell(row=1, column=sig_col, value='Signature')
+    cell = ws.cell(row=2, column=sig_col, value='Signature')
     style_cell(cell, header_fill, header_font)
-    ws.merge_cells(start_row=1, start_column=sig_col, end_row=2, end_column=sig_col)
-
-    # --- Row 2: "Date" / "Amount" sub-headers for each weekday ---
-    for day_idx in range(len(weekdays)):
-        day_col = n_fixed + day_idx * 2 + 1
-        cell_d = ws.cell(row=2, column=day_col, value='Date')
-        cell_a = ws.cell(row=2, column=day_col + 1, value='Amount')
-        style_cell(cell_d, sub_fill, sub_font)
-        style_cell(cell_a, sub_fill, sub_font)
 
     # --- Data rows (start at row 3) ---
     data_font = Font(size=9)
@@ -1735,18 +1733,18 @@ def receipt_entry_export(loan_frequency):
         sched_data = loan_schedules.get(loan.id, {})
         num_arrears = sched_data.get('num_arrears', 0)
         customer = loan.customer
-        address = f"{customer.address_line1}, {customer.city}" if customer else 'N/A'
 
         row_values = [
             loan.loan_number,
             customer.full_name if customer else 'N/A',
-            address,
             customer.phone_primary if customer else 'N/A',
             float(loan.loan_amount) if loan.loan_amount else 0,
+            float(loan.installment_amount) if loan.installment_amount else 0,
             num_arrears,
         ]
-        # 7 weekdays × 2 blank sub-columns + 1 blank Signature
-        row_values += ['', ''] * len(weekdays) + ['']
+
+        # 6 weekday blank columns + 1 blank Signature
+        row_values += [''] * len(weekdays) + ['']
 
         ws.append(row_values)
         row_num = ws.max_row
@@ -1754,9 +1752,7 @@ def receipt_entry_export(loan_frequency):
             cell = ws.cell(row=row_num, column=col_idx)
             cell.font = data_font
             cell.border = thin_border
-            cell.alignment = Alignment(
-                horizontal='center' if col_idx > n_fixed else 'left'
-            )
+            cell.alignment = Alignment(horizontal='center')
 
     # --- TOTAL row ---
     total_fill = PatternFill(start_color='D9D9D9', end_color='D9D9D9', fill_type='solid')
@@ -1768,9 +1764,8 @@ def receipt_entry_export(loan_frequency):
     for col_idx in range(1, total_cols + 1):
         if col_idx == 1:
             total_row.append('TOTAL')
-        elif col_idx in (2, 3, 4):
-            total_row.append('')
-        elif col_idx in (5, 6):
+        # Sum numeric columns: loan Amount (4), Installment (5), Arreas (6)
+        elif col_idx in (4, 5, 6):
             col_letter = get_column_letter(col_idx)
             total_row.append(
                 f'=SUM({col_letter}{data_start_row}:{col_letter}{data_end_row})'
@@ -1789,17 +1784,23 @@ def receipt_entry_export(loan_frequency):
         cell.alignment = Alignment(horizontal='center' if col_idx > 1 else 'left')
 
     # --- Column widths ---
-    fixed_widths = [14, 22, 30, 15, 14, 10]
+    fixed_widths = [14, 22, 15, 14, 14, 10]  # Loan Number, Customer, Phone, loan Amount, Installment, Arreas
     for i, w in enumerate(fixed_widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
+
+    # Weekday columns (1 column each)
     for day_idx in range(len(weekdays)):
-        day_col = n_fixed + day_idx * 2 + 1
+        day_col = n_fixed + day_idx + 1
         ws.column_dimensions[get_column_letter(day_col)].width = 12
-        ws.column_dimensions[get_column_letter(day_col + 1)].width = 10
+
+    # Signature column
+    sig_col = total_cols
     ws.column_dimensions[get_column_letter(sig_col)].width = 16
 
-    ws.row_dimensions[1].height = 20
-    ws.row_dimensions[2].height = 16
+    ws.row_dimensions[1].height = 12
+    ws.row_dimensions[2].height = 20
+
+    # Freeze above data rows and keep fixed columns visible
     ws.freeze_panes = ws.cell(row=3, column=n_fixed + 1)
 
     output = io.BytesIO()
@@ -1910,13 +1911,15 @@ def receipt_entry_pdf(loan_frequency):
         Paragraph('Loan Number', header_style),
         Paragraph('Customer', header_style),
         Paragraph('Phone', header_style),
-        Paragraph('Loan Amt', header_style),
+        Paragraph('Loan Amount', header_style),
         Paragraph('Installment', header_style),
-        Paragraph('Outstanding', header_style),
-        Paragraph('Paid', header_style),
-        Paragraph('Overdue', header_style),
-        Paragraph('Advance', header_style),
-        Paragraph('Referred By', header_style),
+        Paragraph('Arrears', header_style),
+        Paragraph('Monday', header_style),
+        Paragraph('Tuesday', header_style),
+        Paragraph('Wednesday', header_style),
+        Paragraph('Thursday', header_style),
+        Paragraph('Friday', header_style),
+        Paragraph('Saturday', header_style),
         Paragraph('Signature', header_style),
     ]
 
@@ -1924,17 +1927,13 @@ def receipt_entry_pdf(loan_frequency):
 
     for idx, loan in enumerate(loans, 1):
         arrears = loan.get_arrears_details()
-        overdue_text = ''
         if float(arrears['total_overdue_amount']) > 0:
-            overdue_text = f"{settings.currency_symbol} {float(arrears['total_overdue_amount']):.2f}"
+            arrears_text = f"{settings.currency_symbol} {float(arrears['total_overdue_amount']):.2f}"
             n_inst = arrears['overdue_installments'] + arrears['partial_overdue_installments']
             if n_inst:
-                overdue_text += f" ({n_inst})"
+                arrears_text += f" ({n_inst})"
         else:
-            overdue_text = '-'
-
-        adv = float(loan.advance_balance or 0)
-        adv_text = f"{settings.currency_symbol} {adv:.2f}" if adv > 0 else '-'
+            arrears_text = '-'
 
         row = [
             Paragraph(str(idx), cell_center),
@@ -1943,12 +1942,14 @@ def receipt_entry_pdf(loan_frequency):
             Paragraph(esc(loan.customer.phone_primary or ''), cell_style),
             Paragraph(f"{esc(settings.currency_symbol)} {float(loan.loan_amount):.2f}", cell_right),
             Paragraph(f"{esc(settings.currency_symbol)} {float(loan.installment_amount or 0):.2f}", cell_right),
-            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.outstanding_amount or 0):.2f}", cell_right),
-            Paragraph(f"{esc(settings.currency_symbol)} {float(loan.paid_amount or 0):.2f}", cell_right),
-            Paragraph(esc(overdue_text), cell_center),
-            Paragraph(esc(adv_text), cell_center),
-            Paragraph(esc(loan.referrer.full_name if loan.referrer else '-'), cell_style),
-            Paragraph('', cell_style),  # signature blank
+            Paragraph(esc(arrears_text), cell_center),
+            Paragraph('', cell_style),  # Monday
+            Paragraph('', cell_style),  # Tuesday
+            Paragraph('', cell_style),  # Wednesday
+            Paragraph('', cell_style),  # Thursday
+            Paragraph('', cell_style),  # Friday
+            Paragraph('', cell_style),  # Saturday
+            Paragraph('', cell_style),  # Signature
         ]
         table_data.append(row)
 
@@ -1956,17 +1957,19 @@ def receipt_entry_pdf(loan_frequency):
     usable = page_w - 16 * mm  # total minus margins
     col_widths = [
         usable * 0.03,   # #
-        usable * 0.14,   # Loan Number
-        usable * 0.14,   # Customer
-        usable * 0.09,   # Phone
-        usable * 0.08,   # Loan Amt
+        usable * 0.12,   # Loan Number
+        usable * 0.13,   # Customer
+        usable * 0.08,   # Phone
+        usable * 0.08,   # Loan Amount
         usable * 0.08,   # Installment
-        usable * 0.09,   # Outstanding
-        usable * 0.08,   # Paid
-        usable * 0.08,   # Overdue
-        usable * 0.06,   # Advance
-        usable * 0.07,   # Referred By
-        usable * 0.06,   # Signature
+        usable * 0.08,   # Arrears
+        usable * 0.06,   # Monday
+        usable * 0.06,   # Tuesday
+        usable * 0.07,   # Wednesday
+        usable * 0.06,   # Thursday
+        usable * 0.06,   # Friday
+        usable * 0.06,   # Saturday
+        usable * 0.07,   # Signature
     ]
 
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
