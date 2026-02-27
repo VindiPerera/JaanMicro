@@ -453,6 +453,11 @@ class Loan(db.Model):
             installment = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(self.duration_days))
             return float(installment.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         
+        # Check if this is a Special Loan (single payment at end date)
+        if self.loan_type == 'special_loan':
+            total_interest = (loan_amount * interest_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return float((loan_amount + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        
         # Standard calculation methods
         if self.interest_type == 'reducing_balance':
             # EMI = [P x R x (1+R)^N]/[(1+R)^N-1]
@@ -490,13 +495,14 @@ class Loan(db.Model):
         loan_amount = Decimal(str(self.disbursed_amount or self.loan_amount))
         interest_rate = Decimal(str(self.interest_rate))
         
-        # Check if this is a flat rate loan type (Type1 9weeks, 54 Daily, Type4 loans)
+        # Check if this is a flat rate loan type (Type1 9weeks, 54 Daily, Type4 loans, Special Loan)
         is_flat_rate_loan = (self.loan_type and (
             'type1' in self.loan_type.lower() or 
             '54' in self.loan_type.lower() or 
             'type4' in self.loan_type.lower() or 
             'micro' in self.loan_type.lower() or
-            'daily' in self.loan_type.lower()
+            'daily' in self.loan_type.lower() or
+            self.loan_type == 'special_loan'
         )) or self.interest_type == 'flat'
         
         if is_flat_rate_loan:
@@ -591,14 +597,15 @@ class Loan(db.Model):
             total_paid = Decimal(str(self.paid_amount or 0))
             outstanding = total_expected - total_paid
         else:
-            # For other loan types: Type1 9weeks, 54 Daily, Type4 Micro, Type4 Daily
+            # For other loan types: Type1 9weeks, 54 Daily, Type4 Micro, Type4 Daily, Special Loan
             # Check if this is a flat rate loan type
             is_flat_rate_loan = (self.loan_type and (
                 'type1' in self.loan_type.lower() or 
                 '54' in self.loan_type.lower() or 
                 'type4' in self.loan_type.lower() or 
                 'micro' in self.loan_type.lower() or
-                'daily' in self.loan_type.lower()
+                'daily' in self.loan_type.lower() or
+                self.loan_type == 'special_loan'
             )) or self.interest_type == 'flat'
             
             if is_flat_rate_loan:
@@ -665,7 +672,12 @@ class Loan(db.Model):
         loan_amount = Decimal(str(self.loan_amount))
         
         # Determine number of installments and frequency delta based on loan type
-        if self.duration_days and ('daily' in self.loan_type.lower() or '54' in self.loan_type):
+        if self.loan_type == 'special_loan':
+            # Special Loan: single payment at maturity date
+            num_installments = 1
+            frequency_delta = None
+            frequency_name = 'One-Time'
+        elif self.duration_days and ('daily' in self.loan_type.lower() or '54' in self.loan_type):
             # Daily installments
             num_installments = self.duration_days
             frequency_delta = timedelta(days=1)
@@ -764,7 +776,10 @@ class Loan(db.Model):
                 continue
             
             # Calculate due date - start from next period, not today
-            if frequency_delta:
+            if self.loan_type == 'special_loan' and self.maturity_date:
+                # Special loan: single payment due at maturity date
+                due_date = self.maturity_date
+            elif frequency_delta:
                 current_due_date = current_due_date + frequency_delta
                 
                 # For daily loans (54 Daily and Type 4 Daily), skip Sundays

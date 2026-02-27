@@ -132,6 +132,17 @@ def add_loan():
             if not form.duration_months.data:
                 flash('Duration (Months) is required for Type 4 - Daily Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+        elif form.loan_type.data == 'special_loan':
+            # For Special Loans, validate start and end dates
+            if not form.start_date.data:
+                flash('Start Date is required for Special Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+            if not form.end_date.data:
+                flash('End Date is required for Special Loan!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+            if form.end_date.data <= form.start_date.data:
+                flash('End Date must be after Start Date!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         elif form.loan_type.data == 'monthly_loan':
             # For Monthly loans, validate months, interest type, and installment frequency
             if not form.duration_months.data:
@@ -222,6 +233,13 @@ def add_loan():
             emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'special_loan':
+            # Special Loan: No installments, full payment at end date
+            # Total Payable = Loan Amount + (Loan Amount * Interest Rate / 100)
+            duration_months = 0
+            total_interest = (loan_amount * interest_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (loan_amount + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = total_payable  # Single payment at end date
         elif form.loan_type.data == 'monthly_loan':
             # Monthly Loan: Standard monthly calculation
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
@@ -296,12 +314,13 @@ def add_loan():
             duration_weeks=duration_weeks,
             duration_days=duration_days,
             installment_amount=emi,
-            installment_frequency='daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data),
+            installment_frequency='one_time' if form.loan_type.data == 'special_loan' else ('daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data)),
             disbursed_amount=actual_disbursed_amount,
             total_payable=total_payable,
             outstanding_amount=None,  # Will be set during approval
             documentation_fee=documentation_fee,
-            application_date=datetime.now().date(),
+            application_date=form.start_date.data if form.loan_type.data == 'special_loan' and form.start_date.data else datetime.now().date(),
+            maturity_date=form.end_date.data if form.loan_type.data == 'special_loan' else None,
             purpose=form.purpose.data,
             security_details=form.security_details.data,
             document_path=document_filename,
@@ -468,6 +487,10 @@ def edit_loan(id):
         form.purpose.data = loan.purpose
         form.security_details.data = loan.security_details
         form.notes.data = loan.notes
+        # Pre-populate special loan dates
+        if loan.loan_type == 'special_loan':
+            form.start_date.data = loan.application_date
+            form.end_date.data = loan.maturity_date
     
     if form.validate_on_submit():
         # Custom validation based on loan type
@@ -482,6 +505,16 @@ def edit_loan(id):
         elif form.loan_type.data in ['type4_micro', 'type4_daily', 'monthly_loan']:
             if not form.duration_months.data:
                 flash('Duration (Months) is required for this loan type!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        elif form.loan_type.data == 'special_loan':
+            if not form.start_date.data:
+                flash('Start Date is required for Special Loan!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+            if not form.end_date.data:
+                flash('End Date is required for Special Loan!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+            if form.end_date.data <= form.start_date.data:
+                flash('End Date must be after Start Date!', 'error')
                 return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
         # Validate customer selection
@@ -535,6 +568,12 @@ def edit_loan(id):
             emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
             emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        elif form.loan_type.data == 'special_loan':
+            # Special Loan: No installments, full payment at end date
+            duration_months = 0
+            total_interest = (loan_amount * interest_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            total_payable = (loan_amount + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            emi = total_payable  # Single payment at end date
         elif form.loan_type.data == 'monthly_loan':
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
             n = duration_months
@@ -594,10 +633,11 @@ def edit_loan(id):
         loan.duration_weeks = duration_weeks
         loan.duration_days = duration_days
         loan.installment_amount = emi
-        loan.installment_frequency = 'daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data)
+        loan.installment_frequency = 'one_time' if form.loan_type.data == 'special_loan' else ('daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data))
         loan.total_payable = total_payable
         loan.documentation_fee = documentation_fee
-        loan.application_date = form.application_date.data
+        loan.application_date = form.start_date.data if form.loan_type.data == 'special_loan' and form.start_date.data else form.application_date.data
+        loan.maturity_date = form.end_date.data if form.loan_type.data == 'special_loan' else None
         loan.purpose = form.purpose.data
         loan.security_details = form.security_details.data
         loan.referred_by = form.referred_by.data if form.referred_by.data != 0 else None
@@ -670,7 +710,8 @@ def approve_loan(id):
             loan.disbursement_method = form.disbursement_method.data
             loan.disbursement_reference = form.disbursement_reference.data
             loan.first_installment_date = form.first_installment_date.data
-            loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
+            if loan.loan_type != 'special_loan':
+                loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
             # Set initial outstanding amount to total payable (principal + interest)
             loan.outstanding_amount = loan.total_payable if loan.total_payable else (loan.approved_amount or loan.loan_amount)
             
@@ -902,8 +943,10 @@ def approve_loan_admin(id):
             loan.disbursement_reference = form.disbursement_reference.data
             loan.first_installment_date = form.first_installment_date.data
             
-            # Calculate maturity date based on loan type
-            if loan.duration_days:
+            # Calculate maturity date based on loan type (skip for special loans - already set)
+            if loan.loan_type == 'special_loan':
+                pass  # maturity_date already set from end_date during creation
+            elif loan.duration_days:
                 loan.maturity_date = loan.disbursement_date + timedelta(days=loan.duration_days) if loan.disbursement_date else None
             elif loan.duration_weeks:
                 loan.maturity_date = loan.disbursement_date + timedelta(weeks=loan.duration_weeks) if loan.disbursement_date else None
@@ -1560,6 +1603,12 @@ def receipt_entry():
         Loan.status == 'active'
     )
     
+    # Get special loans
+    special_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['special_loan']),
+        Loan.status == 'active'
+    )
+    
     # Filter by branch if needed
     if should_filter_by_branch():
         current_branch_id = get_current_branch_id()
@@ -1567,16 +1616,19 @@ def receipt_entry():
             weekly_loans_query = weekly_loans_query.filter_by(branch_id=current_branch_id)
             daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
             monthly_loans_query = monthly_loans_query.filter_by(branch_id=current_branch_id)
+            special_loans_query = special_loans_query.filter_by(branch_id=current_branch_id)
     
     # Filter by referrer if specified
     if referrer:
         weekly_loans_query = weekly_loans_query.filter(Loan.referred_by == referrer)
         daily_loans_query = daily_loans_query.filter(Loan.referred_by == referrer)
         monthly_loans_query = monthly_loans_query.filter(Loan.referred_by == referrer)
+        special_loans_query = special_loans_query.filter(Loan.referred_by == referrer)
     
     weekly_loans = weekly_loans_query.order_by(Loan.created_at.desc()).all()
     daily_loans = daily_loans_query.order_by(Loan.created_at.desc()).all()
     monthly_loans = monthly_loans_query.order_by(Loan.created_at.desc()).all()
+    special_loans = special_loans_query.order_by(Loan.created_at.desc()).all()
     
     # Get recent payments for each loan with collector info
     weekly_payments = []
@@ -1599,6 +1651,14 @@ def receipt_entry():
     for loan in monthly_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         monthly_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments
+        })
+    
+    special_payments = []
+    for loan in special_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        special_payments.append({
             'loan': loan,
             'recent_payments': recent_payments
         })
@@ -1631,6 +1691,7 @@ def receipt_entry():
                          weekly_payments=weekly_payments,
                          daily_payments=daily_payments,
                          monthly_payments=monthly_payments,
+                         special_payments=special_payments,
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
@@ -1649,6 +1710,7 @@ def receipt_entry_export(loan_frequency):
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
         'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:
         from flask import abort
@@ -1834,6 +1896,7 @@ def receipt_entry_pdf(loan_frequency):
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
         'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:
         from flask import abort

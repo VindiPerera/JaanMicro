@@ -26,7 +26,9 @@
                         <div class="col-md-6">
                             <strong>Loan Amount:</strong> {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}<br>
                             <strong>Duration:</strong>
-                            {% if '54' in loan.loan_type and loan.duration_days %}
+                            {% if loan.loan_type == 'special_loan' %}
+                                {{ loan.application_date.strftime('%d-%m-%Y') if loan.application_date else 'N/A' }} to {{ loan.maturity_date.strftime('%d-%m-%Y') if loan.maturity_date else 'N/A' }}
+                            {% elif '54' in loan.loan_type and loan.duration_days %}
                                 {{ loan.duration_days }} days
                             {% elif loan.duration_weeks and not loan.duration_months %}
                                 {{ loan.duration_weeks }} weeks

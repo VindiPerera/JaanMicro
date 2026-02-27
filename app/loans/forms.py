@@ -18,6 +18,7 @@ class LoanForm(FlaskForm):
         ('type4_micro', 'Micro Loan (Weekly Installment)'),
         ('type4_daily', 'Daily Loan (Daily Installment)'),
         ('monthly_loan', 'Monthly Loan'),
+        ('special_loan', 'Special Loan'),
     ], validators=[DataRequired()])
     loan_purpose = SelectField('Loan Purpose', choices=[
         ('', 'Select'),
@@ -40,6 +41,8 @@ class LoanForm(FlaskForm):
     ], validators=[Optional()])
     
     duration_months = IntegerField('Duration (Months)', validators=[Optional(), NumberRange(min=1, max=360)])
+    start_date = DateField('Start Date', validators=[Optional()])
+    end_date = DateField('End Date', validators=[Optional()])
     installment_frequency = SelectField('Installment Frequency', choices=[
         ('monthly', 'Monthly'),
         ('weekly', 'Weekly'),

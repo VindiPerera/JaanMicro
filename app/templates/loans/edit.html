@@ -104,6 +104,16 @@
                             {{ form.duration_months(class="form-control", id="duration_months", required=false) }}
                             <small class="text-muted">Repayment period in months</small>
                         </div>
+                        <div class="col-md-6 mb-3" id="startDateField" style="display: none;">
+                            {{ form.start_date.label(class="form-label") }}
+                            {{ form.start_date(class="form-control", id="start_date", type="date") }}
+                            <small class="text-muted">Loan start date</small>
+                        </div>
+                        <div class="col-md-6 mb-3" id="endDateField" style="display: none;">
+                            {{ form.end_date.label(class="form-label") }}
+                            {{ form.end_date(class="form-control", id="end_date", type="date") }}
+                            <small class="text-muted">Full payment due date</small>
+                        </div>
                     </div>
                     
                     <div class="row">
@@ -236,11 +246,15 @@ $(document).ready(function() {
         $('#duration_weeks').prop('required', false).removeAttr('required');
         $('#duration_days').prop('required', false).removeAttr('required');
         $('#duration_months').prop('required', false).removeAttr('required');
+        $('#start_date').prop('required', false).removeAttr('required');
+        $('#end_date').prop('required', false).removeAttr('required');
         
         if (loanType === 'type1_9weeks') {
             $('#durationWeeksField').show();
             $('#durationDaysField').hide();
             $('#durationMonthsField').hide();
+            $('#startDateField').hide();
+            $('#endDateField').hide();
             $('#duration_weeks').prop('required', true).attr('required', 'required');
             $('#duration_days').val('');
             $('#duration_months').val('');
@@ -255,6 +269,8 @@ $(document).ready(function() {
             $('#durationDaysField').show();
             $('#durationWeeksField').hide();
             $('#durationMonthsField').hide();
+            $('#startDateField').hide();
+            $('#endDateField').hide();
             $('#duration_days').prop('required', true).attr('required', 'required');
             $('#duration_weeks').val('');
             $('#duration_months').val('');
@@ -269,6 +285,8 @@ $(document).ready(function() {
             $('#durationWeeksField').hide();
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
+            $('#startDateField').hide();
+            $('#endDateField').hide();
             $('#duration_weeks').val('');
             $('#duration_days').val('');
             $('#duration_months').prop('required', true).attr('required', 'required');
@@ -283,6 +301,8 @@ $(document).ready(function() {
             $('#durationWeeksField').hide();
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
+            $('#startDateField').hide();
+            $('#endDateField').hide();
             $('#duration_weeks').val('');
             $('#duration_days').val('');
             $('#duration_months').prop('required', true).attr('required', 'required');
@@ -293,10 +313,31 @@ $(document).ready(function() {
             $('#installment_frequency').prop('required', false).removeAttr('required');
             
             $('#interestRateHelp').text('Interest rate per month (will be multiplied by duration months)');
+        } else if (loanType === 'special_loan') {
+            // Show start/end date fields, hide all duration fields
+            $('#durationWeeksField').hide();
+            $('#durationDaysField').hide();
+            $('#durationMonthsField').hide();
+            $('#startDateField').show();
+            $('#endDateField').show();
+            $('#duration_weeks').val('');
+            $('#duration_days').val('');
+            $('#duration_months').val('');
+            $('#start_date').prop('required', true).attr('required', 'required');
+            $('#end_date').prop('required', true).attr('required', 'required');
+            
+            $('#interestTypeField').hide();
+            $('#installmentFrequencyField').hide();
+            $('#interest_type').prop('required', false).removeAttr('required');
+            $('#installment_frequency').prop('required', false).removeAttr('required');
+            
+            $('#interestRateHelp').text('Interest rate (Total Payable = Amount + Amount × Rate / 100)');
         } else {
             $('#durationWeeksField').hide();
             $('#durationDaysField').hide();
             $('#durationMonthsField').show();
+            $('#startDateField').hide();
+            $('#endDateField').hide();
             $('#duration_weeks').val('');
             $('#duration_days').val('');
             $('#duration_months').prop('required', true).attr('required', 'required');
@@ -314,7 +355,7 @@ $(document).ready(function() {
     $('#loan_type').trigger('change');
     
     // Auto-calculate EMI on field change
-    $('#loan_amount, #interest_rate, #duration_months, #duration_weeks, #duration_days, #interest_type, #loan_type').on('change keyup', function() {
+    $('#loan_amount, #interest_rate, #duration_months, #duration_weeks, #duration_days, #interest_type, #loan_type, #start_date, #end_date').on('change keyup', function() {
         calculateEMI();
     });
     
@@ -427,6 +468,27 @@ $(document).ready(function() {
                         '<strong>Daily Installment:</strong> ' + emi.toFixed(2) + '<br>' +
                         '<strong>Duration in Days:</strong> ' + days + '<br>' +
                         '<strong>Total Payable:</strong> ' + totalPayable.toFixed(2)
+                    );
+                }
+            }
+        } else if (loanType === 'special_loan') {
+            if (principal > 0 && rate >= 0) {
+                var totalInterest = principal * rate / 100;
+                totalPayable = principal + totalInterest;
+                emi = totalPayable;
+
+                if ($('#emi-display').length === 0) {
+                    $('#endDateField').after(
+                        '<div id=\"emi-display\" class=\"col-md-12 mb-3\">' +
+                        '<div class=\"alert alert-info\">' +
+                        '<strong>Total Interest:</strong> ' + totalInterest.toFixed(2) + '<br>' +
+                        '<strong>Total Payable (at end date):</strong> ' + totalPayable.toFixed(2) +
+                        '</div></div>'
+                    );
+                } else {
+                    $('#emi-display .alert').html(
+                        '<strong>Total Interest:</strong> ' + totalInterest.toFixed(2) + '<br>' +
+                        '<strong>Total Payable (at end date):</strong> ' + totalPayable.toFixed(2)
                     );
                 }
             }

@@ -79,7 +79,8 @@ def get_loan_type_code(loan_type):
         '54_daily': 'DLS',         # 54 Daily Loan - Daily Long Short
         'type4_micro': 'MF',       # Micro Loan - Micro Finance
         'type4_daily': 'DL',       # Daily Loan - Daily
-        'monthly_loan': 'ML'       # Monthly Loan - Monthly
+        'monthly_loan': 'ML',      # Monthly Loan - Monthly
+        'special_loan': 'S'        # Special Loan
     }
     
     return loan_type_mapping.get(loan_type, 'ML')  # Default to ML if type not found
