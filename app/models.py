@@ -752,6 +752,8 @@ class Loan(db.Model):
                     'principal': float(skip_principal),
                     'interest': float(skip_interest),
                     'status': skip_status,
+                    'paid_amount': 0.0,
+                    'remaining_amount': 0.0,
                     'is_customized': True,
                     'is_skipped': True,
                     'reschedule_date': override_obj.reschedule_date,
