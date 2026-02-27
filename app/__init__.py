@@ -1,5 +1,17 @@
 """Application factory and initialization"""
 import os
+import sys
+import hashlib
+
+# Python 3.8 on some OpenSSL builds rejects the 'usedforsecurity' kwarg
+# that reportlab passes to hashlib.md5(). Patch it out before reportlab loads.
+if sys.version_info < (3, 9):
+    _orig_md5 = hashlib.md5
+    def _md5_compat(*args, **kwargs):
+        kwargs.pop('usedforsecurity', None)
+        return _orig_md5(*args, **kwargs)
+    hashlib.md5 = _md5_compat
+
 from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
