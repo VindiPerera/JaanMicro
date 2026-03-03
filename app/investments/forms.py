@@ -8,7 +8,6 @@ class InvestmentForm(FlaskForm):
     customer_id = SelectField('Customer', coerce=int, choices=[], validators=[DataRequired()])
     investment_type = SelectField('Borrower Type', choices=[
         ('', 'Select'),
-        ('fixed_deposit', 'Fixed Deposit'),
         ('savings', 'Savings Account'),
         ('recurring_deposit', 'Recurring Deposit'),
         ('other', 'Other')
