@@ -145,7 +145,7 @@
                             <tr>
                                 <th>Borrower #</th>
                                 <th>Member</th>
-                                <th>Maturity Date</th>
+                                <th>Settlement Date</th>
                                 <th>Amount</th>
                             </tr>
                         </thead>
@@ -171,7 +171,7 @@
 <!-- Investments Table -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Investment Details</h5>
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Borrowing Details</h5>
     </div>
     <div class="card-body">
         <div class="table-scroll-container">
@@ -182,7 +182,7 @@
                         <th>Member</th>
                         <th>Type</th>
                         <th>Start Date</th>
-                        <th>Maturity Date</th>
+                        <th>Settlement Date</th>
                         <th>Principal</th>
                         <th>Interest Rate</th>
                         <th>Current Amount</th>
@@ -228,7 +228,7 @@
 <script>
 function exportToExcel() {
     var table = document.getElementById('investment-report-table');
-    var wb = XLSX.utils.table_to_book(table, {sheet: "Investment Report"});
+    var wb = XLSX.utils.table_to_book(table, {sheet: "Borrowing Report"});
     XLSX.writeFile(wb, 'investment_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
 }
 

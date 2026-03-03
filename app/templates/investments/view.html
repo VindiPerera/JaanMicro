@@ -82,12 +82,12 @@
         <!-- Investment Information -->
         <div class="card mb-3">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-piggy-bank me-2"></i>Investment Information</h5>
+                <h5 class="mb-0"><i class="bi bi-piggy-bank me-2"></i>Borrowing Information</h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <strong>Investment Type:</strong><br>
+                        <strong>Borrowing Type:</strong><br>
                         {{ investment.investment_type|title }}
                     </div>
                     <div class="col-md-6 mb-3">
@@ -99,7 +99,7 @@
                         {{ investment.start_date.strftime('%Y-%m-%d') if investment.start_date else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">
-                        <strong>Maturity Date:</strong><br>
+                        <strong>Settlement Date:</strong><br>
                         {{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">

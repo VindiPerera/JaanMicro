@@ -177,7 +177,7 @@ def view_investment(id):
     from app.utils.helpers import get_user_accessible_branch_ids
     accessible_branch_ids = get_user_accessible_branch_ids()
     if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
-        flash('Access denied: Investment not found in accessible branches.', 'danger')
+        flash('Access denied: Borrowing not found in accessible branches.', 'danger')
         return redirect(url_for('investments.list_investments'))
     
     transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
