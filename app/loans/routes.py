@@ -2267,6 +2267,126 @@ def skip_installment(id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@loans_bp.route('/skip-all-daily-loans', methods=['POST'])
+@login_required
+@admin_required
+def skip_all_daily_loans():
+    """Skip one day's installment for all active daily loans (DLS & DL types)"""
+    try:
+        data = request.get_json()
+        skip_date_str = data.get('skip_date', '')
+        notes = data.get('notes', '')
+
+        if not skip_date_str:
+            return jsonify({'success': False, 'message': 'Skip date is required'}), 400
+
+        skip_date = datetime.strptime(skip_date_str, '%Y-%m-%d').date()
+
+        # Don't allow skipping Sundays (daily loans already skip Sundays)
+        if skip_date.weekday() == 6:
+            return jsonify({'success': False, 'message': 'Cannot skip a Sunday — daily loans already skip Sundays'}), 400
+
+        # Get all active daily loans (54_daily = DLS, type4_daily = DL)
+        daily_loans_query = Loan.query.filter(
+            Loan.loan_type.in_(['54_daily', 'type4_daily']),
+            Loan.status == 'active'
+        )
+
+        # Filter by branch if needed
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
+
+        daily_loans = daily_loans_query.all()
+
+        if not daily_loans:
+            return jsonify({'success': False, 'message': 'No active daily loans found'}), 404
+
+        skipped_count = 0
+        already_skipped = 0
+        not_applicable = 0
+        skipped_loans = []
+
+        for loan in daily_loans:
+            schedule = loan.generate_payment_schedule()
+
+            # Find the installment whose due_date matches the skip_date
+            target_installment = None
+            for inst in schedule:
+                if inst['due_date'] == skip_date and not inst['is_skipped']:
+                    # Only skip unpaid/pending installments
+                    if inst['status'] in ('pending', 'overdue', 'partial'):
+                        target_installment = inst
+                        break
+                elif inst['due_date'] == skip_date and inst['is_skipped']:
+                    already_skipped += 1
+                    break
+
+            if not target_installment:
+                not_applicable += 1
+                continue
+
+            installment_number = target_installment['installment_number']
+
+            # Check if override already exists
+            override = LoanScheduleOverride.query.filter_by(
+                loan_id=loan.id,
+                installment_number=installment_number
+            ).first()
+
+            if override:
+                override.is_skipped = True
+                override.custom_due_date = None
+                override.reschedule_date = None
+                override.updated_by = current_user.id
+                override.updated_at = datetime.utcnow()
+                if notes:
+                    override.notes = notes
+            else:
+                override = LoanScheduleOverride(
+                    loan_id=loan.id,
+                    installment_number=installment_number,
+                    is_skipped=True,
+                    custom_due_date=None,
+                    reschedule_date=None,
+                    created_by=current_user.id,
+                    notes=notes or f'Bulk skip for {skip_date_str}'
+                )
+                db.session.add(override)
+
+            skipped_count += 1
+            skipped_loans.append(loan.loan_number)
+
+        # Log activity
+        if skipped_count > 0:
+            log = ActivityLog(
+                user_id=current_user.id,
+                action='skip_all_daily_loans',
+                entity_type='loan',
+                entity_id=0,
+                description=f'Bulk skipped {skipped_count} daily loan installments for {skip_date_str}',
+                ip_address=request.remote_addr
+            )
+            db.session.add(log)
+            db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'Successfully skipped {skipped_count} daily loan installment(s) for {skip_date_str}',
+            'skipped_count': skipped_count,
+            'already_skipped': already_skipped,
+            'not_applicable': not_applicable,
+            'skipped_loans': skipped_loans
+        })
+
+    except ValueError as e:
+        return jsonify({'success': False, 'message': f'Invalid date format: {str(e)}'}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @loans_bp.route('/<int:id>/schedule/reset', methods=['POST'])
 @login_required
 @admin_required

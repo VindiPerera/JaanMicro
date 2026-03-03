@@ -215,6 +215,11 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Daily Loan Payments</h5>
                 <div>
+                    {% if current_user.role == 'admin' %}
+                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#skipAllDailyLoansModal">
+                        <i class="bi bi-skip-forward me-1"></i>Skip All Daily Loans
+                    </button>
+                    {% endif %}
                     <a href="{{ url_for('loans.receipt_entry_pdf', loan_frequency='daily', collector=collector or '') }}" class="btn btn-sm btn-danger">
                         <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
                     </a>
@@ -715,5 +720,103 @@
         </div>
     </div>
 </div>
+
+<!-- Skip All Daily Loans Modal -->
+{% if current_user.role == 'admin' %}
+<div class="modal fade" id="skipAllDailyLoansModal" tabindex="-1" aria-labelledby="skipAllDailyLoansModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="skipAllDailyLoansModalLabel">
+                    <i class="bi bi-skip-forward me-2"></i>Skip All Daily Loans for a Day
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">This will skip the installment for <strong>all active daily loans</strong> (DLS & DL types) on the selected date.</p>
+                <div class="mb-3">
+                    <label for="skipDate" class="form-label">Select Date to Skip</label>
+                    <input type="date" class="form-control" id="skipDate" required>
+                </div>
+                <div class="mb-3">
+                    <label for="skipNotes" class="form-label">Notes (optional)</label>
+                    <textarea class="form-control" id="skipNotes" rows="2" placeholder="e.g. Public holiday, office closed"></textarea>
+                </div>
+                <div id="skipAllDailyResult" class="d-none">
+                    <div class="alert" id="skipAllDailyAlert"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirmSkipAllDailyLoans">
+                    <i class="bi bi-skip-forward me-1"></i>Skip All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('confirmSkipAllDailyLoans').addEventListener('click', function() {
+    const skipDate = document.getElementById('skipDate').value;
+    const notes = document.getElementById('skipNotes').value;
+    const resultDiv = document.getElementById('skipAllDailyResult');
+    const alertDiv = document.getElementById('skipAllDailyAlert');
+    const btn = this;
+
+    if (!skipDate) {
+        resultDiv.classList.remove('d-none');
+        alertDiv.className = 'alert alert-danger';
+        alertDiv.textContent = 'Please select a date.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+    resultDiv.classList.add('d-none');
+
+    fetch('{{ url_for("loans.skip_all_daily_loans") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            skip_date: skipDate,
+            notes: notes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultDiv.classList.remove('d-none');
+        if (data.success) {
+            alertDiv.className = 'alert alert-success';
+            let msg = data.message;
+            if (data.already_skipped > 0) {
+                msg += ' (' + data.already_skipped + ' already skipped)';
+            }
+            if (data.not_applicable > 0) {
+                msg += ' (' + data.not_applicable + ' not applicable for this date)';
+            }
+            alertDiv.textContent = msg;
+            setTimeout(function() {
+                location.reload();
+            }, 2000);
+        } else {
+            alertDiv.className = 'alert alert-danger';
+            alertDiv.textContent = data.message;
+        }
+    })
+    .catch(error => {
+        resultDiv.classList.remove('d-none');
+        alertDiv.className = 'alert alert-danger';
+        alertDiv.textContent = 'An error occurred. Please try again.';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-skip-forward me-1"></i>Skip All';
+    });
+});
+</script>
+{% endif %}
 
 {% endblock %}
