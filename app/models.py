@@ -693,6 +693,10 @@ class Loan(db.Model):
             frequency_delta = None  # Will use relativedelta for months
             frequency_name = 'Monthly'
         
+        # Extend schedule by the number of skipped installments so a makeup
+        # installment is appended at the end for every skipped day/week/month.
+        num_installments += sum(1 for ov in overrides.values() if ov.is_skipped)
+        
         # Get total paid amount (including any advance balance already applied)
         total_paid = Decimal(str(self.paid_amount or 0))
         
