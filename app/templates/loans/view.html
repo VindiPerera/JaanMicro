@@ -372,10 +372,6 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <strong>Loan Purpose:</strong><br>
-                        {{ loan.loan_purpose|title if loan.loan_purpose else 'N/A' }}
-                    </div>
-                    <div class="col-md-6 mb-3">
                         <strong>Calculation Type:</strong><br>
                         {{ loan.loan_type|replace('_', ' ')|title if loan.loan_type else 'N/A' }}
                     </div>
@@ -452,7 +448,7 @@
                     </div>
                     <div class="col-md-12 mb-3">
                         <strong>Purpose:</strong><br>
-                        {{ loan.purpose or 'N/A' }}
+                        {{ loan.loan_purpose|title if loan.loan_purpose else 'N/A' }}
                     </div>
                     <div class="col-md-12 mb-3">
                         <strong>Security/Collateral:</strong><br>
