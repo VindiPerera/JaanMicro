@@ -89,6 +89,11 @@
                             {{ form.loan_amount.label(class="form-label") }}
                             {{ form.loan_amount(class="form-control", id="loan_amount") }}
                         </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.documentation_fee.label(class="form-label") }}
+                            {{ form.documentation_fee(class="form-control", id="documentation_fee") }}
+                            <small class="text-muted">Enter documentation charge amount</small>
+                        </div>
                         <div class="col-md-6 mb-3" id="durationWeeksField" style="display: none;">
                             {{ form.duration_weeks.label(class="form-label") }}
                             {{ form.duration_weeks(class="form-control", id="duration_weeks") }}

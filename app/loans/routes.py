@@ -294,8 +294,8 @@ def add_loan():
             # Store relative path
             document_filename = f"loans/{document_filename}"
         
-        # Calculate documentation fee (1% of loan amount)
-        documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Get documentation fee from form (manually entered)
+        documentation_fee = Decimal(str(form.documentation_fee.data or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         # Disbursed amount will be calculated during approval (loan amount minus documentation fee)
         # For pending loans, these remain None until approved
@@ -478,6 +478,7 @@ def edit_loan(id):
         form.loan_type.data = loan.loan_type
         form.loan_purpose.data = loan.loan_purpose
         form.loan_amount.data = loan.loan_amount
+        form.documentation_fee.data = loan.documentation_fee
         form.duration_weeks.data = loan.duration_weeks
         form.duration_days.data = loan.duration_days
         form.duration_months.data = loan.duration_months
@@ -618,8 +619,8 @@ def edit_loan(id):
             
             loan.document_path = f"loans/{document_filename}"
         
-        # Calculate documentation fee (1% of loan amount)
-        documentation_fee = (loan_amount * Decimal('0.01')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        # Get documentation fee from form (manually entered)
+        documentation_fee = Decimal(str(form.documentation_fee.data or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         
         # Update loan data
         loan.customer_id = form.customer_id.data

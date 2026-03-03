@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Documentation Charges Report</h4>
+    <div>
+        <a href="{{ url_for('reports.export_documentation_charges', start_date=start_date, end_date=end_date, loan_type=loan_type) }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </a>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Loan Type</label>
+                <select name="loan_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="type1_9weeks" {% if loan_type == 'type1_9weeks' %}selected{% endif %}>9 Week Loan</option>
+                    <option value="54_daily" {% if loan_type == '54_daily' %}selected{% endif %}>54 Daily Loan</option>
+                    <option value="type4_micro" {% if loan_type == 'type4_micro' %}selected{% endif %}>Micro Loan (Weekly)</option>
+                    <option value="type4_daily" {% if loan_type == 'type4_daily' %}selected{% endif %}>Daily Loan (Daily)</option>
+                    <option value="monthly_loan" {% if loan_type == 'monthly_loan' %}selected{% endif %}>Monthly Loan</option>
+                    <option value="special_loan" {% if loan_type == 'special_loan' %}selected{% endif %}>Special Loan</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <div class="stats-label">Total Loans</div>
+                <div class="stats-value">{{ summary.total_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <div class="stats-label">Total Loan Amount</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_loan_amount|float) }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <div class="stats-label">Total Documentation Charges</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_doc_fees|float) }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Documentation Charges Details</h5>
+    </div>
+    <div class="card-body">
+        {% if loans %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover data-table">
+                <thead>
+                    <tr>
+                        <th>Loan Number</th>
+                        <th>Customer</th>
+                        <th>NIC</th>
+                        <th>Loan Type</th>
+                        <th>Loan Amount</th>
+                        <th>Documentation Fee</th>
+                        <th>Disbursed Amount</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('loans.view_loan', id=loan.id) }}">
+                                <strong>{{ loan.loan_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ loan.customer.full_name if loan.customer else 'N/A' }}</td>
+                        <td>{{ loan.customer.nic_number if loan.customer else 'N/A' }}</td>
+                        <td>{{ loan.loan_type|replace('_', ' ')|title }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                        <td>
+                            {% if (loan.documentation_fee or 0)|float > 0 %}
+                                <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.documentation_fee|float) }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.disbursed_amount|float) if loan.disbursed_amount else '-' }}</td>
+                        <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
+                        <td>{{ loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-dark fw-bold">
+                        <td colspan="4">Total</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_loan_amount|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_doc_fees|float) }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-file-earmark-text fs-1 text-muted mb-3"></i>
+            <h5 class="text-muted">No Records Found</h5>
+            <p class="text-muted">No documentation charges found for the selected filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

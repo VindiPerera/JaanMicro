@@ -863,6 +863,145 @@ def arrears_report():
                          status=status,
                          product_type=product_type)
 
+
+@reports_bp.route('/documentation-charges')
+@login_required
+@permission_required('view_reports')
+def documentation_charges_report():
+    """Documentation charges report"""
+    from decimal import Decimal
+    
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    loan_type = request.args.get('loan_type', '')
+    
+    query = Loan.query.filter(Loan.status.in_(['active', 'completed', 'pending', 'initiated']))
+    
+    # Apply branch filtering
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
+    
+    if start_date:
+        query = query.filter(Loan.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        query = query.filter(Loan.created_at <= datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+    if loan_type:
+        query = query.filter(Loan.loan_type == loan_type)
+    
+    loans = query.order_by(Loan.created_at.desc()).all()
+    
+    # Calculate summary
+    total_doc_fees = sum(float(loan.documentation_fee or 0) for loan in loans)
+    total_loan_amount = sum(float(loan.loan_amount or 0) for loan in loans)
+    total_loans = len(loans)
+    
+    summary = {
+        'total_loans': total_loans,
+        'total_doc_fees': total_doc_fees,
+        'total_loan_amount': total_loan_amount,
+    }
+    
+    return render_template('reports/documentation_charges_report.html',
+                         title='Documentation Charges Report',
+                         loans=loans,
+                         summary=summary,
+                         start_date=start_date,
+                         end_date=end_date,
+                         loan_type=loan_type)
+
+
+@reports_bp.route('/export/documentation-charges')
+@login_required
+@permission_required('view_reports')
+def export_documentation_charges():
+    """Export documentation charges report to Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    loan_type = request.args.get('loan_type', '')
+    
+    query = Loan.query.filter(Loan.status.in_(['active', 'completed', 'pending', 'initiated']))
+    
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
+    
+    if start_date:
+        query = query.filter(Loan.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        query = query.filter(Loan.created_at <= datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+    if loan_type:
+        query = query.filter(Loan.loan_type == loan_type)
+    
+    loans = query.order_by(Loan.created_at.desc()).all()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Documentation Charges'
+    
+    headers = [
+        'Loan Number', 'Customer Name', 'NIC Number', 'Loan Type',
+        'Loan Amount', 'Documentation Fee', 'Disbursed Amount',
+        'Status', 'Created Date'
+    ]
+    
+    header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+    
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+    
+    total_fees = 0
+    total_amount = 0
+    
+    for loan in loans:
+        doc_fee = float(loan.documentation_fee or 0)
+        loan_amt = float(loan.loan_amount or 0)
+        total_fees += doc_fee
+        total_amount += loan_amt
+        
+        ws.append([
+            loan.loan_number,
+            loan.customer.full_name if loan.customer else 'N/A',
+            loan.customer.nic_number if loan.customer else 'N/A',
+            loan.loan_type.replace('_', ' ').title() if loan.loan_type else 'N/A',
+            loan_amt,
+            doc_fee,
+            float(loan.disbursed_amount or 0),
+            loan.status.title() if loan.status else 'N/A',
+            loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
+        ])
+    
+    # Add totals row
+    ws.append([])
+    total_row = ['', '', '', 'TOTAL', total_amount, total_fees, '', '', '']
+    ws.append(total_row)
+    bold_font = Font(bold=True)
+    for cell in ws[ws.max_row]:
+        cell.font = bold_font
+    
+    # Auto-fit column widths
+    for col in ws.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+    
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename=documentation_charges_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    
+    return response
+
+
 @reports_bp.route('/export/loans')
 @login_required
 @permission_required('view_reports')
