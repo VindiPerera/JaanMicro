@@ -1184,7 +1184,7 @@ def export_arrears():
     
     writer.writerow([
         'Type', 'Reference #', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address',
-        'Loan Type', 'Disbursement Date', 'Maturity Date', 'Original Amount',
+        'Loan Type', 'Disbursement Date', 'Settlement Date', 'Original Amount',
         'Outstanding', 'Overdue Installments', 'Partial Installments',
         'Overdue Amount', 'Partial Overdue', 'Advance Balance', 'Days Overdue', 'Status'
     ])
