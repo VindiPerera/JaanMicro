@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0">
+        <i class="bi bi-{% if title == 'Starred Messages' %}star-fill text-warning{% else %}inbox{% endif %} me-2"></i>
+        {{ title }}
+    </h4>
+    <a href="{{ url_for('messages.compose') }}" class="btn btn-primary">
+        <i class="bi bi-pencil-square me-1"></i> Compose
+    </a>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0">
+    <li class="nav-item">
+        <a class="nav-link {% if title == 'Inbox' %}active{% endif %}" href="{{ url_for('messages.inbox') }}">
+            <i class="bi bi-inbox me-1"></i>Inbox
+            {% if unread_count %}<span class="badge bg-danger ms-1">{{ unread_count }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if title == 'Sent Messages' %}active{% endif %}" href="{{ url_for('messages.sent') }}">
+            <i class="bi bi-send me-1"></i>Sent
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if title == 'Starred Messages' %}active{% endif %}" href="{{ url_for('messages.starred') }}">
+            <i class="bi bi-star me-1"></i>Starred
+        </a>
+    </li>
+</ul>
+
+<div class="card border-top-0 rounded-top-0">
+    {% if items %}
+    <ul class="list-group list-group-flush">
+        {% for msg, recip in items %}
+        <li class="list-group-item list-group-item-action px-3 py-0 {% if not recip.is_read %}msg-unread{% endif %}">
+            <div class="d-flex align-items-center gap-3 py-2">
+                <!-- Star -->
+                <form method="POST" action="{{ url_for('messages.star', message_id=msg.id) }}" class="d-inline flex-shrink-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-link p-0 {% if recip.is_starred %}text-warning{% else %}text-muted{% endif %} msg-star"
+                            title="{% if recip.is_starred %}Unstar{% else %}Star{% endif %}">
+                        <i class="bi bi-star{% if recip.is_starred %}-fill{% endif %}"></i>
+                    </button>
+                </form>
+                <!-- Sender avatar -->
+                <div class="msg-avatar flex-shrink-0">{{ msg.sender.full_name[0]|upper }}</div>
+                <!-- Content -->
+                <a href="{{ url_for('messages.view', message_id=msg.id) }}"
+                   class="flex-grow-1 text-decoration-none text-dark d-flex align-items-center gap-2 overflow-hidden">
+                    <span class="msg-sender text-truncate {% if not recip.is_read %}fw-semibold{% endif %}"
+                          style="min-width:130px;max-width:160px;">{{ msg.sender.full_name }}</span>
+                    <span class="flex-grow-1 text-truncate {% if not recip.is_read %}fw-semibold{% endif %}">
+                        {{ msg.subject }}
+                        {% if msg.replies.count() > 0 %}
+                        <span class="badge bg-secondary fw-normal ms-1" style="font-size:.7rem;">{{ msg.replies.count() }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="text-muted small flex-shrink-0">{{ msg.created_at.strftime('%d %b') }}</span>
+                </a>
+                <!-- Delete (shows on hover) -->
+                <form method="POST" action="{{ url_for('messages.delete', message_id=msg.id) }}"
+                      class="d-inline flex-shrink-0 msg-actions"
+                      onsubmit="return confirm('Delete this message?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-link p-0 text-muted" title="Delete">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if pagination.pages > 1 %}
+    <div class="card-footer d-flex justify-content-center bg-white">
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}">&laquo;</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-{% if title == 'Starred Messages' %}star{% else %}inbox{% endif %}"
+           style="font-size:3rem;opacity:.3;"></i>
+        <p class="mt-3 mb-1 fw-semibold">
+            {% if title == 'Starred Messages' %}No starred messages{% else %}Your inbox is empty{% endif %}
+        </p>
+        <p class="small">
+            {% if title == 'Starred Messages' %}Star a message to find it here{% else %}Messages you receive will appear here{% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.msg-unread { border-left: 3px solid var(--primary-color, #2c3e50); background: #f8f9fb; }
+.msg-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--primary-color, #2c3e50); color: #fff;
+    font-size: .85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.msg-sender { font-weight: 500; }
+.msg-actions { opacity: 0; transition: opacity .15s; }
+.list-group-item:hover .msg-actions { opacity: 1; }
+.msg-star { opacity: .4; transition: opacity .15s; }
+.list-group-item:hover .msg-star { opacity: 1; }
+</style>
+{% endblock %}
+

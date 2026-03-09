@@ -75,6 +75,7 @@ def create_app(config_name='default'):
     from app.pawnings import pawnings_bp
     from app.reports import reports_bp
     from app.settings import settings_bp
+    from app.messages import messages_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp, url_prefix='/')
@@ -84,6 +85,7 @@ def create_app(config_name='default'):
     app.register_blueprint(pawnings_bp, url_prefix='/pawnings')
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(settings_bp, url_prefix='/settings')
+    app.register_blueprint(messages_bp, url_prefix='/messages')
     
     # Jinja2 global helper: build the correct /static/uploads/... URL for any
     # stored upload path, regardless of whether it has an "uploads/" prefix or not.
@@ -115,13 +117,22 @@ def create_app(config_name='default'):
         if current_user.is_authenticated and current_user.role in ['admin', 'regional_manager']:
             branches = Branch.query.filter_by(is_active=True).order_by(Branch.name).all()
         
+        # Unread message count for current user
+        unread_count = 0
+        if current_user.is_authenticated:
+            from app.models import MessageRecipient
+            unread_count = MessageRecipient.query.filter_by(
+                user_id=current_user.id, is_read=False, is_deleted=False
+            ).count()
+
         return dict(
             system_settings=settings, 
             now=datetime.now, 
             today=datetime.now().date(), 
             current_branch=current_branch,
             branches=branches,
-            csrf_token=generate_csrf
+            csrf_token=generate_csrf,
+            unread_count=unread_count
         )
     
     return app

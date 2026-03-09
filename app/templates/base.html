@@ -706,6 +706,14 @@
             </li>
             {% endif %}
             
+            <li>
+                <a href="{{ url_for('messages.inbox') }}" class="{% if 'messages' in request.endpoint %}active{% endif %}">
+                    <i class="bi bi-envelope"></i>
+                    <span>Messages</span>
+                    {% if unread_count %}<span class="badge bg-danger ms-auto">{{ unread_count }}</span>{% endif %}
+                </a>
+            </li>
+            
             {% if current_user.has_permission('manage_settings') %}
             <li>
                 <a href="{{ url_for('settings.index') }}" class="{% if 'settings' in request.endpoint %}active{% endif %}">
@@ -883,6 +891,344 @@
     </script>
     
     {% block extra_js %}{% endblock %}
-    
+
+    <!-- ── Floating compose button + Gmail-style popup ── -->
+    {% if current_user.is_authenticated %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <style>
+        /* ── Floating button ── */
+        #floatingMsgBtn {
+            position: fixed; bottom: 28px; right: 28px; z-index: 1050;
+            width: 54px; height: 54px; border-radius: 50%;
+            background: var(--primary-color, #2c3e50); color: #fff; border: none;
+            box-shadow: 0 4px 18px rgba(0,0,0,.28);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; cursor: pointer;
+            transition: box-shadow .2s, transform .2s;
+        }
+        #floatingMsgBtn:hover { box-shadow: 0 6px 24px rgba(0,0,0,.35); transform: scale(1.07); }
+
+        /* ── Compose popup container ── */
+        #composePopup {
+            position: fixed; bottom: 0; right: 100px;
+            width: 490px; max-width: calc(100vw - 120px);
+            z-index: 1060; display: none; flex-direction: column;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 8px 36px rgba(0,0,0,.22);
+            background: #fff; overflow: hidden;
+        }
+        #composePopup.open { display: flex; }
+        #composePopup.minimized #composeBodyWrap { display: none; }
+        #composePopup.minimized { width: 300px; }
+
+        /* Header */
+        .cp-header {
+            background: var(--primary-color, #2c3e50); color: #fff;
+            padding: 0 14px; height: 50px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: space-between;
+            border-radius: 12px 12px 0 0; user-select: none;
+        }
+        .cp-header-title { font-weight: 600; font-size: .92rem; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .cp-header-actions { display: flex; gap: 2px; }
+        .cp-header-actions button {
+            background: none; border: none; color: rgba(255,255,255,.75);
+            width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .85rem; transition: background .15s, color .15s;
+        }
+        .cp-header-actions button:hover { background: rgba(255,255,255,.18); color: #fff; }
+
+        /* Body wrapper */
+        #composeBodyWrap { display: flex; flex-direction: column; position: relative; }
+
+        /* Sending overlay */
+        .cp-sending {
+            display: none; position: absolute; inset: 0; z-index: 5;
+            background: rgba(255,255,255,.88); backdrop-filter: blur(2px);
+            align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+        }
+        .cp-sending.show { display: flex; }
+
+        /* Field rows */
+        .cp-field {
+            display: flex; align-items: flex-start;
+            border-bottom: 1px solid #eee; padding: 0 14px; min-height: 44px;
+        }
+        .cp-label {
+            color: #888; font-size: .8rem; font-weight: 600;
+            min-width: 40px; padding-top: 12px; flex-shrink: 0;
+        }
+        .cp-field input[type="text"] {
+            flex: 1; border: none; outline: none;
+            font-size: .9rem; padding: 11px 0; background: transparent; color: #333;
+        }
+        .cp-field input::placeholder { color: #c0c0c0; }
+
+        /* Select2 integration */
+        .cp-field .select2-container { flex: 1; }
+        .cp-field .select2-container--bootstrap-5 .select2-selection {
+            border: none !important; box-shadow: none !important;
+            min-height: 44px !important; background: transparent !important; padding: 6px 0 !important;
+        }
+        .cp-field .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered { padding: 0; }
+        .cp-field .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice {
+            background: #e8f0fe !important; color: #1a56d6 !important;
+            border: none !important; border-radius: 4px !important;
+            font-size: .78rem !important; padding: 2px 8px !important;
+        }
+        .cp-field .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__choice__remove { color: #1a56d6 !important; }
+
+        /* Message body */
+        .cp-body { padding: 10px 14px; }
+        .cp-body textarea {
+            width: 100%; min-height: 180px; border: none; outline: none;
+            resize: none; font-size: .9rem; color: #333; background: transparent; font-family: inherit;
+        }
+        .cp-body textarea::placeholder { color: #c0c0c0; }
+
+        /* Footer */
+        .cp-footer {
+            padding: 10px 14px; border-top: 1px solid #eee; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .cp-btn-send {
+            background: var(--primary-color, #2c3e50); color: #fff; border: none;
+            padding: 8px 22px; border-radius: 6px; font-weight: 600; font-size: .88rem;
+            display: flex; align-items: center; gap: 6px; cursor: pointer;
+            transition: opacity .15s;
+        }
+        .cp-btn-send:disabled { opacity: .55; cursor: not-allowed; }
+        .cp-btn-send:not(:disabled):hover { opacity: .88; }
+        .cp-btn-discard {
+            background: none; border: none; color: #aaa; font-size: 1.1rem;
+            cursor: pointer; padding: 6px; border-radius: 50%;
+            display: flex; align-items: center; transition: background .15s, color .15s;
+        }
+        .cp-btn-discard:hover { background: #fce8e6; color: #d93025; }
+
+        @media (max-width: 576px) {
+            #composePopup { right: 0; width: 100vw; max-width: 100vw; }
+            #floatingMsgBtn { bottom: 20px; right: 20px; }
+        }
+    </style>
+
+    <!-- Floating button -->
+    <button type="button" id="floatingMsgBtn" title="Compose new message" onclick="cpToggle()">
+        <i class="bi bi-pencil-square"></i>
+    </button>
+
+    <!-- Compose popup -->
+    <div id="composePopup">
+        <div class="cp-header">
+            <span class="cp-header-title" onclick="cpMinimize()">
+                <i class="bi bi-pencil-square"></i> New Message
+            </span>
+            <div class="cp-header-actions">
+                <button onclick="cpMinimize()" title="Minimize"><i class="bi bi-dash-lg"></i></button>
+                <button onclick="cpFullscreen()" title="Open full compose page"><i class="bi bi-arrows-fullscreen"></i></button>
+                <button onclick="cpClose()" title="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </div>
+        <div id="composeBodyWrap">
+            <!-- Sending overlay -->
+            <div class="cp-sending" id="cpSending">
+                <div class="spinner-border text-primary" style="width:1.8rem;height:1.8rem;" role="status"></div>
+                <small class="text-muted fw-semibold">Sending&hellip;</small>
+            </div>
+            <!-- To -->
+            <div class="cp-field">
+                <span class="cp-label">To</span>
+                <select id="cpTo" multiple style="width:100%;"></select>
+            </div>
+            <!-- Cc -->
+            <div class="cp-field">
+                <span class="cp-label">Cc</span>
+                <select id="cpCc" multiple style="width:100%;"></select>
+            </div>
+            <!-- Subject -->
+            <div class="cp-field">
+                <input type="text" id="cpSubject" placeholder="Subject">
+            </div>
+            <!-- Body -->
+            <div class="cp-body">
+                <textarea id="cpBody" placeholder="Type your message here&hellip;"></textarea>
+            </div>
+            <!-- Footer -->
+            <div class="cp-footer">
+                <button class="cp-btn-send" id="cpSendBtn" onclick="cpSend()">
+                    <i class="bi bi-send-fill"></i> Send
+                </button>
+                <button class="cp-btn-discard" onclick="cpClose()" title="Discard draft">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast feedback -->
+    <div class="position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index:1090;">
+        <div id="cpToast" class="toast align-items-center border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body" id="cpToastMsg"></div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        var popup      = document.getElementById('composePopup');
+        var sendBtn    = document.getElementById('cpSendBtn');
+        var sendingOvl = document.getElementById('cpSending');
+        var usersLoaded = false;
+
+        window.cpToggle = function () {
+            if (popup.classList.contains('open')) {
+                cpClose();
+            } else {
+                popup.classList.remove('minimized');
+                popup.classList.add('open');
+                if (!usersLoaded) loadUsers();
+                setTimeout(function () { document.getElementById('cpSubject').focus(); }, 80);
+            }
+        };
+
+        window.cpMinimize = function () {
+            popup.classList.toggle('minimized');
+        };
+
+        window.cpFullscreen = function () {
+            var s = document.getElementById('cpSubject').value;
+            var b = document.getElementById('cpBody').value;
+            var url = '{{ url_for("messages.compose") }}';
+            var sep = '?';
+            if (s) { url += sep + 'subject=' + encodeURIComponent(s); sep = '&'; }
+            if (b) { url += sep + 'body='    + encodeURIComponent(b); }
+            window.location.href = url;
+        };
+
+        window.cpClose = function () {
+            popup.classList.remove('open', 'minimized');
+            $('#cpTo').val(null).trigger('change');
+            $('#cpCc').val(null).trigger('change');
+            document.getElementById('cpSubject').value = '';
+            document.getElementById('cpBody').value    = '';
+            sendingOvl.classList.remove('show');
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="bi bi-send-fill"></i> Send';
+        };
+
+        function loadUsers() {
+            fetch('{{ url_for("messages.api_users") }}')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var users = data.users || [];
+                    ['#cpTo', '#cpCc'].forEach(function (sel) {
+                        var $el = $(sel);
+                        $el.empty();
+                        users.forEach(function (u) {
+                            $el.append(new Option(u.text, u.id, false, false));
+                        });
+                        $el.select2({
+                            theme: 'bootstrap-5',
+                            placeholder: sel === '#cpTo' ? 'Select recipients\u2026' : 'Add Cc\u2026',
+                            allowClear: true,
+                            width: '100%',
+                            dropdownParent: $('#composePopup'),
+                        });
+                    });
+                    usersLoaded = true;
+                })
+                .catch(function () { cpToast('Could not load users list.', 'danger'); });
+        }
+
+        window.cpSend = function () {
+            var toVals  = $('#cpTo').val()  || [];
+            var ccVals  = $('#cpCc').val()  || [];
+            var subject = document.getElementById('cpSubject').value.trim();
+            var body    = document.getElementById('cpBody').value.trim();
+
+            if (!toVals.length) { cpToast('Please select at least one recipient.', 'warning'); return; }
+            if (!subject)        { cpToast('Subject is required.', 'warning'); return; }
+            if (!body)           { cpToast('Message body is required.', 'warning'); return; }
+
+            sendBtn.disabled = true;
+            sendingOvl.classList.add('show');
+
+            fetch('{{ url_for("messages.api_send") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf()
+                },
+                body: JSON.stringify({ to: toVals, cc: ccVals, subject: subject, body: body })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                sendingOvl.classList.remove('show');
+                if (data.ok) {
+                    cpClose();
+                    cpToast('<i class="bi bi-check-circle-fill me-2"></i>Message sent!', 'success');
+                } else {
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '<i class="bi bi-send-fill"></i> Send';
+                    cpToast(data.error || 'Failed to send message.', 'danger');
+                }
+            })
+            .catch(function () {
+                sendingOvl.classList.remove('show');
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="bi bi-send-fill"></i> Send';
+                cpToast('Network error \u2013 please try again.', 'danger');
+            });
+        };
+
+        /* ── Toast helper ── */
+        function cpToast(msg, type) {
+            var el = document.getElementById('cpToast');
+            el.className = 'toast align-items-center border-0 text-bg-' + (type || 'secondary');
+            document.getElementById('cpToastMsg').innerHTML = msg;
+            bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
+        }
+        window.cpToast = cpToast;
+
+        /* ── CSRF token helper ── */
+        function getCsrf() {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) return meta.content;
+            return '{{ csrf_token() }}';
+        }
+
+        /* ── Unread badge polling every 30s ── */
+        function pollUnread() {
+            fetch('{{ url_for("messages.api_unread_count") }}')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var count   = data.count || 0;
+                    var display = count > 99 ? '99+' : (count > 0 ? String(count) : '');
+                    var sb = document.getElementById('sidebarMsgBadge');
+                    if (count > 0) {
+                        if (!sb) {
+                            var link = document.querySelector('a[href*="/messages/"]');
+                            if (link) {
+                                sb = document.createElement('span');
+                                sb.id = 'sidebarMsgBadge';
+                                sb.className = 'badge bg-danger ms-auto';
+                                link.appendChild(sb);
+                            }
+                        }
+                        if (sb) sb.textContent = display;
+                    } else if (sb) { sb.remove(); }
+                })
+                .catch(function () {});
+        }
+        setInterval(pollUnread, 30000);
+    })();
+    </script>
+    {% endif %}
+
 </body>
 </html>

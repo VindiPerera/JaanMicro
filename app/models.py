@@ -1330,6 +1330,52 @@ class SystemSettings(db.Model):
         return f'<SystemSettings {self.app_name}>'
 
 # Activity Log Model
+# Internal Messaging Models
+class Message(db.Model):
+    """Internal message between users"""
+    __tablename__ = 'messages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    subject = db.Column(db.String(255), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='messages_sent')
+    recipients = db.relationship('MessageRecipient', backref='message', lazy='dynamic',
+                                  cascade='all, delete-orphan',
+                                  primaryjoin='Message.id == MessageRecipient.message_id')
+    replies = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+
+    def __repr__(self):
+        return f'<Message {self.id} - {self.subject}>'
+
+
+class MessageRecipient(db.Model):
+    """Per-recipient state for a message (To / Cc)"""
+    __tablename__ = 'message_recipients'
+
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    recipient_type = db.Column(db.String(5), default='to')  # 'to' or 'cc'
+    is_read = db.Column(db.Boolean, default=False)
+    read_at = db.Column(db.DateTime, nullable=True)
+    is_starred = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False)
+
+    recipient = db.relationship('User', foreign_keys=[user_id], backref='messages_received')
+
+    __table_args__ = (
+        db.UniqueConstraint('message_id', 'user_id', name='unique_message_recipient'),
+    )
+
+    def __repr__(self):
+        return f'<MessageRecipient msg={self.message_id} user={self.user_id}>'
+
+
 class ActivityLog(db.Model):
     """Activity log for audit trail"""
     __tablename__ = 'activity_logs'

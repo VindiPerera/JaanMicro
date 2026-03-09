@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-send me-2"></i>{{ title }}</h4>
+    <a href="{{ url_for('messages.compose') }}" class="btn btn-primary">
+        <i class="bi bi-pencil-square me-1"></i> Compose
+    </a>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0">
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('messages.inbox') }}">
+            <i class="bi bi-inbox me-1"></i>Inbox
+            {% if unread_count %}<span class="badge bg-danger ms-1">{{ unread_count }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active" href="{{ url_for('messages.sent') }}">
+            <i class="bi bi-send me-1"></i>Sent
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('messages.starred') }}">
+            <i class="bi bi-star me-1"></i>Starred
+        </a>
+    </li>
+</ul>
+
+<div class="card border-top-0 rounded-top-0">
+    {% if messages %}
+    <ul class="list-group list-group-flush">
+        {% for msg in messages %}
+        {% set all_recips = msg.recipients.all() %}
+        {% set read_count = all_recips|selectattr('is_read')|list|length %}
+        {% set total_count = all_recips|length %}
+        <li class="list-group-item list-group-item-action px-3 py-0">
+            <a href="{{ url_for('messages.view', message_id=msg.id) }}"
+               class="d-flex align-items-center gap-3 py-2 text-decoration-none text-dark">
+                <!-- Recipient avatar -->
+                <div class="msg-avatar flex-shrink-0">
+                    {% set first_recip = msg.recipients.filter_by(recipient_type='to').first() %}
+                    {% if first_recip %}{{ first_recip.recipient.full_name[0]|upper }}{% else %}?{% endif %}
+                </div>
+                <!-- To recipients -->
+                <span class="msg-sender text-truncate" style="min-width:130px;max-width:160px;">
+                    {% set to_list = msg.recipients.filter_by(recipient_type='to').all() %}
+                    {% for r in to_list %}{{ r.recipient.full_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% if not to_list %}<em class="text-muted">No recipients</em>{% endif %}
+                </span>
+                <!-- Subject -->
+                <span class="flex-grow-1 text-truncate">
+                    {{ msg.subject }}
+                    {% if msg.replies.count() > 0 %}
+                    <span class="badge bg-secondary fw-normal ms-1" style="font-size:.7rem;">{{ msg.replies.count() }}</span>
+                    {% endif %}
+                </span>
+                <!-- Read status icon -->
+                <span class="flex-shrink-0 me-1" data-bs-toggle="tooltip"
+                      title="{% if total_count > 0 and read_count == total_count %}All {{ total_count }} recipients viewed{% elif read_count > 0 %}{{ read_count }} of {{ total_count }} viewed{% else %}Not yet viewed{% endif %}">
+                    {% if total_count > 0 and read_count == total_count %}
+                        <i class="bi bi-check2-all text-success fs-6"></i>
+                    {% elif read_count > 0 %}
+                        <i class="bi bi-check2-all text-primary fs-6"></i>
+                    {% else %}
+                        <i class="bi bi-check2 text-muted fs-6"></i>
+                    {% endif %}
+                </span>
+                <!-- Date -->
+                <span class="text-muted small flex-shrink-0">{{ msg.created_at.strftime('%d %b') }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if pagination.pages > 1 %}
+    <div class="card-footer d-flex justify-content-center bg-white">
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.prev_num }}">&laquo;</a></li>
+                {% endif %}
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ pagination.next_num }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-send" style="font-size:3rem;opacity:.3;"></i>
+        <p class="mt-3 mb-1 fw-semibold">No sent messages</p>
+        <p class="small">Messages you send will appear here</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.msg-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--primary-color, #2c3e50); color: #fff;
+    font-size: .85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.msg-sender { font-weight: 500; }
+</style>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+            new bootstrap.Tooltip(el);
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}
+

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <a href="{{ url_for('messages.inbox') }}" class="text-muted text-decoration-none small">
+            <i class="bi bi-arrow-left me-1"></i>Back to Inbox
+        </a>
+        <h4 class="mb-0 mt-1">{{ msg.subject }}</h4>
+    </div>
+    {% if recipient_record %}
+    <div class="d-flex gap-2">
+        <form method="POST" action="{{ url_for('messages.star', message_id=msg.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm {% if recipient_record.is_starred %}btn-warning{% else %}btn-outline-secondary{% endif %}">
+                <i class="bi bi-star{% if recipient_record.is_starred %}-fill{% endif %} me-1"></i>
+                {% if recipient_record.is_starred %}Starred{% else %}Star{% endif %}
+            </button>
+        </form>
+        <form method="POST" action="{{ url_for('messages.delete', message_id=msg.id) }}" class="d-inline"
+              onsubmit="return confirm('Delete this message?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash3 me-1"></i>Delete
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Message thread -->
+{% for m in thread %}
+<div class="card mb-3 shadow-sm {% if m.id == msg.id %}border-start border-4 border-primary{% endif %}">
+    <div class="card-header bg-white d-flex align-items-start gap-3 py-2 px-3">
+        <div class="msg-avatar-sm flex-shrink-0">{{ m.sender.full_name[0]|upper }}</div>
+        <div class="flex-grow-1 min-w-0">
+            <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-1">
+                <span class="fw-semibold">{{ m.sender.full_name }}
+                    <span class="text-muted fw-normal small ms-1">&lt;{{ m.sender.role|title }}&gt;</span>
+                </span>
+                <small class="text-muted">{{ m.created_at.strftime('%d %b %Y, %H:%M') }}</small>
+            </div>
+            {% if m.id == msg.id and (to_recipients or cc_recipients) %}
+            <div class="small text-muted mt-1 d-flex flex-wrap gap-3">
+                {% if to_recipients %}
+                <span>
+                    <strong>To:</strong>
+                    {% for r in to_recipients %}
+                        {{ r.recipient.full_name }}{% if m.sender_id == current_user.id %}
+                        <span class="ms-1" data-bs-toggle="tooltip"
+                              title="{% if r.is_read %}Viewed {{ r.read_at.strftime('%d %b %Y %H:%M') if r.read_at else '' }}{% else %}Not yet viewed{% endif %}">
+                            <i class="bi bi-{% if r.is_read %}eye-fill text-success{% else %}eye-slash text-muted{% endif %}"></i>
+                        </span>{% endif %}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+                {% endif %}
+                {% if cc_recipients %}
+                <span>
+                    <strong>Cc:</strong>
+                    {% for r in cc_recipients %}
+                        {{ r.recipient.full_name }}{% if m.sender_id == current_user.id %}
+                        <span class="ms-1" data-bs-toggle="tooltip"
+                              title="{% if r.is_read %}Viewed {{ r.read_at.strftime('%d %b %Y %H:%M') if r.read_at else '' }}{% else %}Not yet viewed{% endif %}">
+                            <i class="bi bi-{% if r.is_read %}eye-fill text-success{% else %}eye-slash text-muted{% endif %}"></i>
+                        </span>{% endif %}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% if m.parent_id %}
+        <span class="badge bg-info-subtle text-info border border-info-subtle flex-shrink-0">Reply</span>
+        {% endif %}
+    </div>
+    <div class="card-body px-3 py-3">
+        <div style="white-space:pre-wrap; font-size:.93rem; line-height:1.7;">{{ m.body }}</div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Read receipts (sender view only) -->
+{% if msg.sender_id == current_user.id %}
+{% set all_recips = to_recipients + cc_recipients %}
+{% set read_count = all_recips|selectattr('is_read')|list|length %}
+<div class="card mb-3 shadow-sm">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between py-2">
+        <h6 class="mb-0"><i class="bi bi-eye me-2 text-muted"></i>Read Receipts</h6>
+        <span class="badge {% if read_count == all_recips|length and all_recips %}bg-success{% elif read_count > 0 %}bg-primary{% else %}bg-secondary{% endif %} rounded-pill">
+            {{ read_count }}&thinsp;/&thinsp;{{ all_recips|length }} viewed
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-3">Recipient</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Viewed At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in all_recips %}
+                <tr>
+                    <td class="ps-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="msg-avatar-xs">{{ r.recipient.full_name[0]|upper }}</div>
+                            {{ r.recipient.full_name }}
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge bg-{{ 'primary' if r.recipient_type == 'to' else 'secondary' }}-subtle
+                                     text-{{ 'primary' if r.recipient_type == 'to' else 'secondary' }}
+                                     border border-{{ 'primary' if r.recipient_type == 'to' else 'secondary' }}-subtle">
+                            {{ r.recipient_type|upper }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if r.is_read %}
+                        <span class="text-success"><i class="bi bi-check2-all me-1"></i>Viewed</span>
+                        {% else %}
+                        <span class="text-muted"><i class="bi bi-clock me-1"></i>Pending</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted small">
+                        {{ r.read_at.strftime('%d %b %Y, %H:%M') if r.is_read and r.read_at else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Reply form -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-2">
+        <h6 class="mb-0"><i class="bi bi-reply me-2 text-muted"></i>Reply</h6>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('messages.reply', message_id=msg.id) }}">
+            {{ reply_form.hidden_tag() }}
+            {{ reply_form.body(class="form-control mb-3", rows="4", placeholder="Write your reply\u2026") }}
+            <div class="d-flex gap-2">
+                {{ reply_form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('messages.inbox') }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.msg-avatar-sm {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--primary-color, #2c3e50); color: #fff;
+    font-size: .9rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.msg-avatar-xs {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #e0e7ff; color: #4338ca;
+    font-size: .72rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+</style>
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el) {
+            new bootstrap.Tooltip(el);
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}
+
