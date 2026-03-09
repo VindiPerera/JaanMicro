@@ -10,6 +10,86 @@
             </button>
         </div>
 
+        <!-- Customer Details -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="bi bi-person-lines-fill me-2"></i>Member Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <!-- Personal Information -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-person me-1"></i>Personal Information</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th class="text-muted" style="width:45%">Full Name</th><td>{{ customer.full_name }}</td></tr>
+                            <tr><th class="text-muted">Member ID</th><td>{{ customer.customer_id }}</td></tr>
+                            <tr><th class="text-muted">NIC Number</th><td>{{ customer.nic_number }}</td></tr>
+                            <tr><th class="text-muted">Date of Birth</th><td>{{ customer.date_of_birth.strftime('%Y-%m-%d') if customer.date_of_birth else '—' }}</td></tr>
+                            <tr><th class="text-muted">Gender</th><td>{{ customer.gender|title if customer.gender else '—' }}</td></tr>
+                            <tr><th class="text-muted">Marital Status</th><td>{{ customer.marital_status|title if customer.marital_status else '—' }}</td></tr>
+                            <tr><th class="text-muted">Member Type</th><td>{{ customer.customer_type_display }}</td></tr>
+                            <tr><th class="text-muted">Status</th><td>
+                                <span class="badge bg-{% if customer.status == 'active' %}success{% elif customer.status == 'blacklisted' %}danger{% else %}secondary{% endif %}">
+                                    {{ customer.status|title }}
+                                </span>
+                            </td></tr>
+                        </table>
+                    </div>
+                    <!-- Contact Information -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-telephone me-1"></i>Contact Information</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th class="text-muted" style="width:45%">Primary Phone</th><td>{{ customer.phone_primary }}</td></tr>
+                            <tr><th class="text-muted">Secondary Phone</th><td>{{ customer.phone_secondary or '—' }}</td></tr>
+                            <tr><th class="text-muted">Email</th><td>{{ customer.email or '—' }}</td></tr>
+                            <tr><th class="text-muted">Address</th><td>
+                                {{ customer.address_line1 }}{% if customer.address_line2 %}, {{ customer.address_line2 }}{% endif %}
+                            </td></tr>
+                            <tr><th class="text-muted">City</th><td>{{ customer.city }}</td></tr>
+                            <tr><th class="text-muted">District</th><td>{{ customer.district }}</td></tr>
+                            <tr><th class="text-muted">Postal Code</th><td>{{ customer.postal_code or '—' }}</td></tr>
+                        </table>
+                    </div>
+                    <!-- Employment Information -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-briefcase me-1"></i>Employment Information</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th class="text-muted" style="width:45%">Occupation</th><td>{{ customer.occupation or '—' }}</td></tr>
+                            <tr><th class="text-muted">Employer</th><td>{{ customer.employer_name or '—' }}</td></tr>
+                            <tr><th class="text-muted">Employment Type</th><td>{{ customer.employment_type|replace('_',' ')|title if customer.employment_type else '—' }}</td></tr>
+                            <tr><th class="text-muted">Monthly Income</th><td>{{ system_settings.currency_symbol + ' ' + '%.2f'|format(customer.monthly_income|float) if customer.monthly_income else '—' }}</td></tr>
+                        </table>
+                    </div>
+                    <!-- Bank Information -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-bank me-1"></i>Bank Information</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th class="text-muted" style="width:45%">Bank Name</th><td>{{ customer.bank_name or '—' }}</td></tr>
+                            <tr><th class="text-muted">Bank Branch</th><td>{{ customer.bank_branch or '—' }}</td></tr>
+                            <tr><th class="text-muted">Account Number</th><td>{{ customer.bank_account_number or '—' }}</td></tr>
+                            <tr><th class="text-muted">Account Type</th><td>{{ customer.bank_account_type|title if customer.bank_account_type else '—' }}</td></tr>
+                        </table>
+                    </div>
+                    <!-- Emergency Contact -->
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-person-exclamation me-1"></i>Emergency Contact</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr><th class="text-muted" style="width:45%">Name</th><td>{{ customer.emergency_contact_name or '—' }}</td></tr>
+                            <tr><th class="text-muted">Phone</th><td>{{ customer.emergency_contact_phone or '—' }}</td></tr>
+                            <tr><th class="text-muted">Relation</th><td>{{ customer.emergency_contact_relation|title if customer.emergency_contact_relation else '—' }}</td></tr>
+                        </table>
+                    </div>
+                    <!-- Notes -->
+                    {% if customer.notes %}
+                    <div class="col-md-6">
+                        <h6 class="fw-bold text-primary border-bottom pb-1 mb-3"><i class="bi bi-sticky me-1"></i>Notes</h6>
+                        <p class="text-muted mb-0">{{ customer.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
         <div class="row">
             <!-- KYC Verification Form -->
             <div class="col-lg-6">
