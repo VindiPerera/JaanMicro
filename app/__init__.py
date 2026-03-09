@@ -16,11 +16,13 @@ from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_socketio import SocketIO
 from config import config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
+socketio = SocketIO()
 
 def create_app(config_name='default'):
     """Create and configure the Flask application"""
@@ -40,6 +42,7 @@ def create_app(config_name='default'):
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    socketio.init_app(app, async_mode='eventlet')
     
     # Configure login manager
     login_manager.login_view = 'auth.login'
@@ -76,7 +79,7 @@ def create_app(config_name='default'):
     from app.reports import reports_bp
     from app.settings import settings_bp
     from app.messages import messages_bp
-    
+
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp, url_prefix='/')
     app.register_blueprint(customers_bp, url_prefix='/customers')
@@ -86,7 +89,10 @@ def create_app(config_name='default'):
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(settings_bp, url_prefix='/settings')
     app.register_blueprint(messages_bp, url_prefix='/messages')
-    
+
+    # Register SocketIO event handlers
+    from app.messages import events  # noqa: F401
+
     # Jinja2 global helper: build the correct /static/uploads/... URL for any
     # stored upload path, regardless of whether it has an "uploads/" prefix or not.
     @app.template_global()

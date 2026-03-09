@@ -1077,6 +1077,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
     <script>
     (function () {
         'use strict';
@@ -1202,30 +1203,30 @@
             return '{{ csrf_token() }}';
         }
 
-        /* ── Unread badge polling every 30s ── */
-        function pollUnread() {
-            fetch('{{ url_for("messages.api_unread_count") }}')
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var count   = data.count || 0;
-                    var display = count > 99 ? '99+' : (count > 0 ? String(count) : '');
-                    var sb = document.getElementById('sidebarMsgBadge');
-                    if (count > 0) {
-                        if (!sb) {
-                            var link = document.querySelector('a[href*="/messages/"]');
-                            if (link) {
-                                sb = document.createElement('span');
-                                sb.id = 'sidebarMsgBadge';
-                                sb.className = 'badge bg-danger ms-auto';
-                                link.appendChild(sb);
-                            }
-                        }
-                        if (sb) sb.textContent = display;
-                    } else if (sb) { sb.remove(); }
-                })
-                .catch(function () {});
-        }
-        setInterval(pollUnread, 30000);
+        /* ── Unread badge via WebSocket (real-time) ── */
+        var socket = io();
+
+        socket.on('unread_count', function (data) {
+            var count   = data.count || 0;
+            var display = count > 99 ? '99+' : (count > 0 ? String(count) : '');
+            var sb = document.getElementById('sidebarMsgBadge');
+            if (count > 0) {
+                if (!sb) {
+                    var link = document.querySelector('a[href*="/messages/"]');
+                    if (link) {
+                        sb = document.createElement('span');
+                        sb.id = 'sidebarMsgBadge';
+                        sb.className = 'badge bg-danger ms-auto';
+                        link.appendChild(sb);
+                    }
+                }
+                if (sb) sb.textContent = display;
+            } else if (sb) { sb.remove(); }
+        });
+
+        socket.on('new_message', function (data) {
+            cpToast('<i class="bi bi-envelope-fill me-2"></i><b>' + data.sender + ':</b> ' + data.subject, 'info');
+        });
     })();
     </script>
     {% endif %}

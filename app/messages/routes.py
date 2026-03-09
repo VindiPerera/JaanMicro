@@ -3,6 +3,7 @@ from datetime import datetime
 from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
+from app import socketio
 from app.messages import messages_bp
 from app.messages.forms import ComposeMessageForm, ReplyMessageForm
 from app.models import Message, MessageRecipient, User
@@ -97,16 +98,33 @@ def compose():
         db.session.flush()  # get msg.id
 
         # Add To recipients
+        added_uids = set()
         for uid in form.to_recipients.data:
             db.session.add(MessageRecipient(
                 message_id=msg.id, user_id=uid, recipient_type='to'))
+            added_uids.add(uid)
         # Add Cc recipients
         for uid in (form.cc_recipients.data or []):
             if uid not in form.to_recipients.data:
                 db.session.add(MessageRecipient(
                     message_id=msg.id, user_id=uid, recipient_type='cc'))
+                added_uids.add(uid)
 
         db.session.commit()
+
+        # Push real-time notification to each recipient
+        for uid in added_uids:
+            unread = MessageRecipient.query.filter_by(
+                user_id=uid, is_read=False, is_deleted=False
+            ).count()
+            socketio.emit('new_message', {
+                'id': msg.id,
+                'subject': msg.subject,
+                'sender': current_user.full_name,
+                'preview': msg.body[:100],
+            }, room=f'user_{uid}')
+            socketio.emit('unread_count', {'count': unread}, room=f'user_{uid}')
+
         flash('Message sent successfully.', 'success')
         return redirect(url_for('messages.sent'))
 
@@ -137,6 +155,12 @@ def view(message_id):
         recipient_record.is_read = True
         recipient_record.read_at = datetime.utcnow()
         db.session.commit()
+
+        # Notify sender in real-time that their message was read
+        socketio.emit('message_read', {
+            'message_id': msg.id,
+            'reader': current_user.full_name,
+        }, room=f'user_{msg.sender_id}')
 
     # Collect all recipients grouped by type for display
     to_recipients = (
@@ -214,6 +238,20 @@ def reply(message_id):
                 message_id=reply_msg.id, user_id=uid, recipient_type='to'))
 
         db.session.commit()
+
+        # Push real-time notification to reply recipients
+        for uid in reply_targets:
+            unread = MessageRecipient.query.filter_by(
+                user_id=uid, is_read=False, is_deleted=False
+            ).count()
+            socketio.emit('new_message', {
+                'id': reply_msg.id,
+                'subject': reply_msg.subject,
+                'sender': current_user.full_name,
+                'preview': reply_msg.body[:100],
+            }, room=f'user_{uid}')
+            socketio.emit('unread_count', {'count': unread}, room=f'user_{uid}')
+
         flash('Reply sent successfully.', 'success')
         return redirect(url_for('messages.view', message_id=original.parent_id or original.id))
 
@@ -344,6 +382,20 @@ def api_send():
             added.add(uid)
 
     db.session.commit()
+
+    # Push real-time notification to each recipient
+    for uid in added:
+        unread = MessageRecipient.query.filter_by(
+            user_id=uid, is_read=False, is_deleted=False
+        ).count()
+        socketio.emit('new_message', {
+            'id': msg.id,
+            'subject': msg.subject,
+            'sender': current_user.full_name,
+            'preview': msg.body[:100],
+        }, room=f'user_{uid}')
+        socketio.emit('unread_count', {'count': unread}, room=f'user_{uid}')
+
     return jsonify({'ok': True})
 
 

@@ -3,6 +3,8 @@ Flask-SQLAlchemy
 Flask-Login
 Flask-WTF
 Flask-Migrate
+Flask-SocketIO
+eventlet
 WTForms
 email-validator
 python-dotenv
