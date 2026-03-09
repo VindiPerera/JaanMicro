@@ -421,11 +421,18 @@ def view_loan(id):
     
     # Get guarantors
     guarantors = []
+    guarantor_loans = {}  # {customer_id: {'active': [...], 'history': [...]}}
     if loan.guarantor_ids:
         guarantor_id_list = [int(gid.strip()) for gid in loan.guarantor_ids.split(',') if gid.strip()]
         if guarantor_id_list:
             guarantors = Customer.query.filter(Customer.id.in_(guarantor_id_list)).all()
-    
+            for g in guarantors:
+                g_loans = Loan.query.filter_by(customer_id=g.id).filter(Loan.id != loan.id).order_by(Loan.created_at.desc()).all()
+                guarantor_loans[g.id] = {
+                    'active': [l for l in g_loans if l.status in ['active', 'initiated', 'pending', 'pending_staff_approval', 'pending_manager_approval']],
+                    'history': [l for l in g_loans if l.status in ['completed', 'rejected', 'deactivated', 'defaulted']],
+                }
+
     # Get arrears details
     arrears_details = loan.get_arrears_details()
     
@@ -442,6 +449,7 @@ def view_loan(id):
                          title=f'Loan: {loan.loan_number}',
                          loan=loan,
                          guarantors=guarantors,
+                         guarantor_loans=guarantor_loans,
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
                          arrears_details=arrears_details,

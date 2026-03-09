@@ -170,9 +170,13 @@
             <div class="card-header bg-info text-white">
                 <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>Guarantors ({{ guarantors|length }})</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 {% for guarantor in guarantors %}
-                <div class="{% if not loop.last %}border-bottom pb-3 mb-3{% endif %}">
+                {% set g_loans = guarantor_loans.get(guarantor.id, {}) %}
+                {% set active_loans = g_loans.get('active', []) %}
+                {% set past_loans = g_loans.get('history', []) %}
+                <div class="{% if not loop.last %}border-bottom{% endif %} p-3">
+                    <!-- Guarantor Header -->
                     <div class="d-flex align-items-center mb-2">
                         <span class="badge bg-primary me-2">{{ loop.index }}</span>
                         <strong>
@@ -180,39 +184,145 @@
                                 {{ guarantor.full_name }}
                             </a>
                         </strong>
+                        <span class="ms-2">
+                            {% if guarantor.customer_type == 'family_guarantor' %}
+                                <span class="badge bg-info">Family Guarantor</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Guarantor</span>
+                            {% endif %}
+                        </span>
+                        {% if guarantor.kyc_verified %}
+                            <span class="badge bg-success ms-1"><i class="bi bi-check-circle"></i> KYC Verified</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark ms-1"><i class="bi bi-clock"></i> KYC Pending</span>
+                        {% endif %}
                     </div>
-                    <div class="small">
-                        <div class="row">
-                            <div class="col-6">
-                                <strong>Type:</strong> 
-                                {% if guarantor.customer_type == 'family_guarantor' %}
-                                    <span class="badge bg-info">Family Guarantor</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">Guarantor</span>
-                                {% endif %}
-                            </div>
-                            <div class="col-6">
-                                <strong>Member ID:</strong> {{ guarantor.customer_id }}
-                            </div>
-                            <div class="col-6 mt-2">
-                                <strong>NIC:</strong> {{ guarantor.nic_number }}
-                            </div>
-                            <div class="col-6 mt-2">
-                                <strong>Phone:</strong> {{ guarantor.phone_primary }}
-                            </div>
-                            <div class="col-12 mt-2">
-                                <strong>Address:</strong> {{ guarantor.address_line1 }}{% if guarantor.city %}, {{ guarantor.city }}{% endif %}
-                            </div>
-                            <div class="col-12 mt-2">
-                                <strong>KYC Status:</strong> 
-                                {% if guarantor.kyc_verified %}
-                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
-                                {% else %}
-                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Pending</span>
-                                {% endif %}
-                            </div>
+
+                    <!-- Basic Details -->
+                    <div class="small row mb-2">
+                        <div class="col-6">
+                            <strong>Member ID:</strong> {{ guarantor.customer_id }}
+                        </div>
+                        <div class="col-6">
+                            <strong>NIC:</strong> {{ guarantor.nic_number or '—' }}
+                        </div>
+                        <div class="col-6 mt-1">
+                            <strong>Phone:</strong> {{ guarantor.phone_primary or '—' }}
+                        </div>
+                        <div class="col-6 mt-1">
+                            <strong>Occupation:</strong> {{ guarantor.occupation or '—' }}
+                        </div>
+                        <div class="col-12 mt-1">
+                            <strong>Address:</strong>
+                            {{ guarantor.address_line1 or '' }}{% if guarantor.city %}, {{ guarantor.city }}{% endif %}
                         </div>
                     </div>
+
+                    <!-- Active / Ongoing Loans -->
+                    {% if active_loans %}
+                    <div class="mt-2">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-danger me-2">{{ active_loans|length }}</span>
+                            <strong class="small text-danger">Active / Ongoing Loans</strong>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Loan #</th>
+                                        <th>Amount</th>
+                                        <th>Outstanding</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Disbursed</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for gl in active_loans %}
+                                    <tr>
+                                        <td>
+                                            <a href="{{ url_for('loans.view_loan', id=gl.id) }}" class="text-decoration-none fw-bold">
+                                                {{ gl.loan_number }}
+                                            </a>
+                                        </td>
+                                        <td>Rs. {{ "{:,.2f}".format(gl.loan_amount) }}</td>
+                                        <td class="text-danger fw-bold">Rs. {{ "{:,.2f}".format(gl.outstanding_amount or 0) }}</td>
+                                        <td>{{ gl.loan_type | replace('_', ' ') | title }}</td>
+                                        <td>
+                                            {% if gl.status == 'active' %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% elif gl.status == 'initiated' %}
+                                                <span class="badge bg-warning text-dark">Initiated</span>
+                                            {% elif gl.status in ['pending', 'pending_staff_approval', 'pending_manager_approval'] %}
+                                                <span class="badge bg-info">Pending</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ gl.status | title }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ gl.disbursement_date.strftime('%d-%m-%Y') if gl.disbursement_date else '—' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="small text-muted mt-1"><i class="bi bi-check-circle text-success me-1"></i>No active loans.</div>
+                    {% endif %}
+
+                    <!-- Previous / Closed Loans -->
+                    {% if past_loans %}
+                    <div class="mt-2">
+                        <details>
+                            <summary class="small fw-bold text-secondary" style="cursor:pointer;">
+                                <i class="bi bi-clock-history me-1"></i>Previous Loans ({{ past_loans|length }})
+                            </summary>
+                            <div class="table-responsive mt-1">
+                                <table class="table table-sm table-bordered mb-0 small">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Loan #</th>
+                                            <th>Amount</th>
+                                            <th>Type</th>
+                                            <th>Status</th>
+                                            <th>Disbursed</th>
+                                            <th>Closed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for gl in past_loans %}
+                                        <tr>
+                                            <td>
+                                                <a href="{{ url_for('loans.view_loan', id=gl.id) }}" class="text-decoration-none">
+                                                    {{ gl.loan_number }}
+                                                </a>
+                                            </td>
+                                            <td>Rs. {{ "{:,.2f}".format(gl.loan_amount) }}</td>
+                                            <td>{{ gl.loan_type | replace('_', ' ') | title }}</td>
+                                            <td>
+                                                {% if gl.status == 'completed' %}
+                                                    <span class="badge bg-success">Completed</span>
+                                                {% elif gl.status == 'rejected' %}
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                {% elif gl.status == 'deactivated' %}
+                                                    <span class="badge bg-secondary">Deactivated</span>
+                                                {% elif gl.status == 'defaulted' %}
+                                                    <span class="badge bg-dark">Defaulted</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ gl.status | title }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ gl.disbursement_date.strftime('%d-%m-%Y') if gl.disbursement_date else '—' }}</td>
+                                            <td>{{ gl.closing_date.strftime('%d-%m-%Y') if gl.closing_date else '—' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    </div>
+                    {% endif %}
+
                 </div>
                 {% endfor %}
             </div>
