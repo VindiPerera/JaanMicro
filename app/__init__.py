@@ -105,6 +105,7 @@ def create_app(config_name='default'):
         from app.models import SystemSettings, Branch
         from app.utils.helpers import get_current_branch
         from flask_login import current_user
+        from flask_wtf.csrf import generate_csrf
         from datetime import datetime
         settings = SystemSettings.get_settings()
         current_branch = get_current_branch()
@@ -119,7 +120,8 @@ def create_app(config_name='default'):
             now=datetime.now, 
             today=datetime.now().date(), 
             current_branch=current_branch,
-            branches=branches
+            branches=branches,
+            csrf_token=generate_csrf
         )
     
     return app

@@ -743,9 +743,22 @@
                                 <td>{{ payment.collected_by_user.full_name if payment.collected_by else 'N/A' }}</td>
                                 {% if current_user.role == 'admin' %}
                                 <td>
-                                    <a href="{{ url_for('loans.edit_payment', payment_id=payment.id) }}" class="btn btn-sm btn-outline-warning" title="Edit Payment">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    <div class="d-flex gap-1">
+                                        <a href="{{ url_for('loans.edit_payment', payment_id=payment.id) }}" class="btn btn-sm btn-outline-warning" title="Edit Payment">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-danger"
+                                            title="Delete Payment"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#deletePaymentModal"
+                                            data-payment-id="{{ payment.id }}"
+                                            data-receipt="{{ payment.receipt_number }}"
+                                            data-amount="{{ system_settings.currency_symbol }} {{ '%.2f'|format(payment.payment_amount|float) }}"
+                                            data-date="{{ payment.payment_date.strftime('%Y-%m-%d') if payment.payment_date else 'N/A' }}">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -775,5 +788,58 @@
         {{ loan.notes }}
     </div>
 </div>
+{% endif %}
+
+{% if current_user.role == 'admin' %}
+<!-- Delete Payment Confirmation Modal -->
+<div class="modal fade" id="deletePaymentModal" tabindex="-1" aria-labelledby="deletePaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deletePaymentModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Payment
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">You are about to <strong class="text-danger">permanently delete</strong> the following payment:</p>
+                <table class="table table-sm table-bordered mt-2 mb-0">
+                    <tr><th>Receipt #</th><td id="modal-receipt"></td></tr>
+                    <tr><th>Date</th><td id="modal-date"></td></tr>
+                    <tr><th>Amount</th><td id="modal-amount" class="fw-bold text-danger"></td></tr>
+                </table>
+                <div class="alert alert-warning mt-3 mb-0 small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    This action <strong>cannot be undone</strong>. The loan's paid amount and outstanding balance will be recalculated automatically.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deletePaymentForm" method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined and csrf_token is callable else '' }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>Yes, Delete Payment
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var modal = document.getElementById('deletePaymentModal');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function (event) {
+            var btn = event.relatedTarget;
+            var paymentId = btn.getAttribute('data-payment-id');
+            modal.querySelector('#modal-receipt').textContent = btn.getAttribute('data-receipt');
+            modal.querySelector('#modal-date').textContent = btn.getAttribute('data-date');
+            modal.querySelector('#modal-amount').textContent = btn.getAttribute('data-amount');
+            document.getElementById('deletePaymentForm').action = '/loans/payment/' + paymentId + '/delete';
+        });
+    }
+});
+</script>
 {% endif %}
 {% endblock %}

@@ -1590,6 +1590,48 @@ def edit_payment(payment_id):
                            loan=loan)
 
 
+@loans_bp.route('/payment/<int:payment_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_payment(payment_id):
+    """Delete a loan payment (Admin only)"""
+    payment = LoanPayment.query.get_or_404(payment_id)
+    loan = payment.loan
+
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Payment not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+
+    from decimal import Decimal, ROUND_HALF_UP
+    receipt_number = payment.receipt_number
+    amount = Decimal(str(payment.payment_amount))
+
+    # Reverse the payment amount from loan's paid_amount
+    loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) - amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    if loan.paid_amount < 0:
+        loan.paid_amount = Decimal('0')
+    loan.update_outstanding_amount()
+
+    db.session.delete(payment)
+
+    log = ActivityLog(
+        user_id=current_user.id,
+        action='delete_payment',
+        entity_type='loan',
+        entity_id=loan.id,
+        description=f'Deleted payment {receipt_number} (Rs. {amount}) from loan {loan.loan_number}',
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    flash(f'Payment {receipt_number} deleted successfully. Loan balance has been updated.', 'success')
+    return redirect(url_for('loans.view_loan', id=loan.id))
+
+
 @loans_bp.route('/receipt-entry')
 @login_required
 @permission_required('collect_payments')
