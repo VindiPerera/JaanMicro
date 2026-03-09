@@ -1245,3 +1245,341 @@ def view_kyc_document(customer_id, document_type):
     filename = os.path.basename(full_path)
     
     return send_from_directory(directory, filename)
+
+
+@reports_bp.route('/daily-installments')
+@login_required
+@permission_required('view_reports')
+def daily_installments_report():
+    """Daily installments report — shows every loan installment due within a date range."""
+    from datetime import date
+    from decimal import Decimal
+
+    today = date.today()
+    start_date_str = request.args.get('start_date', today.strftime('%Y-%m-%d'))
+    end_date_str   = request.args.get('end_date',   today.strftime('%Y-%m-%d'))
+    loan_type_filter = request.args.get('loan_type', '')
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end_date_str,   '%Y-%m-%d').date()
+    except ValueError:
+        start_date = end_date = today
+
+    # Active loans (status active)
+    loan_query = Loan.query.filter_by(status='active')
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        loan_query = loan_query.filter(loan_branch_filter)
+    if loan_type_filter:
+        loan_query = loan_query.filter_by(loan_type=loan_type_filter)
+
+    loans = loan_query.all()
+
+    # Build guarantor lookup: {customer_id: [loan_numbers they guarantee]}
+    # We also pre-fetch guarantor Customer objects keyed by id
+    from app.models import Customer as CustomerModel
+    all_customer_ids = set()
+    for loan in loans:
+        if loan.guarantor_ids:
+            for gid in loan.guarantor_ids.split(','):
+                gid = gid.strip()
+                if gid:
+                    all_customer_ids.add(int(gid))
+
+    guarantor_map = {}
+    if all_customer_ids:
+        gs = CustomerModel.query.filter(CustomerModel.id.in_(all_customer_ids)).all()
+        guarantor_map = {g.id: g for g in gs}
+
+    rows = []
+    summary_total_amount   = Decimal('0')
+    summary_total_paid     = Decimal('0')
+    summary_total_remaining = Decimal('0')
+    overdue_count  = 0
+    pending_count  = 0
+    paid_count     = 0
+    partial_count  = 0
+
+    for loan in loans:
+        schedule = loan.generate_payment_schedule()
+        payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
+
+        # Build guarantors list for this loan
+        guarantors = []
+        if loan.guarantor_ids:
+            for gid in loan.guarantor_ids.split(','):
+                gid = gid.strip()
+                if gid and int(gid) in guarantor_map:
+                    guarantors.append(guarantor_map[int(gid)])
+
+        for inst in schedule:
+            due = inst['due_date']
+            if not (start_date <= due <= end_date):
+                continue
+            if inst.get('is_skipped'):
+                continue
+
+            amount    = Decimal(str(inst['amount']))
+            paid_amt  = Decimal(str(inst['paid_amount']))
+            remaining = Decimal(str(inst['remaining_amount']))
+            status    = inst['status']
+
+            summary_total_amount    += amount
+            summary_total_paid      += paid_amt
+            summary_total_remaining += remaining
+
+            if status == 'overdue':    overdue_count  += 1
+            elif status == 'pending':  pending_count  += 1
+            elif status == 'paid':     paid_count     += 1
+            elif status == 'partial':  partial_count  += 1
+
+            rows.append({
+                'loan': loan,
+                'installment_number': inst['installment_number'],
+                'due_date': due,
+                'amount': float(amount),
+                'principal': inst['principal'],
+                'interest': inst['interest'],
+                'paid_amount': float(paid_amt),
+                'remaining_amount': float(remaining),
+                'status': status,
+                'guarantors': guarantors,
+                'payments': payments,  # all payments for this loan (history)
+            })
+
+    # Sort by due_date, then loan_number
+    rows.sort(key=lambda r: (r['due_date'], r['loan'].loan_number))
+
+    summary = {
+        'total_installments': len(rows),
+        'total_amount':    float(summary_total_amount),
+        'total_paid':      float(summary_total_paid),
+        'total_remaining': float(summary_total_remaining),
+        'overdue_count':  overdue_count,
+        'pending_count':  pending_count,
+        'paid_count':     paid_count,
+        'partial_count':  partial_count,
+    }
+
+    loan_types = db.session.query(Loan.loan_type).distinct().order_by(Loan.loan_type).all()
+    loan_types = [lt[0] for lt in loan_types if lt[0]]
+
+    return render_template(
+        'reports/daily_installments.html',
+        title='Daily Installments Report',
+        rows=rows,
+        summary=summary,
+        start_date=start_date_str,
+        end_date=end_date_str,
+        loan_type_filter=loan_type_filter,
+        loan_types=loan_types,
+        today=today,
+    )
+
+
+@reports_bp.route('/export/daily-installments')
+@login_required
+@permission_required('view_reports')
+def export_daily_installments():
+    """Export daily installments report to Excel."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from datetime import date
+    from decimal import Decimal
+
+    today = date.today()
+    start_date_str   = request.args.get('start_date', today.strftime('%Y-%m-%d'))
+    end_date_str     = request.args.get('end_date',   today.strftime('%Y-%m-%d'))
+    loan_type_filter = request.args.get('loan_type', '')
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date   = datetime.strptime(end_date_str,   '%Y-%m-%d').date()
+    except ValueError:
+        start_date = end_date = today
+
+    loan_query = Loan.query.filter_by(status='active')
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        loan_query = loan_query.filter(loan_branch_filter)
+    if loan_type_filter:
+        loan_query = loan_query.filter_by(loan_type=loan_type_filter)
+    loans = loan_query.all()
+
+    from app.models import Customer as CustomerModel
+    all_customer_ids = set()
+    for loan in loans:
+        if loan.guarantor_ids:
+            for gid in loan.guarantor_ids.split(','):
+                gid = gid.strip()
+                if gid:
+                    all_customer_ids.add(int(gid))
+    guarantor_map = {}
+    if all_customer_ids:
+        gs = CustomerModel.query.filter(CustomerModel.id.in_(all_customer_ids)).all()
+        guarantor_map = {g.id: g for g in gs}
+
+    rows = []
+    for loan in loans:
+        schedule = loan.generate_payment_schedule()
+        payments = loan.payments.order_by(LoanPayment.payment_date.desc()).all()
+        guarantors = []
+        if loan.guarantor_ids:
+            for gid in loan.guarantor_ids.split(','):
+                gid = gid.strip()
+                if gid and int(gid) in guarantor_map:
+                    guarantors.append(guarantor_map[int(gid)])
+
+        for inst in schedule:
+            due = inst['due_date']
+            if not (start_date <= due <= end_date):
+                continue
+            if inst.get('is_skipped'):
+                continue
+            rows.append({
+                'loan': loan,
+                'due_date': due,
+                'installment_number': inst['installment_number'],
+                'amount': inst['amount'],
+                'principal': inst['principal'],
+                'interest': inst['interest'],
+                'paid_amount': inst['paid_amount'],
+                'remaining_amount': inst['remaining_amount'],
+                'status': inst['status'],
+                'guarantors': guarantors,
+                'payments': payments,
+            })
+
+    rows.sort(key=lambda r: (r['due_date'], r['loan'].loan_number))
+
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: Installments ──────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = 'Installments'
+
+    hdr_fill  = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+    hdr_font  = Font(bold=True, color='FFFFFF', size=10)
+    alt_fill  = PatternFill(start_color='E9F0F8', end_color='E9F0F8', fill_type='solid')
+    ovd_fill  = PatternFill(start_color='FFDAD6', end_color='FFDAD6', fill_type='solid')
+    paid_fill = PatternFill(start_color='D6F4D6', end_color='D6F4D6', fill_type='solid')
+    ctr = Alignment(horizontal='center', vertical='center')
+    thin = Side(style='thin', color='CCCCCC')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    headers1 = [
+        'Due Date', 'Loan #', 'Loan Type', 'Inst #',
+        'Customer Name', 'Member ID', 'Phone', 'NIC', 'Address',
+        'Loan Amount', 'Disbursed', 'First Install Date', 'Maturity Date',
+        'Installment Amt', 'Principal', 'Interest',
+        'Paid', 'Remaining', 'Status',
+        'Guarantor 1', 'G1 Phone', 'G1 NIC',
+        'Guarantor 2', 'G2 Phone', 'G2 NIC',
+        'Referred By', 'Staff Approver', 'Manager Approver', 'Final Approver',
+    ]
+    ws1.append(headers1)
+    for cell in ws1[1]:
+        cell.fill = hdr_fill
+        cell.font = hdr_font
+        cell.alignment = ctr
+        cell.border = border
+
+    for i, r in enumerate(rows, start=2):
+        loan = r['loan']
+        gs   = r['guarantors']
+        g1 = gs[0] if len(gs) > 0 else None
+        g2 = gs[1] if len(gs) > 1 else None
+        status = r['status']
+
+        row_data = [
+            r['due_date'].strftime('%Y-%m-%d'),
+            loan.loan_number,
+            loan.loan_type or '',
+            r['installment_number'],
+            loan.customer.full_name if loan.customer else '',
+            loan.customer.customer_id if loan.customer else '',
+            loan.customer.phone_primary if loan.customer else '',
+            loan.customer.nic_number if loan.customer else '',
+            f"{loan.customer.address_line1 or ''}, {loan.customer.city or ''}" if loan.customer else '',
+            float(loan.loan_amount or 0),
+            float(loan.disbursed_amount or 0),
+            loan.first_installment_date.strftime('%Y-%m-%d') if loan.first_installment_date else '',
+            loan.maturity_date.strftime('%Y-%m-%d') if loan.maturity_date else '',
+            float(r['amount']),
+            float(r['principal']),
+            float(r['interest']),
+            float(r['paid_amount']),
+            float(r['remaining_amount']),
+            status.upper(),
+            g1.full_name if g1 else '',
+            g1.phone_primary if g1 else '',
+            g1.nic_number if g1 else '',
+            g2.full_name if g2 else '',
+            g2.phone_primary if g2 else '',
+            g2.nic_number if g2 else '',
+            loan.referrer.full_name if loan.referrer else '',
+            loan.staff_approver.full_name if loan.staff_approver else '',
+            loan.manager_approver.full_name if loan.manager_approver else '',
+            loan.final_approver.full_name if loan.final_approver else '',
+        ]
+        ws1.append(row_data)
+        row_fill = ovd_fill if status == 'overdue' else (paid_fill if status == 'paid' else (alt_fill if i % 2 == 0 else None))
+        for cell in ws1[i]:
+            cell.border = border
+            if row_fill:
+                cell.fill = row_fill
+
+    for col in ws1.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws1.column_dimensions[col[0].column_letter].width = min(max_len + 3, 40)
+
+    # ── Sheet 2: Payment History ──────────────────────────────────────────
+    ws2 = wb.create_sheet('Payment History')
+    hdr2 = ['Loan #', 'Customer', 'Payment Date', 'Receipt #', 'Amount', 'Principal', 'Interest', 'Penalty', 'Balance After', 'Method', 'Collected By']
+    ws2.append(hdr2)
+    for cell in ws2[1]:
+        cell.fill = hdr_fill
+        cell.font = hdr_font
+        cell.alignment = ctr
+        cell.border = border
+
+    seen_loans = {r['loan'].id for r in rows}
+    seen_row = 2
+    for r in rows:
+        if r['loan'].id not in seen_loans:
+            continue
+        seen_loans.discard(r['loan'].id)  # only write each loan's history once
+        for p in r['payments']:
+            ws2.append([
+                r['loan'].loan_number,
+                r['loan'].customer.full_name if r['loan'].customer else '',
+                p.payment_date.strftime('%Y-%m-%d') if p.payment_date else '',
+                p.receipt_number or '',
+                float(p.payment_amount or 0),
+                float(p.principal_amount or 0),
+                float(p.interest_amount or 0),
+                float(p.penalty_amount or 0),
+                float(p.balance_after or 0),
+                p.payment_method or '',
+                p.collected_by_user.full_name if p.collected_by else '',
+            ])
+            for cell in ws2[seen_row]:
+                cell.border = border
+                if seen_row % 2 == 0:
+                    cell.fill = alt_fill
+            seen_row += 1
+
+    for col in ws2.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws2.column_dimensions[col[0].column_letter].width = min(max_len + 3, 35)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    fname = f'daily_installments_{start_date_str}_to_{end_date_str}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename={fname}'
+    return response

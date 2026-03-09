@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4><i class="bi bi-calendar-check me-2"></i>Daily Installments Report</h4>
+        <p class="text-muted mb-0">Installments due between <strong>{{ start_date }}</strong> and <strong>{{ end_date }}</strong></p>
+    </div>
+    <div class="d-flex gap-2">
+        <button onclick="exportToExcel()" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-bold">From Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">To Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold">Loan Type</label>
+                <select name="loan_type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for lt in loan_types %}
+                    <option value="{{ lt }}" {% if lt == loan_type_filter %}selected{% endif %}>
+                        {{ lt | replace('_', ' ') | title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill">
+                    <i class="bi bi-search me-1"></i>Filter
+                </button>
+                <a href="{{ url_for('reports.daily_installments_report') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-1"></i>Clear
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-primary">{{ summary.total_installments }}</div>
+                <div class="small text-muted">Total Installments</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100 border-danger">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-danger">{{ summary.overdue_count }}</div>
+                <div class="small text-muted">Overdue</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100 border-warning">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-warning">{{ summary.pending_count }}</div>
+                <div class="small text-muted">Pending</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100 border-success">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-success">{{ summary.paid_count }}</div>
+                <div class="small text-muted">Paid</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100 border-info">
+            <div class="card-body py-3">
+                <div class="fs-5 fw-bold text-dark">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount) }}</div>
+                <div class="small text-muted">Total Due</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-2 mb-2">
+        <div class="card text-center h-100 border-danger">
+            <div class="card-body py-3">
+                <div class="fs-5 fw-bold text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_remaining) }}</div>
+                <div class="small text-muted">Total Remaining</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Installment Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="daily-inst-table">
+                <thead>
+                    <tr>
+                        <th>Due Date</th>
+                        <th>Loan #</th>
+                        <th>Type</th>
+                        <th>#</th>
+                        <th>Customer</th>
+                        <th>Member ID</th>
+                        <th>Phone</th>
+                        <th>NIC</th>
+                        <th>Address</th>
+                        <th>Loan Amt</th>
+                        <th>Inst Amt</th>
+                        <th>Principal</th>
+                        <th>Interest</th>
+                        <th>Paid</th>
+                        <th>Remaining</th>
+                        <th>Status</th>
+                        <th>Guarantors</th>
+                        <th>Referred By</th>
+                        <th>Payments</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    {% set loan = r.loan %}
+                    <tr>
+                        <td class="fw-bold text-nowrap">{{ r.due_date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="fw-bold text-decoration-none">
+                                {{ loan.loan_number }}
+                            </a>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ loan.loan_type | replace('_',' ') | title }}</span></td>
+                        <td class="text-center">{{ r.installment_number }}</td>
+
+                        <!-- Customer Details -->
+                        <td>
+                            <a href="{{ url_for('customers.view_customer', id=loan.customer.id) }}" class="text-decoration-none">
+                                {{ loan.customer.full_name }}
+                            </a>
+                        </td>
+                        <td>{{ loan.customer.customer_id }}</td>
+                        <td>{{ loan.customer.phone_primary or '—' }}</td>
+                        <td>{{ loan.customer.nic_number or '—' }}</td>
+                        <td class="small text-muted">
+                            {{ loan.customer.address_line1 or '' }}{% if loan.customer.city %}, {{ loan.customer.city }}{% endif %}
+                        </td>
+
+                        <!-- Amounts -->
+                        <td class="text-nowrap">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                        <td class="fw-bold text-nowrap">{{ system_settings.currency_symbol }} {{ "%.2f"|format(r.amount) }}</td>
+                        <td class="text-nowrap">{{ system_settings.currency_symbol }} {{ "%.2f"|format(r.principal) }}</td>
+                        <td class="text-nowrap">{{ system_settings.currency_symbol }} {{ "%.2f"|format(r.interest) }}</td>
+                        <td class="text-success text-nowrap">{{ system_settings.currency_symbol }} {{ "%.2f"|format(r.paid_amount) }}</td>
+                        <td class="{% if r.remaining_amount > 0 %}text-danger{% else %}text-success{% endif %} fw-bold text-nowrap">
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format(r.remaining_amount) }}
+                        </td>
+
+                        <!-- Status -->
+                        <td>
+                            {% if r.status == 'overdue' %}
+                                <span class="badge bg-danger">Overdue</span>
+                            {% elif r.status == 'paid' %}
+                                <span class="badge bg-success">Paid</span>
+                            {% elif r.status == 'partial' %}
+                                <span class="badge bg-warning text-dark">Partial</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Pending</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Guarantors -->
+                        <td>
+                            {% if r.guarantors %}
+                            {% for g in r.guarantors %}
+                            <div class="small">
+                                <a href="{{ url_for('customers.view_customer', id=g.id) }}" class="text-decoration-none">
+                                    <i class="bi bi-shield-check text-info me-1"></i>{{ g.full_name }}
+                                </a>
+                                <span class="text-muted">({{ g.phone_primary or '—' }})</span>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="small">{{ loan.referrer.full_name if loan.referrer else '—' }}</td>
+
+                        <!-- Payment History (collapsible) -->
+                        <td>
+                            {% if r.payments %}
+                            <button class="btn btn-xs btn-outline-primary py-0 px-1 small"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#ph-{{ loan.id }}-{{ r.installment_number }}">
+                                <i class="bi bi-clock-history me-1"></i>{{ r.payments|length }}
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Collapsible Payment History Row -->
+                    {% if r.payments %}
+                    <tr class="collapse" id="ph-{{ loan.id }}-{{ r.installment_number }}">
+                        <td colspan="19" class="bg-light p-2">
+                            <strong class="small">Payment History for {{ loan.loan_number }}</strong>
+                            <table class="table table-sm table-bordered mt-1 mb-0 small">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Receipt #</th>
+                                        <th>Amount</th>
+                                        <th>Principal</th>
+                                        <th>Interest</th>
+                                        <th>Penalty</th>
+                                        <th>Balance After</th>
+                                        <th>Method</th>
+                                        <th>Collected By</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in r.payments %}
+                                    <tr>
+                                        <td>{{ p.payment_date.strftime('%Y-%m-%d') if p.payment_date else '—' }}</td>
+                                        <td><span class="badge bg-secondary">{{ p.receipt_number }}</span></td>
+                                        <td class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(p.payment_amount|float) }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(p.principal_amount|float) if p.principal_amount else '0.00' }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(p.interest_amount|float) if p.interest_amount else '0.00' }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(p.penalty_amount|float) if p.penalty_amount else '0.00' }}</td>
+                                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(p.balance_after|float) if p.balance_after else '0.00' }}</td>
+                                        <td>{{ p.payment_method|title if p.payment_method else '—' }}</td>
+                                        <td>{{ p.collected_by_user.full_name if p.collected_by else '—' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    {% endif %}
+
+                    {% else %}
+                    <tr><td colspan="19" class="text-center text-muted">No installments found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-success fw-bold">
+                    <tr>
+                        <td colspan="10">TOTAL ({{ summary.total_installments }} installments)</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount) }}</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_paid) }}</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_remaining) }}</td>
+                        <td colspan="4">—</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+function exportToExcel() {
+    var wb = XLSX.utils.book_new();
+
+    var data = [
+        ['Daily Installments Report'],
+        ['Period: {{ start_date }} to {{ end_date }}'],
+        ['Generated on: ' + new Date().toLocaleString()],
+        [''],
+        ['Summary'],
+        ['Total Installments', {{ summary.total_installments }}],
+        ['Overdue', {{ summary.overdue_count }}],
+        ['Pending', {{ summary.pending_count }}],
+        ['Paid', {{ summary.paid_count }}],
+        ['Total Due', {{ summary.total_amount }}],
+        ['Total Remaining', {{ summary.total_remaining }}],
+        [''],
+        ['Installment Details'],
+        ['Due Date', 'Loan #', 'Type', '#', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address',
+         'Loan Amt', 'Inst Amt', 'Principal', 'Interest', 'Paid', 'Remaining', 'Status', 'Guarantors', 'Referred By']
+    ];
+
+    {% for r in rows %}
+    data.push([
+        '{{ r.due_date.strftime("%Y-%m-%d") }}',
+        '{{ r.loan.loan_number }}',
+        '{{ r.loan.loan_type | replace("_", " ") | title }}',
+        {{ r.installment_number }},
+        '{{ r.loan.customer.full_name | replace("'", "\\'") }}',
+        '{{ r.loan.customer.customer_id }}',
+        '{{ r.loan.customer.phone_primary or "" }}',
+        '{{ r.loan.customer.nic_number or "" }}',
+        '{{ (r.loan.customer.address_line1 or "") | replace("'", "\\'") }}',
+        {{ r.loan.loan_amount | float }},
+        {{ r.amount }},
+        {{ r.principal }},
+        {{ r.interest }},
+        {{ r.paid_amount }},
+        {{ r.remaining_amount }},
+        '{{ r.status | title }}',
+        '{{ r.guarantors | map(attribute="full_name") | join(", ") if r.guarantors else "" }}',
+        '{{ r.loan.referrer.full_name if r.loan.referrer else "" }}'
+    ]);
+    {% endfor %}
+
+    data.push(['', '', '', '', '', '', '', '', '', 'TOTAL',
+        {{ summary.total_amount }}, '', '', {{ summary.total_paid }}, {{ summary.total_remaining }}, '', '', '']);
+
+    var ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [
+        {wch:12},{wch:14},{wch:18},{wch:5},{wch:25},{wch:12},{wch:14},{wch:14},
+        {wch:25},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},{wch:25},{wch:20}
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Installments');
+    XLSX.writeFile(wb, 'daily_installments_{{ start_date }}_{{ end_date }}.xlsx');
+}
+
+var style = document.createElement('style');
+style.innerHTML = '@media print { .btn, .card-header form, .top-navbar, .sidebar { display: none !important; } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}
