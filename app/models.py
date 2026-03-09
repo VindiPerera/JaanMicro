@@ -720,6 +720,8 @@ class Loan(db.Model):
         cumulative_expected = Decimal('0')
         # Subtract one period so the first loop iteration lands exactly on first_date
         current_due_date = first_date - frequency_delta if frequency_delta else first_date
+        # Track the number of actual (non-skipped) payable installments seen so far
+        payable_installment_count = 0
         
         for i in range(num_installments):
             installment_num = i + 1
@@ -810,6 +812,9 @@ class Loan(db.Model):
             
             cumulative_expected += current_installment
             
+            # Track actual payable installment index (excludes skipped)
+            payable_installment_count += 1
+            
             # Calculate principal and interest breakdown based on loan type
             if is_monthly_reducing_balance:
                 # For reducing balance loans, calculate interest on outstanding balance
@@ -857,8 +862,10 @@ class Loan(db.Model):
                 cumulative_interest_paid += interest
             
             # Determine status based on payments - track partial amounts precisely
-            installment_threshold = installment_amount * Decimal(str(installment_num))
-            previous_threshold = installment_amount * Decimal(str(installment_num - 1))
+            # Use payable_installment_count (excludes skipped) so skipped days
+            # don't inflate thresholds and cause false overdue
+            installment_threshold = installment_amount * Decimal(str(payable_installment_count))
+            previous_threshold = installment_amount * Decimal(str(payable_installment_count - 1))
             
             # How much of this specific installment has been paid
             paid_for_this = max(Decimal('0'), min(current_installment, total_paid - previous_threshold))
