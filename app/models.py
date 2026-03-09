@@ -718,7 +718,8 @@ class Loan(db.Model):
         
         # Generate schedule
         cumulative_expected = Decimal('0')
-        current_due_date = first_date  # Track the actual current due date
+        # Subtract one period so the first loop iteration lands exactly on first_date
+        current_due_date = first_date - frequency_delta if frequency_delta else first_date
         
         for i in range(num_installments):
             installment_num = i + 1
@@ -737,7 +738,7 @@ class Loan(db.Model):
                             orig_due = orig_due + timedelta(days=1)
                     original_due_date = orig_due
                 else:
-                    original_due_date = first_date + relativedelta(months=installment_num)
+                    original_due_date = first_date + relativedelta(months=installment_num - 1)
                 if is_monthly_reducing_balance:
                     interest_rate = Decimal(str(self.interest_rate))
                     if frequency_name == 'Monthly':
@@ -793,8 +794,8 @@ class Loan(db.Model):
                 
                 due_date = current_due_date
             else:
-                # For monthly, use relativedelta
-                due_date = first_date + relativedelta(months=installment_num)
+                # For monthly, use relativedelta (installment_num - 1 so installment 1 = first_date)
+                due_date = first_date + relativedelta(months=installment_num - 1)
             
             # Check if admin has overridden the due date
             if installment_num in overrides and overrides[installment_num].custom_due_date:

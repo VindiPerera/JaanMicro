@@ -910,13 +910,16 @@ def approve_loan_admin(id):
         flash('Only initiated loans can be approved by admin!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
-    # Check if user is admin or regional_manager
-    if current_user.role not in ['admin', 'regional_manager']:
+    is_admin_or_manager = current_user.role in ['admin', 'regional_manager']
+    is_designated_approver = loan.final_approver_id is not None and current_user.id == loan.final_approver_id
+
+    # Must be admin/regional_manager OR the designated final approver
+    if not is_admin_or_manager and not is_designated_approver:
         flash('Only admins can perform final approval and disbursement!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
-    
-    # Check if this loan has a designated final approver
-    if loan.final_approver_id and current_user.id != loan.final_approver_id:
+
+    # If admin/manager but a different person is designated, block them
+    if is_admin_or_manager and loan.final_approver_id and current_user.id != loan.final_approver_id:
         designated = User.query.get(loan.final_approver_id)
         name = designated.full_name if designated else 'Unknown'
         flash(f'This loan can only be finally approved by the designated approver: {name}.', 'danger')
