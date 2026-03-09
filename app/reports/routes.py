@@ -704,6 +704,7 @@ def arrears_report():
             installment_overdue_amount = float(total_overdue_amount)
             num_arrears = arrears_details['overdue_installments'] + arrears_details['partial_overdue_installments']
             
+            last_payment = LoanPayment.query.filter_by(loan_id=loan.id).order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
             arrears_data.append({
                 'product_type': 'Loan',
                 'reference_number': loan.loan_number,
@@ -733,7 +734,9 @@ def arrears_report():
                 'days_overdue': overdue_days,
                 'oldest_overdue_date': oldest_overdue_date,
                 'loan_type': loan.loan_type,
-                'interest_type': loan.interest_type
+                'interest_type': loan.interest_type,
+                'last_payment_date': last_payment.payment_date if last_payment else None,
+                'last_payment_amount': float(last_payment.payment_amount) if last_payment else None,
             })
     
     # Pawning arrears - only active pawnings past maturity date
@@ -803,7 +806,9 @@ def arrears_report():
                 'days_overdue': overdue_days,
                 'oldest_overdue_date': maturity_date,
                 'loan_type': pawning.item_type,
-                'interest_type': 'monthly'
+                'interest_type': 'monthly',
+                'last_payment_date': None,
+                'last_payment_amount': None,
             })
     
     # Sort by number of arrears descending, then total arrears
@@ -1113,6 +1118,7 @@ def export_arrears():
             
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
             is_past_maturity = loan.maturity_date and loan.maturity_date < today
+            last_payment = LoanPayment.query.filter_by(loan_id=loan.id).order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
             
             arrears_data.append({
                 'type': 'Loan',
@@ -1134,6 +1140,8 @@ def export_arrears():
                 'advance_balance': float(loan.advance_balance or 0),
                 'days_overdue': details['days_overdue'],
                 'status': 'Past Maturity' if is_past_maturity else 'Installment Overdue',
+                'last_payment_date': last_payment.payment_date.strftime('%Y-%m-%d') if last_payment else 'N/A',
+                'last_payment_amount': float(last_payment.payment_amount) if last_payment else '',
             })
     
     # Pawning arrears
@@ -1176,6 +1184,8 @@ def export_arrears():
                 'advance_balance': 0,
                 'days_overdue': overdue_days,
                 'status': 'Past Maturity',
+                'last_payment_date': 'N/A',
+                'last_payment_amount': '',
             })
     
     arrears_data.sort(key=lambda x: x['overdue_amount'], reverse=True)
@@ -1187,7 +1197,8 @@ def export_arrears():
         'Type', 'Reference #', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address',
         'Loan Type', 'Disbursement Date', 'Settlement Date', 'Original Amount',
         'Outstanding', 'Overdue Installments', 'Partial Installments',
-        'Overdue Amount', 'Partial Overdue', 'Advance Balance', 'Days Overdue', 'Status'
+        'Overdue Amount', 'Partial Overdue', 'Advance Balance', 'Days Overdue', 'Status',
+        'Last Payment Date', 'Last Payment Amount'
     ])
     
     for item in arrears_data:
@@ -1197,7 +1208,8 @@ def export_arrears():
             item['disbursement_date'], item['maturity_date'], item['original_amount'],
             item['outstanding'], item['overdue_installments'], item['partial_installments'],
             item['overdue_amount'], item['partial_overdue'], item['advance_balance'],
-            item['days_overdue'], item['status']
+            item['days_overdue'], item['status'],
+            item['last_payment_date'], item['last_payment_amount']
         ])
     
     output.seek(0)

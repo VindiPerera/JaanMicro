@@ -193,6 +193,7 @@
                         <th>Advance Balance</th>
                         <th>Days Overdue</th>
                         <th>Status</th>
+                        <th>Last Payment</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -278,9 +279,17 @@
                                 <span class="badge bg-secondary">0</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if item.last_payment_date %}
+                                <span class="text-nowrap">{{ item.last_payment_date.strftime('%Y-%m-%d') }}</span><br>
+                                <small class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.last_payment_amount|float) }}</small>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="20" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
+                    <tr><td colspan="21" class="text-center text-muted">No arrears data found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
@@ -288,7 +297,7 @@
                         <td colspan="15">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_partial_overdue|float) if summary.total_partial_overdue else '0.00' }}</td>
-                        <td colspan="3">-</td>
+                        <td colspan="4">-</td>
                     </tr>
                 </tfoot>
             </table>
