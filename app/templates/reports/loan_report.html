@@ -120,6 +120,7 @@
                         <th>Disbursement Date</th>
                         <th>Loan Amount</th>
                         <th>Interest Rate</th>
+                        <th>Installment</th>
                         <th>Outstanding</th>
                         <th>Principal Collected</th>
                         <th>Interest Collected</th>
@@ -148,6 +149,7 @@
                         <td>{{ loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                         <td>{{ loan.interest_rate }}%</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(principal_paid) }}</td>
                         <td>
@@ -176,6 +178,7 @@
                     <tr class="table-primary fw-bold">
                         <td colspan="5">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_disbursed|float) if summary.total_disbursed else '0.00' }}</td>
+                        <td>-</td>
                         <td>-</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.principal_collected|float) if summary.principal_collected else '0.00' }}</td>

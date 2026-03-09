@@ -1025,8 +1025,8 @@ def export_loans():
 
     headers = [
         'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
-        'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Duration',
-        'Outstanding Amount', 'Status', 'Referred By', 'Created Date'
+        'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Installment Amount',
+        'Duration', 'Outstanding Amount', 'Status', 'Referred By', 'Created Date'
     ]
 
     header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
@@ -1056,6 +1056,7 @@ def export_loans():
             loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
             float(loan.loan_amount) if loan.loan_amount else 0,
             float(loan.interest_rate) if loan.interest_rate else 0,
+            float(loan.installment_amount) if loan.installment_amount else 0,
             duration,
             float(loan.outstanding_amount) if loan.outstanding_amount else 0,
             loan.status or 'N/A',
