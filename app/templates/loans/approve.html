@@ -81,6 +81,13 @@
                             <small class="text-muted">Check/Transfer number</small>
                         </div>
                     </div>
+
+                    <div class="row" id="approved-fields-3">
+                        <div class="col-md-6 mb-3">
+                            {{ form.first_installment_date.label(class="form-label") }}
+                            {{ form.first_installment_date(class="form-control", type="date") }}
+                        </div>
+                    </div>
                     
                     <div class="mb-3">
                         {{ form.approval_notes.label(class="form-label") }}
@@ -112,13 +119,13 @@
 $(document).ready(function() {
     $('#approval_status').on('change', function() {
         if ($(this).val() === 'approved') {
-            $('#approved-fields, #approved-fields-2').show();
+            $('#approved-fields, #approved-fields-2, #approved-fields-3').show();
             $('#rejection-field').hide();
         } else if ($(this).val() === 'rejected') {
-            $('#approved-fields, #approved-fields-2').hide();
+            $('#approved-fields, #approved-fields-2, #approved-fields-3').hide();
             $('#rejection-field').show();
         } else {
-            $('#approved-fields, #approved-fields-2, #rejection-field').hide();
+            $('#approved-fields, #approved-fields-2, #approved-fields-3, #rejection-field').hide();
         }
     });
     

@@ -44,23 +44,6 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <div class="stats-label">Active Borrowers</div>
-                        <div class="stats-value">{{ stats.active_investments }}</div>
-                        <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(stats.total_investment_amount|float) }}</small>
-                    </div>
-                    <div class="text-info" style="font-size: 3rem; opacity: 0.2;">
-                        <i class="bi bi-piggy-bank"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-xl-3 col-md-6">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <div>
                         <div class="stats-label">Active Pawnings</div>
                         <div class="stats-value">{{ stats.active_pawnings }}</div>
                         <small class="text-muted">{{ system_settings.currency_symbol }} {{ "%.2f"|format(stats.total_pawning_outstanding|float) }}</small>

@@ -754,6 +754,17 @@ def approve_loan(id):
         
         return redirect(url_for('loans.view_loan', id=id))
     
+    # Pre-fill form defaults
+    if not form.is_submitted():
+        form.disbursement_date.data = datetime.now().date()
+        # Calculate first installment date based on loan type
+        if loan.duration_days:
+            form.first_installment_date.data = datetime.now().date() + timedelta(days=1)
+        elif loan.duration_weeks:
+            form.first_installment_date.data = datetime.now().date() + timedelta(days=7)
+        else:
+            form.first_installment_date.data = datetime.now().date() + timedelta(days=30)
+    
     return render_template('loans/approve.html',
                          title=f'Approve Loan: {loan.loan_number}',
                          form=form,
