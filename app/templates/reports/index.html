@@ -136,11 +136,6 @@
                         <small class="text-info">{{ "%.0f"|format(stats.active_loans|float) if stats else 0 }} active loans</small>
                     </div>
                     <div class="col-md-3 col-6 mb-3">
-                        <h3 class="text-info">{{ system_settings.currency_symbol }} {{ "%.0f"|format(stats.total_investment_amount|float) if stats else '0' }}</h3>
-                        <p class="text-muted mb-0">Total Borrowings</p>
-                        <small class="text-warning">{{ "%.0f"|format(stats.active_investments|float) if stats else 0 }} active</small>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
                         <h3 class="text-warning">{{ "%.0f"|format(stats.active_pawnings|float) if stats else 0 }}</h3>
                         <p class="text-muted mb-0">Active Pawnings</p>
                         <small class="text-danger">{{ system_settings.currency_symbol }} {{ "%.0f"|format(stats.total_pawning_amount|float) if stats else '0' }}</small>
