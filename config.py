@@ -32,6 +32,9 @@ class Config:
     DEFAULT_CURRENCY = 'LKR'
     DEFAULT_THEME_COLOR = '#2c3e50'
     DEFAULT_APP_NAME = 'JAANmicro'
+
+    # Internal messaging system toggle (keeps code in place but disables runtime use)
+    MESSAGING_ENABLED = os.environ.get('MESSAGING_ENABLED', 'false').lower() == 'true'
     
 class DevelopmentConfig(Config):
     """Development configuration"""

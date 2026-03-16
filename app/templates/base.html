@@ -706,6 +706,7 @@
             </li>
             {% endif %}
             
+            {% if messaging_enabled %}
             <li>
                 <a href="{{ url_for('messages.inbox') }}" class="{% if 'messages' in request.endpoint %}active{% endif %}">
                     <i class="bi bi-envelope"></i>
@@ -713,6 +714,7 @@
                     {% if unread_count %}<span class="badge bg-danger ms-auto">{{ unread_count }}</span>{% endif %}
                 </a>
             </li>
+            {% endif %}
             
             {% if current_user.has_permission('manage_settings') %}
             <li>
@@ -893,7 +895,7 @@
     {% block extra_js %}{% endblock %}
 
     <!-- ── Floating compose button + Gmail-style popup ── -->
-    {% if current_user.is_authenticated %}
+    {% if current_user.is_authenticated and messaging_enabled %}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>

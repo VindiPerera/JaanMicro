@@ -28,6 +28,7 @@ def create_app(config_name='default'):
     """Create and configure the Flask application"""
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    messaging_enabled = app.config.get('MESSAGING_ENABLED', False)
     
     # Create upload folders if they don't exist
     upload_folder = app.config.get('UPLOAD_FOLDER')
@@ -78,7 +79,6 @@ def create_app(config_name='default'):
     from app.pawnings import pawnings_bp
     from app.reports import reports_bp
     from app.settings import settings_bp
-    from app.messages import messages_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp, url_prefix='/')
@@ -88,10 +88,13 @@ def create_app(config_name='default'):
     app.register_blueprint(pawnings_bp, url_prefix='/pawnings')
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(settings_bp, url_prefix='/settings')
-    app.register_blueprint(messages_bp, url_prefix='/messages')
 
-    # Register SocketIO event handlers
-    from app.messages import events  # noqa: F401
+    if messaging_enabled:
+        from app.messages import messages_bp
+        app.register_blueprint(messages_bp, url_prefix='/messages')
+
+        # Register SocketIO event handlers
+        from app.messages import events  # noqa: F401
 
     # Jinja2 global helper: build the correct /static/uploads/... URL for any
     # stored upload path, regardless of whether it has an "uploads/" prefix or not.
@@ -125,7 +128,7 @@ def create_app(config_name='default'):
         
         # Unread message count for current user
         unread_count = 0
-        if current_user.is_authenticated:
+        if messaging_enabled and current_user.is_authenticated:
             from app.models import MessageRecipient
             unread_count = MessageRecipient.query.filter_by(
                 user_id=current_user.id, is_read=False, is_deleted=False
@@ -138,6 +141,7 @@ def create_app(config_name='default'):
             current_branch=current_branch,
             branches=branches,
             csrf_token=generate_csrf,
+            messaging_enabled=messaging_enabled,
             unread_count=unread_count
         )
     
