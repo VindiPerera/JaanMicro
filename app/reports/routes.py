@@ -170,6 +170,18 @@ def loan_report():
         arrears_details = loan.get_arrears_details()
         arrears_amount = float(arrears_details.get('total_overdue_amount', 0))
         total_arrears += arrears_amount
+
+        # Count paid installments from schedule (includes skipped as not paid)
+        schedule = loan.generate_payment_schedule()
+        paid_installments = len([inst for inst in schedule if inst.get('status') == 'paid']) if schedule else 0
+
+        # Last payment (respect date filters if provided)
+        last_payment_query = LoanPayment.query.filter_by(loan_id=loan.id)
+        if start_date:
+            last_payment_query = last_payment_query.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            last_payment_query = last_payment_query.filter(LoanPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+        last_payment = last_payment_query.order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
         
         loan_payments[loan.id] = {
             'principal': float(principal_dec),
@@ -178,13 +190,30 @@ def loan_report():
             'expected_interest': float(expected_interest),
             'interest_variance': float(interest_variance),
             'interest_type': loan.interest_type,
-            'arrears': arrears_amount
+            'arrears': arrears_amount,
+            'paid_installments': paid_installments,
+            'last_payment_date': last_payment.payment_date if last_payment else None,
+            'last_payment_amount': float(last_payment.payment_amount) if last_payment else None
         }
     
     # Calculate overall statistics
     principal_collected = sum(p['principal'] for p in loan_payments.values())
     interest_collected = sum(p['interest'] for p in loan_payments.values())
     total_collected = principal_collected + interest_collected
+
+    # Customer-level total paid (principal + interest) respecting filters
+    customer_totals_query = db.session.query(
+        Loan.customer_id,
+        func.sum(LoanPayment.payment_amount)
+    ).join(Loan, LoanPayment.loan_id == Loan.id)
+    if loan_branch_filter is not None:
+        customer_totals_query = customer_totals_query.filter(loan_branch_filter)
+    if start_date:
+        customer_totals_query = customer_totals_query.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        customer_totals_query = customer_totals_query.filter(LoanPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    customer_totals_query = customer_totals_query.group_by(Loan.customer_id)
+    customer_totals = {cid: float(total or 0) for cid, total in customer_totals_query.all()}
     
     # Calculate statistics
     summary = {
@@ -194,7 +223,8 @@ def loan_report():
         'total_collected': total_collected,
         'principal_collected': principal_collected,
         'interest_profit': interest_collected,
-        'total_arrears': total_arrears
+        'total_arrears': total_arrears,
+        'total_customer_paid': sum(customer_totals.values())
     }
     
     # Loan by status
@@ -218,6 +248,7 @@ def loan_report():
                          summary=summary,
                          status_breakdown=status_breakdown,
                          purpose_breakdown=purpose_breakdown,
+                         customer_totals=customer_totals,
                          start_date=start_date,
                          end_date=end_date,
                          status=status,
@@ -712,6 +743,10 @@ def arrears_report():
             num_arrears = arrears_details['overdue_installments'] + arrears_details['partial_overdue_installments']
             
             last_payment = LoanPayment.query.filter_by(loan_id=loan.id).order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
+            referred_by = loan.referrer.full_name if loan.referrer else 'N/A'
+            schedule = loan.generate_payment_schedule()
+            paid_installments = len([inst for inst in schedule if inst.get('status') == 'paid']) if schedule else 0
+
             arrears_data.append({
                 'product_type': 'Loan',
                 'reference_number': loan.loan_number,
@@ -721,6 +756,7 @@ def arrears_report():
                 'customer_phone': loan.customer.phone_primary,
                 'customer_nic': loan.customer.nic_number,
                 'customer_address': f"{loan.customer.address_line1}, {loan.customer.city}, {loan.customer.district}",
+                'referred_by': referred_by,
                 'disbursement_date': loan.disbursement_date,
                 'maturity_date': loan.maturity_date,
                 'original_amount': float(disbursed),
@@ -736,6 +772,7 @@ def arrears_report():
                 'overdue_amount': installment_overdue_amount,
                 'total_arrears': installment_overdue_amount,
                 'num_arrears': num_arrears,
+                'paid_installments': paid_installments,
                 'is_overdue': True,
                 'is_past_maturity': is_past_maturity,
                 'days_overdue': overdue_days,
@@ -793,6 +830,7 @@ def arrears_report():
                 'customer_phone': pawning.customer.phone_primary,
                 'customer_nic': pawning.customer.nic_number,
                 'customer_address': f"{pawning.customer.address_line1}, {pawning.customer.city}, {pawning.customer.district}",
+                'referred_by': 'N/A',
                 'disbursement_date': pawning.pawning_date,
                 'maturity_date': maturity_date,
                 'original_amount': float(loan_amount),
@@ -808,6 +846,7 @@ def arrears_report():
                 'overdue_amount': float(total_arrears),
                 'total_arrears': float(total_arrears),
                 'num_arrears': 1,
+                'paid_installments': 0,
                 'is_overdue': True,
                 'is_past_maturity': True,
                 'days_overdue': overdue_days,
@@ -1038,7 +1077,7 @@ def export_loans():
     headers = [
         'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
         'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Installment Amount',
-        'Duration', 'Outstanding Amount', 'Arrears', 'Status', 'Referred By', 'Created Date'
+        'Duration', 'Paid Installments', 'Outstanding Amount', 'Arrears', 'Last Payment Date', 'Last Payment Amount', 'Total Paid', 'Status', 'Referred By', 'Created Date'
     ]
 
     header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
@@ -1060,7 +1099,13 @@ def export_loans():
 
         referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
 
-        arrears_amount = float(loan.get_arrears_details().get('total_overdue_amount', 0))
+        arrears_details = loan.get_arrears_details()
+        arrears_amount = float(arrears_details.get('total_overdue_amount', 0))
+        schedule = loan.generate_payment_schedule()
+        paid_installments = len([inst for inst in schedule if inst.get('status') == 'paid']) if schedule else 0
+
+        last_payment = LoanPayment.query.filter_by(loan_id=loan.id).order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
+        total_paid = db.session.query(func.sum(LoanPayment.payment_amount)).filter(LoanPayment.loan_id == loan.id).scalar() or 0
 
         ws.append([
             loan.loan_number,
@@ -1072,8 +1117,12 @@ def export_loans():
             float(loan.interest_rate) if loan.interest_rate else 0,
             float(loan.installment_amount) if loan.installment_amount else 0,
             duration,
+            paid_installments,
             float(loan.outstanding_amount) if loan.outstanding_amount else 0,
             arrears_amount,
+            last_payment.payment_date.strftime('%Y-%m-%d') if last_payment and last_payment.payment_date else 'N/A',
+            float(last_payment.payment_amount) if last_payment else 0,
+            float(total_paid),
             loan.status or 'N/A',
             referred_by_name,
             loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
@@ -1138,6 +1187,7 @@ def export_arrears():
                 'phone': loan.customer.phone_primary,
                 'nic': loan.customer.nic_number,
                 'address': f"{loan.customer.address_line1}, {loan.customer.city}, {loan.customer.district}",
+                'referred_by': loan.referrer.full_name if loan.referrer else 'N/A',
                 'loan_type': loan.loan_type,
                 'disbursement_date': loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
                 'maturity_date': loan.maturity_date.strftime('%Y-%m-%d') if loan.maturity_date else 'N/A',
@@ -1182,6 +1232,7 @@ def export_arrears():
                 'phone': pawning.customer.phone_primary,
                 'nic': pawning.customer.nic_number,
                 'address': f"{pawning.customer.address_line1}, {pawning.customer.city}, {pawning.customer.district}",
+                'referred_by': 'N/A',
                 'loan_type': pawning.item_type,
                 'disbursement_date': pawning.pawning_date.strftime('%Y-%m-%d') if pawning.pawning_date else 'N/A',
                 'maturity_date': maturity_date.strftime('%Y-%m-%d') if maturity_date else 'N/A',
@@ -1204,9 +1255,9 @@ def export_arrears():
     writer = csv.writer(output)
     
     writer.writerow([
-        'Type', 'Reference #', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address',
+        'Type', 'Reference #', 'Customer', 'Member ID', 'Phone', 'NIC', 'Address', 'Referred By',
         'Loan Type', 'Disbursement Date', 'Settlement Date', 'Original Amount',
-        'Outstanding', 'Overdue Installments', 'Partial Installments',
+        'Outstanding', 'Overdue Installments', 'Partial Installments', 'Paid Installments',
         'Overdue Amount', 'Partial Overdue', 'Advance Balance', 'Days Overdue', 'Status',
         'Last Payment Date', 'Last Payment Amount'
     ])
@@ -1214,9 +1265,9 @@ def export_arrears():
     for item in arrears_data:
         writer.writerow([
             item['type'], item['reference'], item['customer'], item['customer_id'],
-            item['phone'], item['nic'], item['address'], item['loan_type'],
+            item['phone'], item['nic'], item['address'], item['referred_by'], item['loan_type'],
             item['disbursement_date'], item['maturity_date'], item['original_amount'],
-            item['outstanding'], item['overdue_installments'], item['partial_installments'],
+            item['outstanding'], item['overdue_installments'], item['partial_installments'], item['paid_installments'],
             item['overdue_amount'], item['partial_overdue'], item['advance_balance'],
             item['days_overdue'], item['status'],
             item['last_payment_date'], item['last_payment_amount']

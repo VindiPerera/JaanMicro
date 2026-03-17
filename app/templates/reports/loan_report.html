@@ -121,12 +121,16 @@
                         <th>Loan Amount</th>
                         <th>Interest Rate</th>
                         <th>Installment</th>
+                        <th>Paid Inst.</th>
                         <th>Outstanding</th>
                         <th>Arrears</th>
                         <th>Principal Collected</th>
                         <th>Interest Collected</th>
                         <th>Expected Interest</th>
                         <th>Total Collected</th>
+                        <th>Customer Paid Total</th>
+                        <th>Last Payment Date</th>
+                        <th>Last Payment Amount</th>
                         <th>Referred By</th>
                         <th>Status</th>
                     </tr>
@@ -151,6 +155,7 @@
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                         <td>{{ loan.interest_rate }}%</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else '0.00' }}</td>
+                        <td>{{ loan_payments[loan.id]['paid_installments'] }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
                         <td>
                             {% set arrears = loan_payments[loan.id]['arrears'] %}
@@ -172,11 +177,20 @@
                             {% endif %}
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(total_paid) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(customer_totals.get(loan.customer.id, 0)) }}</td>
+                        <td>
+                            {% set lp_date = loan_payments[loan.id]['last_payment_date'] %}
+                            {{ lp_date.strftime('%Y-%m-%d') if lp_date else 'N/A' }}
+                        </td>
+                        <td>
+                            {% set lp_amt = loan_payments[loan.id]['last_payment_amount'] %}
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format(lp_amt) if lp_amt is not none else '0.00' }}
+                        </td>
                         <td>{{ loan.referrer.full_name if loan.referrer else 'N/A' }}</td>
                         <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="12" class="text-center text-muted">No loans found for the selected criteria</td></tr>
+                    <tr><td colspan="20" class="text-center text-muted">No loans found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
@@ -185,12 +199,16 @@
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_disbursed|float) if summary.total_disbursed else '0.00' }}</td>
                         <td>-</td>
                         <td>-</td>
+                        <td>-</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</td>
                         <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.principal_collected|float) if summary.principal_collected else '0.00' }}</td>
                         <td class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.interest_profit|float) if summary.interest_profit else '0.00' }}</td>
                         <td>-</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_collected|float) if summary.total_collected else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_customer_paid|float) if summary.total_customer_paid else '0.00' }}</td>
+                        <td>-</td>
+                        <td>-</td>
                         <td>-</td>
                         <td>-</td>
                     </tr>

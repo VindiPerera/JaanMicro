@@ -176,6 +176,7 @@
                         <th>Type</th>
                         <th>Reference #</th>
                         <th>Member</th>
+                        <th>Referred By</th>
                         <th>Phone</th>
                         <th>NIC</th>
                         <th>Address</th>
@@ -185,6 +186,9 @@
                         <th>Settlement Date</th>
                         <th>Original Amount</th>
                         <th>Num Arrears</th>
+                        <th>Paid Inst.</th>
+                        <th>Last Payment Date</th>
+                        <th>Last Payment Amount</th>
                         <th>Outstanding</th>
                         <th>Overdue Inst.</th>
                         <th>Partial Inst.</th>
@@ -212,6 +216,7 @@
                             {% endif %}
                         </td>
                         <td>{{ item.customer_name }}</td>
+                        <td>{{ item.referred_by }}</td>
                         <td>{{ item.customer_phone or 'N/A' }}</td>
                         <td>{{ item.customer_nic or 'N/A' }}</td>
                         <td>{{ item.customer_address or 'N/A' }}</td>
@@ -227,6 +232,9 @@
                                 {{ item.num_arrears }}
                             </span>
                         </td>
+                        <td>{{ item.paid_installments }}</td>
+                        <td>{{ item.last_payment_date.strftime('%Y-%m-%d') if item.last_payment_date else 'N/A' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.last_payment_amount|float) if item.last_payment_amount is not none else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(item.outstanding|float) }}</td>
                         <td>
                             {% if item.overdue_installments > 0 %}
