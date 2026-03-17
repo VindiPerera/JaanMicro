@@ -1084,178 +1084,192 @@ def deactivate_loan(id):
                          form=form,
                          loan=loan)
 
+def _process_payment(loan, payment_amount, payment_date, payment_method, reference_number, notes, penalty_amount=0):
+    """Shared payment processor used by both form and quick-pay (keeps logic in one place)."""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    payment_amount = Decimal(str(payment_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    # Calculate current outstanding with accrued interest
+    current_outstanding = loan.calculate_current_outstanding()
+    accrued_interest = loan.calculate_accrued_interest()
+
+    # Current outstanding principal (without accrued interest)
+    disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
+    paid_principal = loan.get_total_paid_principal()
+    outstanding_principal = disbursed - paid_principal
+
+    # Check if this is a full payment or overpayment
+    is_full_payment = payment_amount >= current_outstanding or abs(payment_amount - current_outstanding) <= Decimal('0.05')
+
+    # Calculate interest and principal splits based on loan type
+    if loan.interest_type == 'flat':
+        # For flat interest loans, calculate fixed interest per payment
+        # Determine number of installments and period based on frequency
+        if loan.installment_frequency == 'monthly':
+            num_installments = loan.duration_months or 0
+            period = Decimal('1') / Decimal('12')
+        elif loan.installment_frequency == 'weekly':
+            num_installments = loan.duration_weeks or 0
+            period = Decimal('7') / Decimal('365')
+        elif loan.installment_frequency == 'daily':
+            num_installments = loan.duration_days or 0
+            period = Decimal('1') / Decimal('365')
+        else:
+            num_installments = loan.duration_months or 0
+            period = Decimal('1') / Decimal('12')
+
+        time_in_years = Decimal(str(num_installments)) * period
+        total_interest = (disbursed * Decimal(str(loan.interest_rate)) * time_in_years) / Decimal('100')
+        installment_interest = total_interest / Decimal(str(num_installments)) if num_installments > 0 else Decimal('0')
+
+        # For flat loans, determine if this is truly a full settlement (paying off entire remaining balance)
+        total_paid = Decimal(str(loan.paid_amount or 0))
+        total_payable = disbursed + total_interest
+        remaining_total = total_payable - total_paid
+        is_full_settlement = payment_amount >= remaining_total or abs(payment_amount - remaining_total) <= Decimal('0.05')
+
+        if is_full_settlement:
+            # Full settlement - pay all remaining interest and principal
+            total_paid_interest = loan.get_total_paid_interest()
+            remaining_interest = total_interest - Decimal(str(total_paid_interest))
+            interest_amount = min(payment_amount, remaining_interest)
+            principal_amount = payment_amount - interest_amount
+        else:
+            # Regular installment payment - use fixed interest per payment
+            if loan.installment_amount and loan.installment_amount > 0 and abs(payment_amount - Decimal(str(loan.installment_amount))) <= Decimal('0.05'):
+                # This is a regular installment payment
+                interest_amount = installment_interest
+                principal_amount = payment_amount - interest_amount
+            else:
+                # Partial or different amount - calculate proportionally
+                payment_ratio = payment_amount / Decimal(str(loan.installment_amount)) if loan.installment_amount else Decimal('1')
+                interest_amount = installment_interest * payment_ratio
+                principal_amount = payment_amount - interest_amount
+    else:
+        # For reducing balance loans (original logic)
+        if is_full_payment:
+            # For full payments, pay off accrued interest first, then principal
+            interest_amount = min(payment_amount, accrued_interest)
+            principal_amount = min(payment_amount - interest_amount, outstanding_principal)
+            
+            # Any remaining amount goes to interest (overpayment case)
+            remaining = payment_amount - principal_amount - interest_amount
+            if remaining > 0:
+                interest_amount += remaining
+        else:
+            # For partial payments, split based on loan terms
+            if accrued_interest > 0:
+                # Pay accrued interest first if any exists
+                interest_amount = min(payment_amount, accrued_interest)
+                principal_amount = payment_amount - interest_amount
+            else:
+                # Standard EMI split - calculate proportion
+                monthly_interest = outstanding_principal * (Decimal(str(loan.interest_rate)) / Decimal('1200'))
+                if payment_amount >= monthly_interest:
+                    interest_amount = monthly_interest
+                    principal_amount = payment_amount - interest_amount
+                else:
+                    # If payment is less than monthly interest, all goes to interest
+                    interest_amount = payment_amount
+                    principal_amount = Decimal('0')
+    # Ensure no negative amounts
+    interest_amount = max(Decimal('0'), interest_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+    principal_amount = max(Decimal('0'), principal_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+    
+    # Create payment record
+    payment = LoanPayment(
+        loan_id=loan.id,
+        payment_date=payment_date,
+        payment_amount=float(payment_amount),
+        principal_amount=float(principal_amount),
+        interest_amount=float(interest_amount),
+        penalty_amount=float(penalty_amount or 0),
+        payment_method=payment_method,
+        reference_number=reference_number,
+        receipt_number=generate_receipt_number(),
+        notes=notes,
+        collected_by=current_user.id
+    )
+    
+    db.session.add(payment)
+    
+    # Update loan amounts - recalculate outstanding based on new payment
+    loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + payment_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    loan.update_outstanding_amount()  # Use our new method to calculate current outstanding
+    
+    # Calculate advance balance (overpayment credit)
+    # Check if total paid exceeds what's due up to the current point in time
+    schedule = loan.generate_payment_schedule()
+    today = payment_date or datetime.now().date()
+    total_due_so_far = Decimal('0')
+    for inst in schedule:
+        if inst['due_date'] <= today and not inst.get('is_skipped', False):
+            total_due_so_far += Decimal(str(inst['amount']))
+    
+    new_total_paid = Decimal(str(loan.paid_amount or 0))
+    if new_total_paid > total_due_so_far:
+        loan.advance_balance = (new_total_paid - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    else:
+        loan.advance_balance = Decimal('0')
+    
+    # Set balance_after for the payment record
+    payment.balance_after = float(loan.outstanding_amount or 0)
+    
+    # Check if loan is fully paid
+    if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences
+        loan.status = 'completed'
+        loan.outstanding_amount = Decimal('0')
+        loan.advance_balance = Decimal('0')
+        loan.closing_date = payment_date  # Set closing date to payment date
+        
+    # Log activity
+    log = ActivityLog(
+        user_id=current_user.id,
+        action='loan_payment',
+        entity_type='loan',
+        entity_id=loan.id,
+        description=f'Payment of {payment_amount} for loan {loan.loan_number}',
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    
+    db.session.commit()
+    return payment
+
+
 @loans_bp.route('/<int:id>/payment', methods=['GET', 'POST'])
 @login_required
 @permission_required('collect_payments')
 def add_payment(id):
     """Add loan payment"""
     loan = Loan.query.get_or_404(id)
-    
+
     # Check branch access
     if should_filter_by_branch():
         current_branch_id = get_current_branch_id()
         if current_branch_id and loan.branch_id != current_branch_id:
             flash('Access denied: Loan not found in current branch.', 'danger')
             return redirect(url_for('loans.list_loans'))
-    
+
     if loan.status not in ['active', 'disbursed']:
         flash('Cannot add payment for this loan! Loan must be active.', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
-    
+
     form = LoanPaymentForm()
-    
+
     if form.validate_on_submit():
-        from decimal import Decimal, ROUND_HALF_UP
-        
-        payment_amount = Decimal(str(form.payment_amount.data)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        
-        # Calculate current outstanding with accrued interest
-        current_outstanding = loan.calculate_current_outstanding()
-        accrued_interest = loan.calculate_accrued_interest()
-        
-        # Current outstanding principal (without accrued interest)
-        disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
-        paid_principal = loan.get_total_paid_principal()
-        outstanding_principal = disbursed - paid_principal
-        
-        # Check if this is a full payment or overpayment
-        is_full_payment = payment_amount >= current_outstanding or abs(payment_amount - current_outstanding) <= Decimal('0.05')
-        
-        # Calculate interest and principal splits based on loan type
-        if loan.interest_type == 'flat':
-            # For flat interest loans, calculate fixed interest per payment
-            # Determine number of installments and period based on frequency
-            if loan.installment_frequency == 'monthly':
-                num_installments = loan.duration_months or 0
-                period = Decimal('1') / Decimal('12')
-            elif loan.installment_frequency == 'weekly':
-                num_installments = loan.duration_weeks or 0
-                period = Decimal('7') / Decimal('365')
-            elif loan.installment_frequency == 'daily':
-                num_installments = loan.duration_days or 0
-                period = Decimal('1') / Decimal('365')
-            else:
-                num_installments = loan.duration_months or 0
-                period = Decimal('1') / Decimal('12')
-            
-            time_in_years = Decimal(str(num_installments)) * period
-            total_interest = (disbursed * Decimal(str(loan.interest_rate)) * time_in_years) / Decimal('100')
-            installment_interest = total_interest / Decimal(str(num_installments)) if num_installments > 0 else Decimal('0')
-            
-            # For flat loans, determine if this is truly a full settlement (paying off entire remaining balance)
-            total_paid = Decimal(str(loan.paid_amount or 0))
-            total_payable = disbursed + total_interest
-            remaining_total = total_payable - total_paid
-            is_full_settlement = payment_amount >= remaining_total or abs(payment_amount - remaining_total) <= Decimal('0.05')
-            
-            if is_full_settlement:
-                # Full settlement - pay all remaining interest and principal
-                total_paid_interest = loan.get_total_paid_interest()
-                remaining_interest = total_interest - Decimal(str(total_paid_interest))
-                interest_amount = min(payment_amount, remaining_interest)
-                principal_amount = payment_amount - interest_amount
-            else:
-                # Regular installment payment - use fixed interest per payment
-                if loan.installment_amount and loan.installment_amount > 0 and abs(payment_amount - Decimal(str(loan.installment_amount))) <= Decimal('0.05'):
-                    # This is a regular installment payment
-                    interest_amount = installment_interest
-                    principal_amount = payment_amount - interest_amount
-                else:
-                    # Partial or different amount - calculate proportionally
-                    payment_ratio = payment_amount / Decimal(str(loan.installment_amount)) if loan.installment_amount else Decimal('1')
-                    interest_amount = installment_interest * payment_ratio
-                    principal_amount = payment_amount - interest_amount
-        else:
-            # For reducing balance loans (original logic)
-            if is_full_payment:
-                # For full payments, pay off accrued interest first, then principal
-                interest_amount = min(payment_amount, accrued_interest)
-                principal_amount = min(payment_amount - interest_amount, outstanding_principal)
-                
-                # Any remaining amount goes to interest (overpayment case)
-                remaining = payment_amount - principal_amount - interest_amount
-                if remaining > 0:
-                    interest_amount += remaining
-            else:
-                # For partial payments, split based on loan terms
-                if accrued_interest > 0:
-                    # Pay accrued interest first if any exists
-                    interest_amount = min(payment_amount, accrued_interest)
-                    principal_amount = payment_amount - interest_amount
-                else:
-                    # Standard EMI split - calculate proportion
-                    monthly_interest = outstanding_principal * (Decimal(str(loan.interest_rate)) / Decimal('1200'))
-                    if payment_amount >= monthly_interest:
-                        interest_amount = monthly_interest
-                        principal_amount = payment_amount - interest_amount
-                    else:
-                        # If payment is less than monthly interest, all goes to interest
-                        interest_amount = payment_amount
-                        principal_amount = Decimal('0')
-        # Ensure no negative amounts
-        interest_amount = max(Decimal('0'), interest_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-        principal_amount = max(Decimal('0'), principal_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-        
-        # Create payment record
-        payment = LoanPayment(
-            loan_id=loan.id,
+        _process_payment(
+            loan=loan,
+            payment_amount=form.payment_amount.data,
             payment_date=form.payment_date.data,
-            payment_amount=float(payment_amount),
-            principal_amount=float(principal_amount),
-            interest_amount=float(interest_amount),
-            penalty_amount=float(form.penalty_amount.data or 0),
             payment_method=form.payment_method.data,
             reference_number=form.reference_number.data,
-            receipt_number=generate_receipt_number(),
             notes=form.notes.data,
-            collected_by=current_user.id
+            penalty_amount=form.penalty_amount.data,
         )
-        
-        db.session.add(payment)
-        
-        # Update loan amounts - recalculate outstanding based on new payment
-        loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + payment_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        loan.update_outstanding_amount()  # Use our new method to calculate current outstanding
-        
-        # Calculate advance balance (overpayment credit)
-        # Check if total paid exceeds what's due up to the current point in time
-        schedule = loan.generate_payment_schedule()
-        today = form.payment_date.data or datetime.now().date()
-        total_due_so_far = Decimal('0')
-        for inst in schedule:
-            if inst['due_date'] <= today and not inst.get('is_skipped', False):
-                total_due_so_far += Decimal(str(inst['amount']))
-        
-        new_total_paid = Decimal(str(loan.paid_amount or 0))
-        if new_total_paid > total_due_so_far:
-            loan.advance_balance = (new_total_paid - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        else:
-            loan.advance_balance = Decimal('0')
-        
-        # Set balance_after for the payment record
-        payment.balance_after = float(loan.outstanding_amount or 0)
-        
-        # Check if loan is fully paid
-        if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences
-            loan.status = 'completed'
-            loan.outstanding_amount = Decimal('0')
-            loan.advance_balance = Decimal('0')
-            loan.closing_date = form.payment_date.data  # Set closing date to payment date
-            
-        # Log activity
-        log = ActivityLog(
-            user_id=current_user.id,
-            action='loan_payment',
-            entity_type='loan',
-            entity_id=loan.id,
-            description=f'Payment of {payment_amount} for loan {loan.loan_number}',
-            ip_address=request.remote_addr
-        )
-        db.session.add(log)
-        
-        db.session.commit()
-        
-        flash(f'Payment of {payment_amount} recorded successfully!', 'success')
+
+        flash(f'Payment of {form.payment_amount.data} recorded successfully!', 'success')
         return redirect(url_for('loans.view_loan', id=id))
     
     # Set default values only for GET requests and calculate current amounts
@@ -1701,7 +1715,8 @@ def receipt_entry():
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         weekly_payments.append({
             'loan': loan,
-            'recent_payments': recent_payments
+            'recent_payments': recent_payments,
+            'recommended_amount': loan.get_next_installment_amount()
         })
     
     daily_payments = []
@@ -1709,7 +1724,8 @@ def receipt_entry():
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         daily_payments.append({
             'loan': loan,
-            'recent_payments': recent_payments
+            'recent_payments': recent_payments,
+            'recommended_amount': loan.get_next_installment_amount()
         })
     
     monthly_payments = []
@@ -1717,7 +1733,8 @@ def receipt_entry():
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         monthly_payments.append({
             'loan': loan,
-            'recent_payments': recent_payments
+            'recent_payments': recent_payments,
+            'recommended_amount': loan.get_next_installment_amount()
         })
     
     special_payments = []
@@ -1725,7 +1742,8 @@ def receipt_entry():
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         special_payments.append({
             'loan': loan,
-            'recent_payments': recent_payments
+            'recent_payments': recent_payments,
+            'recommended_amount': loan.get_next_installment_amount()
         })
     
     # Get all payments for payment history
@@ -1760,6 +1778,50 @@ def receipt_entry():
                          all_payments=all_payments,
                          users=users,
                          collector=referrer)
+
+
+@loans_bp.route('/<int:id>/quick-pay', methods=['POST'])
+@login_required
+@permission_required('collect_payments')
+def quick_pay(id):
+    """Quick cash payment from receipt-entry tables."""
+    loan = Loan.query.get_or_404(id)
+
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            return jsonify({'success': False, 'message': 'Access denied for this branch'}), 403
+
+    if loan.status not in ['active', 'disbursed']:
+        return jsonify({'success': False, 'message': 'Loan is not active'}), 400
+
+    data = request.get_json() or {}
+    amount = data.get('amount')
+    try:
+        amount_value = float(amount)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': 'Invalid amount'}), 400
+
+    if amount_value <= 0:
+        return jsonify({'success': False, 'message': 'Amount must be greater than zero'}), 400
+
+    payment_date = datetime.now().date()
+
+    try:
+        _process_payment(
+            loan=loan,
+            payment_amount=amount_value,
+            payment_date=payment_date,
+            payment_method='cash',
+            reference_number=None,
+            notes='Quick pay (receipt entry)',
+            penalty_amount=0,
+        )
+        return jsonify({'success': True, 'message': 'Payment recorded successfully'}), 200
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Failed to record payment: {exc}'}), 500
 
 
 @loans_bp.route('/receipt-entry/export/<loan_frequency>')

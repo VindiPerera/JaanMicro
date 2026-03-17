@@ -951,6 +951,30 @@ class Loan(db.Model):
             'oldest_overdue_date': oldest_overdue_date,
             'advance_balance': Decimal(str(self.advance_balance or 0))
         }
+
+    def get_next_installment_amount(self):
+        """Return the recommended next installment amount, adjusted for any advance balance."""
+        from decimal import Decimal, ROUND_HALF_UP
+
+        schedule = self.generate_payment_schedule()
+        if not schedule:
+            return float(self.installment_amount or 0)
+
+        advance = Decimal(str(self.advance_balance or 0))
+        next_due = None
+        for inst in schedule:
+            if inst['status'] in ['overdue', 'partial', 'pending']:
+                next_due = inst
+                break
+        if not next_due:
+            # All paid; nothing due
+            return 0.0
+
+        base_amount = Decimal(str(next_due['remaining_amount'] if next_due['status'] == 'partial' else next_due['amount']))
+        recommended = base_amount - advance
+        if recommended < 0:
+            recommended = Decimal('0')
+        return float(recommended.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
     
     def __repr__(self):
         return f'<Loan {self.loan_number}>'

@@ -8,6 +8,12 @@
         -webkit-overflow-scrolling: touch;
     }
 }
+.rental-col {
+    min-width: 190px;
+}
+.rental-input {
+    max-width: 120px;
+}
 </style>
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
     <div class="mb-3 mb-md-0">
@@ -72,6 +78,7 @@
             <i class="bi bi-calendar-day me-2"></i>Daily Loans
         </button>
     </li>
+    </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab" aria-controls="monthly" aria-selected="false">
             <i class="bi bi-calendar-month me-2"></i>Monthly Loans
@@ -124,6 +131,7 @@
                                 <th>Next Payment</th>
                                 <th>Referred By</th>
                                 <th>Recent Payments</th>
+                                <th class="rental-col">Rental Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -188,6 +196,15 @@
                                         <small class="text-muted">No payments</small>
                                     {% endif %}
                                 </td>
+                                <td class="rental-col">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <input type="number" class="form-control form-control-sm rental-input" data-loan-id="{{ item.loan.id }}" min="0.01" step="0.01" value="{{ '%.2f'|format(item.recommended_amount|float) }}">
+                                        <button class="btn btn-sm btn-primary quick-pay-btn" data-loan-id="{{ item.loan.id }}" data-url="{{ url_for('loans.quick_pay', id=item.loan.id) }}">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Cash only; other methods via Add Payment.</small>
+                                </td>
                                 <td>
                                     <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
                                         <i class="bi bi-plus-circle"></i> Add Payment
@@ -243,6 +260,7 @@
                                 <th>Next Payment</th>
                                 <th>Referred By</th>
                                 <th>Recent Payments</th>
+                                <th class="rental-col">Rental Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -307,6 +325,15 @@
                                         <small class="text-muted">No payments</small>
                                     {% endif %}
                                 </td>
+                                <td class="rental-col">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <input type="number" class="form-control form-control-sm rental-input" data-loan-id="{{ item.loan.id }}" min="0.01" step="0.01" value="{{ '%.2f'|format(item.recommended_amount|float) }}">
+                                        <button class="btn btn-sm btn-primary quick-pay-btn" data-loan-id="{{ item.loan.id }}" data-url="{{ url_for('loans.quick_pay', id=item.loan.id) }}">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Cash only; other methods via Add Payment.</small>
+                                </td>
                                 <td>
                                     <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
                                         <i class="bi bi-plus-circle"></i> Add Payment
@@ -357,6 +384,7 @@
                                 <th>Next Payment</th>
                                 <th>Referred By</th>
                                 <th>Recent Payments</th>
+                                <th class="rental-col">Rental Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -421,6 +449,15 @@
                                         <small class="text-muted">No payments</small>
                                     {% endif %}
                                 </td>
+                                <td class="rental-col">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <input type="number" class="form-control form-control-sm rental-input" data-loan-id="{{ item.loan.id }}" min="0.01" step="0.01" value="{{ '%.2f'|format(item.recommended_amount|float) }}">
+                                        <button class="btn btn-sm btn-primary quick-pay-btn" data-loan-id="{{ item.loan.id }}" data-url="{{ url_for('loans.quick_pay', id=item.loan.id) }}">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Cash only; other methods via Add Payment.</small>
+                                </td>
                                 <td>
                                     <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
                                         <i class="bi bi-plus-circle"></i> Add Payment
@@ -471,6 +508,7 @@
                                 <th>End Date</th>
                                 <th>Referred By</th>
                                 <th>Recent Payments</th>
+                                <th class="rental-col">Rental Amount</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -526,6 +564,15 @@
                                     {% else %}
                                         <small class="text-muted">No payments</small>
                                     {% endif %}
+                                </td>
+                                <td class="rental-col">
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <input type="number" class="form-control form-control-sm rental-input" data-loan-id="{{ item.loan.id }}" min="0.01" step="0.01" value="{{ '%.2f'|format(item.recommended_amount|float) }}">
+                                        <button class="btn btn-sm btn-primary quick-pay-btn" data-loan-id="{{ item.loan.id }}" data-url="{{ url_for('loans.quick_pay', id=item.loan.id) }}">
+                                            <i class="bi bi-cash-coin"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">Cash only; other methods via Add Payment.</small>
                                 </td>
                                 <td>
                                     <a href="{{ url_for('loans.add_payment', id=item.loan.id) }}" class="btn btn-sm btn-success">
@@ -741,6 +788,51 @@
         </div>
     </div>
 </div>
+
+<script>
+// Quick pay (cash) from receipt tables
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.quick-pay-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const loanId = btn.dataset.loanId;
+            const url = btn.dataset.url;
+            const input = document.querySelector(`.rental-input[data-loan-id="${loanId}"]`);
+            if (!input) return;
+
+            const amount = parseFloat(input.value);
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: amount })
+            })
+            .then(response => response.json().then(data => ({ ok: response.ok, data: data })))
+            .then(result => {
+                if (result.ok && result.data.success) {
+                    location.reload();
+                } else {
+                    alert(result.data.message || 'Payment failed');
+                }
+            })
+            .catch(() => {
+                alert('Payment failed');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            });
+        });
+    });
+});
+</script>
 
 <!-- Skip All Daily Loans Modal -->
 {% if current_user.role == 'admin' %}
