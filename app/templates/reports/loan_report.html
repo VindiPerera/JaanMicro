@@ -122,6 +122,7 @@
                         <th>Interest Rate</th>
                         <th>Installment</th>
                         <th>Outstanding</th>
+                        <th>Arrears</th>
                         <th>Principal Collected</th>
                         <th>Interest Collected</th>
                         <th>Expected Interest</th>
@@ -151,6 +152,10 @@
                         <td>{{ loan.interest_rate }}%</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
+                        <td>
+                            {% set arrears = loan_payments[loan.id]['arrears'] %}
+                            <span class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears) }}</span>
+                        </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(principal_paid) }}</td>
                         <td>
                             <span class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(interest_paid) }}</span>
@@ -171,7 +176,7 @@
                         <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="11" class="text-center text-muted">No loans found for the selected criteria</td></tr>
+                    <tr><td colspan="12" class="text-center text-muted">No loans found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
@@ -181,6 +186,7 @@
                         <td>-</td>
                         <td>-</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.principal_collected|float) if summary.principal_collected else '0.00' }}</td>
                         <td class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.interest_profit|float) if summary.interest_profit else '0.00' }}</td>
                         <td>-</td>

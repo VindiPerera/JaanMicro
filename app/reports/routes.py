@@ -145,6 +145,7 @@ def loan_report():
     
     # Calculate payment stats for each loan
     loan_payments = {}
+    total_arrears = 0
     for loan in loans:
         payment_stats = db.session.query(
             func.sum(LoanPayment.principal_amount),
@@ -165,6 +166,10 @@ def loan_report():
         # Calculate expected interest based on loan type
         expected_interest = loan.get_total_expected_interest()
         interest_variance = interest_dec - expected_interest
+
+        arrears_details = loan.get_arrears_details()
+        arrears_amount = float(arrears_details.get('total_overdue_amount', 0))
+        total_arrears += arrears_amount
         
         loan_payments[loan.id] = {
             'principal': float(principal_dec),
@@ -172,7 +177,8 @@ def loan_report():
             'total': float(total_dec),
             'expected_interest': float(expected_interest),
             'interest_variance': float(interest_variance),
-            'interest_type': loan.interest_type
+            'interest_type': loan.interest_type,
+            'arrears': arrears_amount
         }
     
     # Calculate overall statistics
@@ -187,7 +193,8 @@ def loan_report():
         'total_outstanding': sum(float(loan.outstanding_amount or 0) for loan in loans),
         'total_collected': total_collected,
         'principal_collected': principal_collected,
-        'interest_profit': interest_collected
+        'interest_profit': interest_collected,
+        'total_arrears': total_arrears
     }
     
     # Loan by status
@@ -1031,7 +1038,7 @@ def export_loans():
     headers = [
         'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
         'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Installment Amount',
-        'Duration', 'Outstanding Amount', 'Status', 'Referred By', 'Created Date'
+        'Duration', 'Outstanding Amount', 'Arrears', 'Status', 'Referred By', 'Created Date'
     ]
 
     header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
@@ -1053,6 +1060,8 @@ def export_loans():
 
         referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
 
+        arrears_amount = float(loan.get_arrears_details().get('total_overdue_amount', 0))
+
         ws.append([
             loan.loan_number,
             loan.customer.full_name if loan.customer else 'N/A',
@@ -1064,6 +1073,7 @@ def export_loans():
             float(loan.installment_amount) if loan.installment_amount else 0,
             duration,
             float(loan.outstanding_amount) if loan.outstanding_amount else 0,
+            arrears_amount,
             loan.status or 'N/A',
             referred_by_name,
             loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
