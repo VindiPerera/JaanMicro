@@ -57,7 +57,7 @@
 
 <!-- Summary Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="card stats-card">
             <div class="card-body">
                 <div class="stats-label">Total Collections</div>
@@ -65,27 +65,11 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-6">
         <div class="card stats-card">
             <div class="card-body">
                 <div class="stats-label">Total Amount</div>
                 <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount|float) if summary.total_amount else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="stats-label">Principal Collected</div>
-                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card stats-card">
-            <div class="card-body">
-                <div class="stats-label">Interest Collected</div>
-                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</div>
             </div>
         </div>
     </div>
@@ -173,8 +157,6 @@
                         <th>Reference #</th>
                         <th>Member</th>
                         <th>Amount</th>
-                        <th>Principal</th>
-                        <th>Interest</th>
                         <th>Method</th>
                         <th>Collected By</th>
                     </tr>
@@ -196,21 +178,17 @@
                         <td>{{ payment.reference_number }}</td>
                         <td>{{ payment.member_name }}</td>
                         <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.amount) }}</strong></td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.principal_amount) }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(payment.interest_amount) }}</td>
                         <td>{{ payment.payment_method|title if payment.payment_method else 'N/A' }}</td>
                         <td>{{ payment.collected_by.full_name if payment.collected_by else 'N/A' }}</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="10" class="text-center text-muted">No collections found for the selected criteria</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted">No collections found for the selected criteria</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr class="table-success fw-bold">
                         <td colspan="5">TOTAL</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_amount|float) if summary.total_amount else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_principal|float) if summary.total_principal else '0.00' }}</td>
-                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_interest|float) if summary.total_interest else '0.00' }}</td>
                         <td colspan="2">-</td>
                     </tr>
                 </tfoot>
@@ -234,11 +212,9 @@ function exportToExcel() {
         ['Summary'],
         ['Total Collections', {{ summary.total_count }}],
         ['Total Amount', 'Rs. {{ "%.2f"|format(summary.total_amount) }}'],
-        ['Principal Collected', 'Rs. {{ "%.2f"|format(summary.total_principal) }}'],
-        ['Interest Collected', 'Rs. {{ "%.2f"|format(summary.total_interest) }}'],
         [''],
         ['Collection Details'],
-        ['Date', 'Receipt #', 'Type', 'Reference #', 'Member', 'Amount', 'Principal', 'Interest', 'Method', 'Collected By']
+        ['Date', 'Receipt #', 'Type', 'Reference #', 'Member', 'Amount', 'Method', 'Collected By']
     ];
     
     // Add payment data
@@ -250,8 +226,6 @@ function exportToExcel() {
         '{{ payment.reference_number }}',
         '{{ payment.member_name }}',
         {{ payment.amount }},
-        {{ payment.principal_amount }},
-        {{ payment.interest_amount }},
         '{{ payment.payment_method|title if payment.payment_method else "N/A" }}',
         '{{ payment.collected_by.full_name if payment.collected_by else "N/A" }}'
     ]);
@@ -261,8 +235,6 @@ function exportToExcel() {
     summaryData.push([
         '', '', '', '', 'TOTAL',
         {{ summary.total_amount }},
-        {{ summary.total_principal }},
-        {{ summary.total_interest }},
         '', ''
     ]);
     
@@ -277,8 +249,6 @@ function exportToExcel() {
         {wch: 20}, // Reference
         {wch: 25}, // Member
         {wch: 12}, // Amount
-        {wch: 12}, // Principal
-        {wch: 12}, // Interest
         {wch: 15}, // Method
         {wch: 20}  // Collected By
     ];
