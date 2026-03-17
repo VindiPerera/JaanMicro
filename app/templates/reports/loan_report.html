@@ -137,11 +137,12 @@
                 </thead>
                 <tbody>
                     {% for loan in loans %}
-                    {% set principal_paid = loan_payments[loan.id]['principal'] %}
-                    {% set interest_paid = loan_payments[loan.id]['interest'] %}
-                    {% set expected_interest = loan_payments[loan.id]['expected_interest'] %}
-                    {% set interest_variance = loan_payments[loan.id]['interest_variance'] %}
-                    {% set total_paid = loan_payments[loan.id]['total'] %}
+                    {% set lp = loan_payments.get(loan.id, {}) %}
+                    {% set principal_paid = lp.get('principal', 0) %}
+                    {% set interest_paid = lp.get('interest', 0) %}
+                    {% set expected_interest = lp.get('expected_interest', 0) %}
+                    {% set interest_variance = lp.get('interest_variance', 0) %}
+                    {% set total_paid = lp.get('total', 0) %}
                     <tr>
                         <td>{{ loan.loan_number }}</td>
                         <td>{{ loan.customer.full_name }}</td>
@@ -155,10 +156,10 @@
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                         <td>{{ loan.interest_rate }}%</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else '0.00' }}</td>
-                        <td>{{ loan_payments[loan.id]['paid_installments'] }}</td>
+                        <td>{{ lp.get('paid_installments', 0) }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
                         <td>
-                            {% set arrears = loan_payments[loan.id]['arrears'] %}
+                            {% set arrears = lp.get('arrears', 0) %}
                             <span class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(arrears) }}</span>
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(principal_paid) }}</td>
@@ -179,11 +180,11 @@
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(total_paid) }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(customer_totals.get(loan.customer.id, 0)) }}</td>
                         <td>
-                            {% set lp_date = loan_payments[loan.id]['last_payment_date'] %}
+                            {% set lp_date = lp.get('last_payment_date') %}
                             {{ lp_date.strftime('%Y-%m-%d') if lp_date else 'N/A' }}
                         </td>
                         <td>
-                            {% set lp_amt = loan_payments[loan.id]['last_payment_amount'] %}
+                            {% set lp_amt = lp.get('last_payment_amount') %}
                             {{ system_settings.currency_symbol }} {{ "%.2f"|format(lp_amt) if lp_amt is not none else '0.00' }}
                         </td>
                         <td>{{ loan.referrer.full_name if loan.referrer else 'N/A' }}</td>
