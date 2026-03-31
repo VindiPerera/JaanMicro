@@ -7,7 +7,7 @@ from app import db
 from app.investments import investments_bp
 from app.models import Investment, InvestmentTransaction, Customer, ActivityLog, SystemSettings
 from app.investments.forms import InvestmentForm, InvestmentTransactionForm
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, admin_required
 from app.utils.helpers import generate_investment_number, get_current_branch_id, should_filter_by_branch, get_branch_filter_for_query
 
 @investments_bp.route('/')
@@ -257,3 +257,155 @@ def add_transaction(id):
                          title=f'Add Transaction: {investment.investment_number}',
                          form=form,
                          investment=investment)
+
+@investments_bp.route('/edit-investment-select')
+@login_required
+@admin_required
+def edit_investment_select():
+    """Select borrower to edit (Admin only)"""
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '')
+    status = request.args.get('status', '')
+    investment_type = request.args.get('investment_type', '')
+    
+    query = Investment.query
+    
+    # Filter by accessible branches
+    branch_filter = get_branch_filter_for_query(Investment.branch_id)
+    if branch_filter is not None:
+        query = query.filter(branch_filter)
+    
+    if search:
+        query = query.join(Customer).filter(
+            db.or_(
+                Investment.investment_number.ilike(f'%{search}%'),
+                Customer.full_name.ilike(f'%{search}%'),
+                Customer.customer_id.ilike(f'%{search}%')
+            )
+        )
+    
+    if status:
+        query = query.filter_by(status=status)
+    
+    if investment_type:
+        query = query.filter_by(investment_type=investment_type)
+    
+    investments = query.order_by(Investment.created_at.desc()).paginate(
+        page=page, per_page=current_app.config['ITEMS_PER_PAGE'], error_out=False
+    )
+    
+    return render_template('investments/edit_select.html',
+                         title='Edit Borrowing - Select Borrowing',
+                         investments=investments,
+                         search=search,
+                         status=status,
+                         investment_type=investment_type)
+
+@investments_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_investment(id):
+    """Edit borrower (Admin only)"""
+    investment = Investment.query.get_or_404(id)
+    
+    # Check branch access
+    from app.utils.helpers import get_user_accessible_branch_ids
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
+        flash('Access denied: Borrowing not found in accessible branches.', 'danger')
+        return redirect(url_for('investments.list_investments'))
+        
+    form = InvestmentForm()
+    settings = SystemSettings.get_settings()
+    
+    # Get customers for dropdown
+    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
+    
+    # Apply branch filtering
+    customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
+    if customer_branch_filter is not None:
+        customer_query = customer_query.filter(customer_branch_filter)
+    
+    customers = customer_query.order_by(Customer.full_name).all()
+    if investment.customer not in customers:
+        customers.append(investment.customer)
+    
+    form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
+    
+    if request.method == 'GET':
+        # Pre-fill data
+        form.customer_id.data = investment.customer_id
+        form.investment_type.data = investment.investment_type
+        form.principal_amount.data = investment.principal_amount
+        form.interest_rate.data = investment.interest_rate
+        form.duration_months.data = investment.duration_months
+        form.start_date.data = investment.start_date
+        form.installment_amount.data = investment.installment_amount
+        form.installment_frequency.data = investment.installment_frequency
+        form.notes.data = investment.notes
+
+    if form.validate_on_submit():
+        if form.customer_id.data == 0:
+            flash('Please select a customer!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrower', form=form, investment=investment)
+            
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrower', form=form, investment=investment)
+
+        if not customer.branch_id:
+            flash('Customer does not have a valid branch assigned!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrower', form=form, investment=investment)
+
+        # Calculate maturity amount
+        if form.duration_months.data:
+            from decimal import Decimal, ROUND_HALF_UP
+            
+            principal = Decimal(str(form.principal_amount.data))
+            interest_rate = Decimal(str(form.interest_rate.data))
+            duration = Decimal(str(form.duration_months.data))
+            
+            interest = principal * interest_rate * duration / (Decimal('12') * Decimal('100'))
+            maturity_amount = principal + interest
+            maturity_amount = float(maturity_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        else:
+            maturity_amount = form.principal_amount.data
+            
+        maturity_date = None
+        if form.duration_months.data:
+            maturity_date = form.start_date.data + relativedelta(months=form.duration_months.data)
+
+        amount_diff = form.principal_amount.data - investment.principal_amount
+        investment.current_amount += amount_diff
+
+        investment.customer_id = form.customer_id.data
+        investment.branch_id = customer.branch_id
+        investment.investment_type = form.investment_type.data
+        investment.principal_amount = form.principal_amount.data
+        investment.interest_rate = form.interest_rate.data
+        investment.duration_months = form.duration_months.data
+        investment.maturity_amount = maturity_amount
+        investment.start_date = form.start_date.data
+        investment.maturity_date = maturity_date
+        investment.installment_amount = form.installment_amount.data
+        investment.installment_frequency = form.installment_frequency.data
+        investment.notes = form.notes.data
+        
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='edit_investment',
+            entity_type='investment',
+            entity_id=investment.id,
+            description=f'Edited borrowing: {investment.investment_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        flash(f'Borrower {investment.investment_number} updated successfully!', 'success')
+        return redirect(url_for('investments.view_investment', id=investment.id))
+
+    return render_template('investments/edit.html', title='Edit Borrower', form=form, investment=investment)

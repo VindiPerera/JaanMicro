@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+    <div class="mb-3 mb-md-0">
+        <h4><i class="bi bi-pencil-square me-2"></i>Edit Borrowing - Select Borrowing</h4>
+        <p class="text-muted mb-0"><small>Admin Only Feature</small></p>
+    </div>
+    <div>
+        <a href="{{ url_for('investments.list_investments') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Borrowings
+        </a>
+    </div>
+</div>
+
+<!-- Search and Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control" placeholder="Search..." value="{{ search }}" autofocus>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="matured" {% if status == 'matured' %}selected{% endif %}>Matured</option>
+                    <option value="closed" {% if status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="investment_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="savings" {% if investment_type == 'savings' %}selected{% endif %}>Savings Account</option>
+                    <option value="recurring_deposit" {% if investment_type == 'recurring_deposit' %}selected{% endif %}>Recurring Deposit</option>
+                    <option value="other" {% if investment_type == 'other' %}selected{% endif %}>Other</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Search
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('investments.edit_investment_select') }}" class="btn btn-secondary w-100">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Investments Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-scroll-container">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Borrower #</th>
+                        <th>Member</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Current Value</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for investment in investments.items %}
+                    <tr>
+                        <td><strong>{{ investment.investment_number }}</strong></td>
+                        <td>
+                            {{ investment.customer.full_name }}<br>
+                            <small class="text-muted">{{ investment.customer.customer_id }}</small>
+                        </td>
+                        <td>{{ investment.investment_type|replace('_', ' ')|title }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.principal_amount|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_amount|float) if investment.current_amount else '0.00' }}</td>
+                        <td><span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span></td>
+                        <td>
+                            <a href="{{ url_for('investments.edit_investment', id=investment.id) }}" class="btn btn-sm btn-warning">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted">No borrowings found. Try searching with different keywords.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if investments.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-3">
+            <!-- Desktop Pagination -->
+            <ul class="pagination justify-content-center d-none d-md-flex">
+                {% if investments.has_prev %}
+                <li class="page-item"><a class="page-link" href="?page={{ investments.prev_num }}&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}">Previous</a></li>
+                {% endif %}
+                
+                {% for page_num in investments.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == investments.page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ page_num }}&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if investments.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ investments.next_num }}&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}">Next</a></li>
+                {% endif %}
+            </ul>
+            
+            <!-- Mobile Pagination -->
+            <div class="d-md-none">
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="?page={{ investments.prev_num if investments.has_prev else investments.page }}&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}" 
+                       class="btn btn-outline-primary {% if not investments.has_prev %}disabled{% endif %}">
+                        <i class="bi bi-chevron-left"></i> Prev
+                    </a>
+                    
+                    <div class="text-center">
+                        <small class="text-muted">Page {{ investments.page }} of {{ investments.pages }}</small>
+                        <br>
+                        <select class="form-select form-select-sm d-inline-block w-auto mt-1" onchange="window.location.href='?page='+this.value+'&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}'">
+                            {% for page_num in range(1, investments.pages + 1) %}
+                            <option value="{{ page_num }}" {% if page_num == investments.page %}selected{% endif %}>{{ page_num }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <a href="?page={{ investments.next_num if investments.has_next else investments.page }}&search={{ search }}&status={{ status }}&investment_type={{ investment_type }}" 
+                       class="btn btn-outline-primary {% if not investments.has_next %}disabled{% endif %}">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+        </nav>
+        {% endif %}
+        
+        <!-- Summary -->
+        <div class="mt-3">
+            <small class="text-muted">Showing {{ investments.items|length }} of {{ investments.total }} borrowing{{ 's' if investments.total != 1 else '' }}</small>
+        </div>
+    </div>
+</div>
+{% endblock %}
