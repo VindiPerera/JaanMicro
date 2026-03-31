@@ -9,6 +9,11 @@
             <i class="bi bi-plus-circle me-2"></i>Add Transaction
         </a>
         {% endif %}
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('investments.edit_investment', id=investment.id) }}" class="btn btn-warning">
+            <i class="bi bi-pencil me-2"></i>Edit
+        </a>
+        {% endif %}
         <a href="{{ url_for('investments.list_investments') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Back
         </a>
