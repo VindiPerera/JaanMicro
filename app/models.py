@@ -305,7 +305,8 @@ class Customer(db.Model):
             'customer': 'Customer',
             'investor': 'Loan Borrower',
             'guarantor': 'Guarantor',
-            'family_guarantor': 'Family Guarantor'
+            'family_guarantor': 'Family Guarantor',
+            'staff_user_proxy': 'Staff User (Internal)'
         }
         types = self.customer_types
         return ', '.join(type_names.get(t, t.title()) for t in types)

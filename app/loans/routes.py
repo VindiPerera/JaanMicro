@@ -177,6 +177,13 @@ def _resolve_staff_loan_customer_selection(selected_customer_id):
             return None, 'Linked member record is not in the current branch.'
         if customer.status != 'active':
             return None, 'Linked member record is not active.'
+
+        # Normalize legacy auto-created records to internal proxy type.
+        if customer.notes and customer.notes.startswith('Auto-created for Staff Loan from settings user:'):
+            if 'staff_user_proxy' not in customer.customer_types:
+                customer.customer_types = ['staff_user_proxy']
+                db.session.flush()
+
         return customer, None
 
     # Auto-create a minimal member profile for this user
@@ -205,7 +212,7 @@ def _resolve_staff_loan_customer_selection(selected_customer_id):
         created_by=current_user.id,
         notes=f'Auto-created for Staff Loan from settings user: {user.username}'
     )
-    customer.customer_types = ['customer', 'investor']
+    customer.customer_types = ['staff_user_proxy']
     db.session.add(customer)
     db.session.flush()
     return customer, None

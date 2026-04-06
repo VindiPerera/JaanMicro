@@ -7,10 +7,18 @@ import os
 import json
 from app import db
 from app.customers import customers_bp
-from app.models import Customer, ActivityLog
+from app.models import Customer, ActivityLog, User
 from app.customers.forms import CustomerForm, KYCForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
+
+
+def _exclude_internal_staff_members(query):
+    """Exclude internal staff-linked records from member management views."""
+    return query.filter(
+        ~Customer.customer_type.like('%staff_user_proxy%'),
+        ~Customer.nic_number.in_(db.session.query(User.nic_number))
+    )
 
 @customers_bp.route('/')
 @login_required
@@ -23,6 +31,7 @@ def list_customers():
     customer_type = request.args.get('customer_type', '', type=str)
     
     query = Customer.query
+    query = _exclude_internal_staff_members(query)
     
     # Filter by current branch if needed
     if should_filter_by_branch():
@@ -540,6 +549,7 @@ def edit_member_select():
     search = request.args.get('search', '', type=str)
     
     query = Customer.query
+    query = _exclude_internal_staff_members(query)
     
     # Filter by current branch if needed
     if should_filter_by_branch():
@@ -583,6 +593,7 @@ def search_members():
     if search or customer_type or status or kyc_status:
         searched = True
         query = Customer.query
+        query = _exclude_internal_staff_members(query)
         
         # Filter by current branch if needed
         if should_filter_by_branch():
@@ -636,6 +647,7 @@ def verify_kyc_members():
     search = request.args.get('search', '', type=str)
     
     query = Customer.query.filter_by(kyc_verified=False)
+    query = _exclude_internal_staff_members(query)
     
     # Filter by current branch if needed
     if should_filter_by_branch():
