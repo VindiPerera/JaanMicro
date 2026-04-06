@@ -668,8 +668,8 @@ class Loan(db.Model):
         
         schedule = []
         installment_amount = Decimal(str(self.installment_amount))
-        total_payable = Decimal(str(self.total_payable or self.loan_amount))
-        loan_amount = Decimal(str(self.loan_amount))
+        loan_amount = Decimal(str(self.disbursed_amount or self.loan_amount))
+        total_payable = Decimal(str(self.total_payable or loan_amount))
         
         # Determine number of installments and frequency delta based on loan type
         if self.loan_type == 'special_loan':
@@ -699,6 +699,21 @@ class Loan(db.Model):
         
         # Get total paid amount (including any advance balance already applied)
         total_paid = Decimal(str(self.paid_amount or 0))
+
+        # Use a stable baseline for allocating paid amounts to installments so
+        # historical paid/partial paid values are not reduced retroactively when
+        # installment amount changes after disbursed-amount edits.
+        payment_allocation_amount = installment_amount
+        try:
+            max_payment_amount = self.payments.with_entities(func.max(LoanPayment.payment_amount)).scalar()
+        except Exception:
+            # Detached/transient instances (e.g., standalone tests) may not have
+            # relationship loading available; fall back to current installment.
+            max_payment_amount = None
+        if max_payment_amount is not None:
+            max_payment_amount = Decimal(str(max_payment_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            if max_payment_amount > payment_allocation_amount:
+                payment_allocation_amount = max_payment_amount
         
         # Calculate total interest
         total_interest = total_payable - loan_amount
@@ -720,7 +735,9 @@ class Loan(db.Model):
         cumulative_expected = Decimal('0')
         # Subtract one period so the first loop iteration lands exactly on first_date
         current_due_date = first_date - frequency_delta if frequency_delta else first_date
-        # Track the number of actual (non-skipped) payable installments seen so far
+        # Track cumulative payable amount for non-skipped installments so paid/
+        # partial allocation remains accurate even when installment values vary.
+        cumulative_payable_due = Decimal('0')
         payable_installment_count = 0
         
         for i in range(num_installments):
@@ -812,7 +829,8 @@ class Loan(db.Model):
             
             cumulative_expected += current_installment
             
-            # Track actual payable installment index (excludes skipped)
+            previous_cumulative_due = cumulative_payable_due
+            cumulative_payable_due += current_installment
             payable_installment_count += 1
             
             # Calculate principal and interest breakdown based on loan type
@@ -861,15 +879,12 @@ class Loan(db.Model):
                 cumulative_principal_paid += principal
                 cumulative_interest_paid += interest
             
-            # Determine status based on payments - track partial amounts precisely
-            # Use payable_installment_count (excludes skipped) so skipped days
-            # don't inflate thresholds and cause false overdue
-            installment_threshold = installment_amount * Decimal(str(payable_installment_count))
-            previous_threshold = installment_amount * Decimal(str(payable_installment_count - 1))
-            
-            # How much of this specific installment has been paid
-            paid_for_this = max(Decimal('0'), min(current_installment, total_paid - previous_threshold))
+            # Determine status based on payments. Paid allocation uses a stable
+            # baseline amount to preserve historical paid/partial values.
+            paid_for_this = max(Decimal('0'), min(payment_allocation_amount, total_paid - (payment_allocation_amount * Decimal(str(payable_installment_count - 1)))))
             remaining_for_this = current_installment - paid_for_this
+            if remaining_for_this < Decimal('0'):
+                remaining_for_this = Decimal('0')
             
             if paid_for_this >= current_installment - Decimal('0.02'):
                 status = 'paid'

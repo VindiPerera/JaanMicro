@@ -13,6 +13,108 @@ from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanAppr
 from app.utils.decorators import permission_required, admin_required
 from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
+
+def _calculate_loan_totals_for_principal(
+    principal_amount,
+    interest_rate,
+    loan_type,
+    interest_type,
+    duration_months=None,
+    duration_weeks=None,
+    duration_days=None,
+):
+    """Calculate installment amount and total payable from a principal base amount."""
+    from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
+
+    principal = Decimal(str(principal_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    rate = Decimal(str(interest_rate or 0))
+    months = int(duration_months or 0)
+    weeks = int(duration_weeks or 0)
+    days = int(duration_days or 0)
+
+    if principal <= 0:
+        return Decimal('0.00'), Decimal('0.00')
+
+    if loan_type == 'type1_9weeks':
+        weeks = weeks or 9
+        interest = rate * Decimal('2')
+        total_payable = (principal * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        emi = (total_payable / Decimal(str(weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
+    elif loan_type == '54_daily':
+        days = days or 54
+        full_interest = rate * Decimal('2')
+        total_payable = (principal * (Decimal('100') + full_interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        emi = (total_payable / Decimal(str(days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    elif loan_type == 'type4_micro':
+        months = months or 1
+        weeks = weeks or (months * 4)
+        full_interest = rate * Decimal(str(months))
+        emi = (principal * ((full_interest + Decimal('100')) / Decimal('100')) / Decimal(str(weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_payable = (emi * Decimal(str(weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    elif loan_type == 'type4_daily':
+        months = months or 1
+        days = days or (months * 26)
+        full_interest = rate * Decimal(str(months))
+        emi = (principal * ((full_interest + Decimal('100')) / Decimal('100')) / Decimal(str(days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_payable = (emi * Decimal(str(days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    elif loan_type == 'special_loan':
+        total_interest = (principal * rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_payable = (principal + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        emi = total_payable
+    else:
+        months = months or 1
+        monthly_rate = rate / (Decimal('12') * Decimal('100'))
+        if interest_type == 'reducing_balance' and monthly_rate > 0:
+            mr_float = float(monthly_rate)
+            power_calc = ((1 + mr_float) ** months) / (((1 + mr_float) ** months) - 1)
+            emi = (principal * monthly_rate * Decimal(str(power_calc))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        else:
+            total_interest = principal * rate * Decimal(str(months)) / (Decimal('12') * Decimal('100'))
+            emi = ((principal + total_interest) / Decimal(str(months))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_payable = (emi * Decimal(str(months))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    return emi, total_payable
+
+
+def _refresh_loan_financial_state(loan):
+    """Refresh derived loan financial fields after principal/disbursement edits."""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    # 1) Recalculate current outstanding using model rules
+    loan.update_outstanding_amount()
+
+    # 2) Recalculate advance balance from schedule due so far
+    schedule = loan.generate_payment_schedule()
+    today = datetime.utcnow().date()
+    total_due_so_far = Decimal('0.00')
+    for inst in schedule:
+        if inst['due_date'] <= today and not inst.get('is_skipped', False):
+            total_due_so_far += Decimal(str(inst['amount']))
+
+    paid_total = Decimal(str(loan.paid_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    loan.advance_balance = (paid_total - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if paid_total > total_due_so_far else Decimal('0.00')
+
+    # 3) Rebuild historical `balance_after` in payment history from new total payable
+    running_outstanding = Decimal(str(loan.total_payable or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    payments = loan.payments.order_by(LoanPayment.payment_date.asc(), LoanPayment.id.asc()).all()
+    for payment in payments:
+        pay_amount = Decimal(str(payment.payment_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        running_outstanding = (running_outstanding - pay_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if running_outstanding < Decimal('0.00'):
+            running_outstanding = Decimal('0.00')
+        payment.balance_after = float(running_outstanding)
+
+    # 4) Keep status aligned with outstanding
+    current_outstanding = loan.calculate_current_outstanding()
+    if current_outstanding <= Decimal('0.02'):
+        loan.status = 'completed'
+        if not loan.closing_date:
+            last_payment = loan.payments.order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
+            loan.closing_date = last_payment.payment_date if last_payment else datetime.utcnow().date()
+    elif loan.status == 'completed':
+        loan.status = 'active'
+        loan.closing_date = None
+
 @loans_bp.route('/')
 @login_required
 @permission_required('manage_loans')
@@ -486,6 +588,7 @@ def edit_loan(id):
         form.loan_type.data = loan.loan_type
         form.loan_purpose.data = loan.loan_purpose
         form.loan_amount.data = loan.loan_amount
+        form.disbursed_amount.data = loan.disbursed_amount
         form.documentation_fee.data = loan.documentation_fee
         form.duration_weeks.data = loan.duration_weeks
         form.duration_days.data = loan.duration_days
@@ -538,10 +641,17 @@ def edit_loan(id):
             return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
         # Recalculate EMI and totals with updated values
-        from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+        from decimal import Decimal, ROUND_HALF_UP
         
         loan_amount = Decimal(str(form.loan_amount.data))
         interest_rate = Decimal(str(form.interest_rate.data))
+
+        edited_disbursed_amount = None
+        if form.disbursed_amount.data is not None:
+            edited_disbursed_amount = Decimal(str(form.disbursed_amount.data)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            if edited_disbursed_amount > loan_amount:
+                flash('Disbursed Amount cannot be greater than Loan Amount.', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
         duration_weeks = None
         duration_days = None
@@ -551,66 +661,32 @@ def edit_loan(id):
         if form.loan_type.data == 'type1_9weeks':
             duration_weeks = form.duration_weeks.data or 9
             duration_months = 0
-            interest = interest_rate * Decimal('2')
-            total_payable = (loan_amount * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            emi = (total_payable / Decimal(str(duration_weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
         elif form.loan_type.data == '54_daily':
             duration_days = form.duration_days.data or 54
             duration_months = 0
-            # 54 Daily Loan: Full Interest = Interest Rate * 2
-            # Total Payable = Loan Amount * (100 + Full Interest) / 100
-            # Daily Installment = Total Payable / Days
-            full_interest = interest_rate * Decimal('2')
-            total_payable = (loan_amount * (Decimal('100') + full_interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            emi = (total_payable / Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_micro':
             months = form.duration_months.data
             duration_weeks = months * 4
-            full_interest = interest_rate * Decimal(str(months))
-            emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_weeks))
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (emi * Decimal(str(duration_weeks))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'type4_daily':
             months = form.duration_months.data
             duration_days = months * 26
-            full_interest = interest_rate * Decimal(str(months))
-            emi = (loan_amount * ((full_interest + Decimal('100')) / Decimal('100'))) / Decimal(str(duration_days))
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (emi * Decimal(str(duration_days))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         elif form.loan_type.data == 'special_loan':
-            # Special Loan: No installments, full payment at end date
             duration_months = 0
-            total_interest = (loan_amount * interest_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (loan_amount + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            emi = total_payable  # Single payment at end date
-        elif form.loan_type.data == 'monthly_loan':
-            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
-            n = duration_months
-            
-            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
-                mr_float = float(monthly_rate)
-                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
-                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
-            else:
-                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
-                emi = (loan_amount + total_interest) / Decimal(str(n))
-            
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-        else:
-            monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
-            n = duration_months
-            
-            if form.interest_type.data == 'reducing_balance' and monthly_rate > 0:
-                mr_float = float(monthly_rate)
-                power_calc = ((1 + mr_float) ** n) / (((1 + mr_float) ** n) - 1)
-                emi = loan_amount * monthly_rate * Decimal(str(power_calc))
-            else:
-                total_interest = loan_amount * interest_rate * Decimal(str(n)) / (Decimal('12') * Decimal('100'))
-                emi = (loan_amount + total_interest) / Decimal(str(n))
-            
-            emi = emi.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            total_payable = (emi * Decimal(str(n))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        principal_for_calculation = edited_disbursed_amount if edited_disbursed_amount is not None else loan_amount
+        emi, total_payable = _calculate_loan_totals_for_principal(
+            principal_amount=principal_for_calculation,
+            interest_rate=interest_rate,
+            loan_type=form.loan_type.data,
+            interest_type=form.interest_type.data,
+            duration_months=duration_months,
+            duration_weeks=duration_weeks,
+            duration_days=duration_days,
+        )
+
+        # Always apply recalculated installment when disbursed amount changes so
+        # Payment Schedule `Installment` and `Remaining` reflect the edited amount.
+        effective_installment_amount = emi
         
         # Handle document upload
         if form.document.data and hasattr(form.document.data, 'filename') and form.document.data.filename:
@@ -641,10 +717,14 @@ def edit_loan(id):
         loan.duration_months = duration_months
         loan.duration_weeks = duration_weeks
         loan.duration_days = duration_days
-        loan.installment_amount = emi
+        loan.installment_amount = effective_installment_amount
         loan.installment_frequency = 'one_time' if form.loan_type.data == 'special_loan' else ('daily' if duration_days else ('weekly' if duration_weeks else form.installment_frequency.data))
         loan.total_payable = total_payable
         loan.documentation_fee = documentation_fee
+        if edited_disbursed_amount is not None:
+            loan.disbursed_amount = edited_disbursed_amount
+        elif loan.status in ['active', 'disbursed', 'completed'] and not loan.disbursed_amount:
+            loan.disbursed_amount = loan.loan_amount
         loan.application_date = form.start_date.data if form.loan_type.data == 'special_loan' and form.start_date.data else form.application_date.data
         loan.maturity_date = form.end_date.data if form.loan_type.data == 'special_loan' else None
         loan.purpose = form.purpose.data
@@ -653,14 +733,9 @@ def edit_loan(id):
         loan.notes = form.notes.data
         loan.updated_at = datetime.utcnow()
         
-        # Recalculate disbursed amount if loan is already active
-        if loan.status == 'active':
-            loan.disbursed_amount = loan.loan_amount - documentation_fee
-        
-        # Update outstanding amount if needed for active loans
-        if loan.status == 'active':
-            # Recalculate outstanding as total payable minus paid amount
-            loan.outstanding_amount = total_payable - (loan.paid_amount or Decimal('0'))
+        # Recalculate all dependent financial fields for already disbursed loans
+        if loan.status in ['active', 'disbursed', 'completed']:
+            _refresh_loan_financial_state(loan)
         
         # Log activity
         log = ActivityLog(
@@ -712,6 +787,7 @@ def approve_loan(id):
         loan.approval_notes = form.approval_notes.data
         
         if form.approval_status.data == 'approved':
+            from decimal import Decimal
             loan.status = 'active'
             loan.approved_amount = form.approved_amount.data or loan.loan_amount
             loan.disbursed_amount = loan.approved_amount or loan.loan_amount
@@ -721,8 +797,20 @@ def approve_loan(id):
             loan.first_installment_date = form.first_installment_date.data
             if loan.loan_type != 'special_loan':
                 loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
-            # Set initial outstanding amount to total payable (principal + interest)
-            loan.outstanding_amount = loan.total_payable if loan.total_payable else (loan.approved_amount or loan.loan_amount)
+            # Recalculate installment and totals from actual disbursed amount
+            emi, total_payable = _calculate_loan_totals_for_principal(
+                principal_amount=loan.disbursed_amount or loan.loan_amount,
+                interest_rate=loan.interest_rate,
+                loan_type=loan.loan_type,
+                interest_type=loan.interest_type,
+                duration_months=loan.duration_months,
+                duration_weeks=loan.duration_weeks,
+                duration_days=loan.duration_days,
+            )
+            loan.installment_amount = emi
+            loan.total_payable = total_payable
+            loan.paid_amount = Decimal(str(loan.paid_amount or 0)).quantize(Decimal('0.01'))
+            loan.update_outstanding_amount()
             
             # Log activity
             log = ActivityLog(
@@ -948,6 +1036,7 @@ def approve_loan_admin(id):
     
     if form.validate_on_submit():
         if form.approval_status.data == 'approve':
+            from decimal import Decimal
             loan.status = 'active'
             loan.admin_approved_by = current_user.id
             loan.admin_approval_date = form.approval_date.data
@@ -976,8 +1065,20 @@ def approve_loan_admin(id):
             else:
                 loan.maturity_date = loan.disbursement_date + relativedelta(months=loan.duration_months) if loan.disbursement_date else None
             
-            # Set initial outstanding amount to total payable (principal + interest)
-            loan.outstanding_amount = loan.total_payable if loan.total_payable else (loan.approved_amount or loan.loan_amount)
+            # Recalculate installment and totals from actual disbursed amount
+            emi, total_payable = _calculate_loan_totals_for_principal(
+                principal_amount=loan.disbursed_amount or loan.loan_amount,
+                interest_rate=loan.interest_rate,
+                loan_type=loan.loan_type,
+                interest_type=loan.interest_type,
+                duration_months=loan.duration_months,
+                duration_weeks=loan.duration_weeks,
+                duration_days=loan.duration_days,
+            )
+            loan.installment_amount = emi
+            loan.total_payable = total_payable
+            loan.paid_amount = Decimal(str(loan.paid_amount or 0)).quantize(Decimal('0.01'))
+            loan.update_outstanding_amount()
             
             # Log activity
             log = ActivityLog(

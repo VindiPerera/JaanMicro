@@ -90,6 +90,11 @@
                             {{ form.loan_amount(class="form-control", id="loan_amount") }}
                         </div>
                         <div class="col-md-6 mb-3">
+                            {{ form.disbursed_amount.label(class="form-label") }}
+                            {{ form.disbursed_amount(class="form-control", id="disbursed_amount") }}
+                            <small class="text-muted">Editing this will recalculate EMI, total payable, outstanding, and schedule values.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
                             {{ form.documentation_fee.label(class="form-label") }}
                             {{ form.documentation_fee(class="form-control", id="documentation_fee") }}
                             <small class="text-muted">Enter documentation charge amount</small>
