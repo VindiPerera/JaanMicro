@@ -175,6 +175,7 @@
                 {% set g_loans = guarantor_loans.get(guarantor.id, {}) %}
                 {% set active_loans = g_loans.get('active', []) %}
                 {% set past_loans = g_loans.get('history', []) %}
+                {% set is_staff_proxy = guarantor.is_staff_member_profile %}
                 <div class="{% if not loop.last %}border-bottom{% endif %} p-3">
                     <!-- Guarantor Header -->
                     <div class="d-flex align-items-center mb-2">
@@ -184,6 +185,7 @@
                                 {{ guarantor.full_name }}
                             </a>
                         </strong>
+                        {% if not is_staff_proxy %}
                         <span class="ms-2">
                             {% if guarantor.customer_type == 'family_guarantor' %}
                                 <span class="badge bg-info">Family Guarantor</span>
@@ -196,10 +198,21 @@
                         {% else %}
                             <span class="badge bg-warning text-dark ms-1"><i class="bi bi-clock"></i> KYC Pending</span>
                         {% endif %}
+                        {% endif %}
                     </div>
 
                     <!-- Basic Details -->
                     <div class="small row mb-2">
+                        {% if is_staff_proxy %}
+                        <div class="col-6 mb-1">
+                            <strong>Guarantor Type:</strong>
+                            <span class="badge bg-primary ms-1">Staff Guarantor</span>
+                        </div>
+                        <div class="col-6 mb-1">
+                            <strong>KYC Status:</strong>
+                            <span class="badge bg-info text-dark ms-1"><i class="bi bi-person-badge"></i> KYC Not Required (Staff User)</span>
+                        </div>
+                        {% endif %}
                         <div class="col-6">
                             <strong>Member ID:</strong> {{ guarantor.customer_id }}
                         </div>

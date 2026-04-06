@@ -156,6 +156,11 @@ def _resolve_staff_loan_customer_selection(selected_customer_id):
         if not _get_active_user_for_customer(customer):
             return None, 'Staff Loan is only available for members linked to an active user in Settings > Users (NIC must match).'
 
+        # Normalize legacy auto-created staff-linked records to proxy type.
+        if customer.is_staff_member_profile and 'staff_user_proxy' not in customer.customer_types:
+            customer.customer_types = ['staff_user_proxy']
+            db.session.flush()
+
         return customer, None
 
     # Synthetic user selection (negative user id)
@@ -179,10 +184,9 @@ def _resolve_staff_loan_customer_selection(selected_customer_id):
             return None, 'Linked member record is not active.'
 
         # Normalize legacy auto-created records to internal proxy type.
-        if customer.notes and customer.notes.startswith('Auto-created for Staff Loan from settings user:'):
-            if 'staff_user_proxy' not in customer.customer_types:
-                customer.customer_types = ['staff_user_proxy']
-                db.session.flush()
+        if customer.is_staff_member_profile and 'staff_user_proxy' not in customer.customer_types:
+            customer.customer_types = ['staff_user_proxy']
+            db.session.flush()
 
         return customer, None
 

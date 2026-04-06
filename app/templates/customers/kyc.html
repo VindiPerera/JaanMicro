@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set is_staff_proxy = customer.is_staff_member_profile %}
 <div class="row">
     <div class="col-lg-10 mx-auto">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -102,10 +103,16 @@
                             <i class="bi bi-info-circle me-2"></i>
                             Member: <strong>{{ customer.full_name }}</strong> ({{ customer.customer_id }})
                         </div>
-                        
+
+                        {% if is_staff_proxy %}
+                        <div class="alert alert-secondary mb-0">
+                            <i class="bi bi-person-badge me-2"></i>
+                            KYC is not required for staff-linked internal profiles used by Staff Loan workflows.
+                        </div>
+                        {% else %}
                         <form method="POST" action="" enctype="multipart/form-data">
                             {{ form.hidden_tag() }}
-                            
+
                             {% if current_user.has_permission('verify_kyc') %}
                             <div class="form-check form-switch mb-3">
                                 {{ form.kyc_verified(class="form-check-input", id="kycVerified") }}
@@ -118,12 +125,13 @@
                                 You do not have permission to verify KYC documents.
                             </div>
                             {% endif %}
-                            
+
                             <div class="mt-4">
                                 {{ form.submit(class="btn btn-primary") }}
                                 <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-secondary">Cancel</a>
                             </div>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -136,12 +144,14 @@
                     </div>
                     <div class="card-body">
                         <!-- KYC Status -->
-                        <div class="alert {% if customer.kyc_verified %}alert-success{% else %}alert-warning{% endif %}">
+                        <div class="alert {% if is_staff_proxy %}alert-info{% elif customer.kyc_verified %}alert-success{% else %}alert-warning{% endif %}">
                             <div class="d-flex align-items-center">
-                                <i class="bi {% if customer.kyc_verified %}bi-shield-check{% else %}bi-shield-exclamation{% endif %} fs-3 me-3"></i>
+                                <i class="bi {% if is_staff_proxy %}bi-person-badge{% elif customer.kyc_verified %}bi-shield-check{% else %}bi-shield-exclamation{% endif %} fs-3 me-3"></i>
                                 <div>
-                                    <strong>KYC Status: {% if customer.kyc_verified %}Verified{% else %}Pending{% endif %}</strong><br>
-                                    {% if customer.kyc_verified %}
+                                    <strong>KYC Status: {% if is_staff_proxy %}Not Required (Staff User){% elif customer.kyc_verified %}Verified{% else %}Pending{% endif %}</strong><br>
+                                    {% if is_staff_proxy %}
+                                    <small>Managed via Settings Users; member KYC documents are not required.</small>
+                                    {% elif customer.kyc_verified %}
                                     <small>Verified on {{ customer.kyc_verified_date.strftime('%Y-%m-%d %H:%M') if customer.kyc_verified_date else 'N/A' }}</small>
                                     {% else %}
                                     <small>Please upload and verify all documents</small>

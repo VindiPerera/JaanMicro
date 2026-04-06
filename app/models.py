@@ -297,10 +297,30 @@ class Customer(db.Model):
             self.customer_type = json.dumps(value)
         else:
             self.customer_type = json.dumps([value] if value else ['customer'])
+
+    @property
+    def is_staff_member_profile(self):
+        """True when this record is an internal staff-linked member profile."""
+        if self.has_customer_type('staff_user_proxy'):
+            return True
+
+        notes_text = (self.notes or '').strip().lower()
+        address_text = (self.address_line1 or '').strip().lower()
+
+        # Backward-compatible detection for older auto-created staff records.
+        if notes_text.startswith('auto-created for staff loan from settings user:'):
+            return True
+        if address_text.startswith('auto-created from settings user'):
+            return True
+
+        return False
     
     @property
     def customer_type_display(self):
         """Get customer types as a readable string"""
+        if self.is_staff_member_profile:
+            return 'Staff Member'
+
         type_names = {
             'customer': 'Customer',
             'investor': 'Loan Borrower',

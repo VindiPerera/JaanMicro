@@ -470,6 +470,10 @@ def edit_customer(id):
 def customer_kyc(id):
     """Manage Member KYC"""
     customer = Customer.query.get_or_404(id)
+    if customer.is_staff_member_profile:
+        flash('KYC is not required for staff-linked internal profiles.', 'info')
+        return redirect(url_for('customers.view_customer', id=customer.id))
+
     form = KYCForm()
     
     if form.validate_on_submit():

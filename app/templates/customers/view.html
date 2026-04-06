@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set is_staff_proxy = customer.is_staff_member_profile %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Member Details</h4>
     <div>
@@ -63,7 +64,10 @@
                 </div>
                 <div class="mb-3">
                     <strong>KYC Status:</strong><br>
-                    {% if customer.kyc_verified %}
+                    {% if is_staff_proxy %}
+                    <span class="badge bg-info text-dark"><i class="bi bi-person-badge"></i> Not Required (Staff User)</span>
+                    <br><small class="text-muted">Internal staff-linked profile used for Staff Loan linkage.</small>
+                    {% elif customer.kyc_verified %}
                     <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
                     <br><small class="text-muted">Verified on {{ customer.kyc_verified_date.strftime('%Y-%m-%d') if customer.kyc_verified_date else 'N/A' }}</small>
                     {% else %}
