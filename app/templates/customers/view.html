@@ -268,7 +268,7 @@
                             {% for loan in customer.loans %}
                             <tr>
                                 <td>{{ loan.loan_number }}</td>
-                                <td>{{ loan.loan_type|title }}</td>
+                                <td>{{ loan.loan_type|replace('_', ' ')|title }}</td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
                                 <td><span class="badge status-{{ loan.status }}">{{ loan.status|title }}</span></td>

@@ -29,13 +29,13 @@
                     <label class="form-label">Loan Type</label>
                     <select name="loan_type" class="form-select">
                         <option value="">All Types</option>
-                        <option value="personal" {% if loan_type == 'personal' %}selected{% endif %}>Personal Loan</option>
-                        <option value="business" {% if loan_type == 'business' %}selected{% endif %}>Business Loan</option>
-                        <option value="education" {% if loan_type == 'education' %}selected{% endif %}>Education Loan</option>
-                        <option value="vehicle" {% if loan_type == 'vehicle' %}selected{% endif %}>Vehicle Loan</option>
-                        <option value="home" {% if loan_type == 'home' %}selected{% endif %}>Home Loan</option>
-                        <option value="agriculture" {% if loan_type == 'agriculture' %}selected{% endif %}>Agriculture Loan</option>
-                        <option value="other" {% if loan_type == 'other' %}selected{% endif %}>Other</option>
+                        <option value="type1_9weeks" {% if loan_type == 'type1_9weeks' %}selected{% endif %}>9 Week Loan</option>
+                        <option value="54_daily" {% if loan_type == '54_daily' %}selected{% endif %}>54 Daily Loan</option>
+                        <option value="type4_micro" {% if loan_type == 'type4_micro' %}selected{% endif %}>Micro Loan</option>
+                        <option value="type4_daily" {% if loan_type == 'type4_daily' %}selected{% endif %}>Daily Loan</option>
+                        <option value="monthly_loan" {% if loan_type == 'monthly_loan' %}selected{% endif %}>Monthly Loan</option>
+                        <option value="staff_loan" {% if loan_type == 'staff_loan' %}selected{% endif %}>Staff Loan</option>
+                        <option value="special_loan" {% if loan_type == 'special_loan' %}selected{% endif %}>Special Loan</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -117,7 +117,7 @@
                             <strong>{{ loan.customer.full_name }}</strong><br>
                             <small class="text-muted">{{ loan.customer.customer_id }}</small>
                         </td>
-                        <td>{{ loan.loan_type|title }}</td>
+                        <td>{{ loan.loan_type|replace('_', ' ')|title }}</td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
                         <td>{{ loan.interest_rate }}% ({{ loan.interest_type|replace('_', ' ')|title }})</td>
                         <td>{{ loan.duration_months }} months</td>

@@ -59,10 +59,14 @@ class User(UserMixin, db.Model):
     regional_branches = db.relationship('Branch', secondary=regional_manager_branches, backref='regional_managers', lazy='dynamic')
     
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        # Use PBKDF2 explicitly to avoid environments where hashlib.scrypt is unavailable.
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
     
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except (AttributeError, ValueError):
+            return False
     
     def has_permission(self, permission):
         """Check if user has specific permission"""
@@ -586,9 +590,9 @@ class Loan(db.Model):
         paid_principal = self.get_total_paid_principal()
         outstanding_principal = disbursed - paid_principal
         
-        # IMPORTANT: Special handling for monthly loans
-        if self.loan_type == 'monthly_loan':
-            # For monthly loans, always show total remaining payable amount (principal + remaining interest)
+        # IMPORTANT: Special handling for monthly-structure loans
+        if self.loan_type in ['monthly_loan', 'staff_loan']:
+            # For monthly/staff loans, always show total remaining payable amount (principal + remaining interest)
             if self.total_payable:
                 total_expected = Decimal(str(self.total_payable))
             else:
@@ -718,11 +722,13 @@ class Loan(db.Model):
         # Calculate total interest
         total_interest = total_payable - loan_amount
         
-        # IMPORTANT: Reducing balance calculation ONLY applies to monthly loans with reducing_balance interest type
-        # All other loan types (Type 1, 54 Daily, Type 4 Micro, Type 4 Daily, and monthly with flat rate)
+        # IMPORTANT: Reducing balance calculation ONLY applies to monthly-structure
+        # loans with reducing_balance interest type.
+        # All other loan types (Type 1, 54 Daily, Type 4 Micro, Type 4 Daily,
+        # Special, and monthly/staff with flat rate)
         # use even distribution of principal and interest across all installments
         is_monthly_reducing_balance = (
-            self.loan_type == 'monthly_loan' and 
+            self.loan_type in ['monthly_loan', 'staff_loan'] and 
             self.interest_type == 'reducing_balance'
         )
         

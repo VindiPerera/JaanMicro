@@ -38,6 +38,7 @@
                     <option value="type4_micro" {% if loan_type == 'type4_micro' %}selected{% endif %}>Micro Loan (Weekly)</option>
                     <option value="type4_daily" {% if loan_type == 'type4_daily' %}selected{% endif %}>Daily Loan</option>
                     <option value="monthly_loan" {% if loan_type == 'monthly_loan' %}selected{% endif %}>Monthly Loan</option>
+                    <option value="staff_loan" {% if loan_type == 'staff_loan' %}selected{% endif %}>Staff Loan</option>
                     <option value="special_loan" {% if loan_type == 'special_loan' %}selected{% endif %}>Special Loan</option>
                 </select>
             </div>
@@ -90,10 +91,12 @@
                                 Daily Loan
                             {% elif loan.loan_type == 'monthly_loan' %}
                                 Monthly Loan
+                            {% elif loan.loan_type == 'staff_loan' %}
+                                Staff Loan
                             {% elif loan.loan_type == 'special_loan' %}
                                 Special Loan
                             {% else %}
-                                {{ loan.loan_type|title }}
+                                {{ loan.loan_type|replace('_', ' ')|title }}
                             {% endif %}
                         </td>
                         <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>

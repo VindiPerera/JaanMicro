@@ -195,7 +195,7 @@
                             <label class="form-label">Search Guarantor</label>
                             <input type="text" class="form-control" id="guarantorSearch" placeholder="Search by name, customer ID, or NIC number">
                             <div id="guarantorSuggestions" class="list-group mt-1" style="display: none; max-height: 200px; overflow-y: auto;"></div>
-                            <small class="text-muted">Only KYC approved guarantors and family guarantors are shown</small>
+                            <small class="text-muted" id="guarantorHelpText">Only KYC approved guarantors and family guarantors are shown</small>
                         </div>
                         
                         <div class="alert alert-warning" id="guarantorCounter">
@@ -216,7 +216,7 @@
                                     <div class="col-md-6">
                                         <strong>Address:</strong> <span id="guarantorAddress"></span><br>
                                         <strong>District:</strong> <span id="guarantorDistrict"></span><br>
-                                        <strong>KYC Status:</strong> <span class="badge bg-success">Verified</span>
+                                        <strong>Eligibility:</strong> <span class="badge bg-success" id="guarantorEligibility">KYC Verified</span>
                                     </div>
                                 </div>
                             </div>
@@ -426,7 +426,10 @@ $(document).ready(function() {
             $.ajax({
                 url: '{{ url_for("loans.search_customers") }}',
                 method: 'GET',
-                data: { q: searchTerm },
+                data: {
+                    q: searchTerm,
+                    loan_type: $('#loan_type').val()
+                },
                 success: function(response) {
                     if (response.success && response.customers.length > 0) {
                         var html = '';
@@ -438,7 +441,11 @@ $(document).ready(function() {
                         });
                         resultsContainer.html(html).removeClass('d-none');
                     } else {
-                        resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                        if ($('#loan_type').val() === 'staff_loan') {
+                            resultsContainer.html('<div class="p-2 text-muted">No eligible active user found in Settings > Users for this search.</div>').removeClass('d-none');
+                        } else {
+                            resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                        }
                     }
                 },
                 error: function() {
@@ -468,6 +475,7 @@ $(document).ready(function() {
     // Handle loan type change to show/hide appropriate fields
     $('#loan_type').on('change', function() {
         var loanType = $(this).val();
+        updateGuarantorHelpText();
         
         // First, remove required from all duration fields
         $('#duration_weeks').prop('required', false).removeAttr('required');
@@ -641,6 +649,14 @@ $(document).ready(function() {
         $('#guarantorSuggestions').hide();
         $('#guarantorDetails').hide();
     }
+
+    function updateGuarantorHelpText() {
+        if ($('#loan_type').val() === 'staff_loan') {
+            $('#guarantorHelpText').text('Only active users from Settings > Users are shown for Staff Loan guarantors.');
+        } else {
+            $('#guarantorHelpText').text('Only KYC approved guarantors and family guarantors are shown');
+        }
+    }
     
     // Search guarantors
     function searchGuarantors(query) {
@@ -653,7 +669,11 @@ $(document).ready(function() {
         $.ajax({
             url: '{{ url_for("loans.search_guarantors") }}',
             method: 'GET',
-            data: { q: query, exclude_customer_id: memberId },
+            data: {
+                q: query,
+                exclude_customer_id: memberId,
+                loan_type: $('#loan_type').val()
+            },
             success: function(data) {
                 var suggestions = $('#guarantorSuggestions');
                 suggestions.empty();
@@ -692,9 +712,16 @@ $(document).ready(function() {
         $('#guarantorName').text(guarantor.full_name);
         $('#guarantorNIC').text(guarantor.nic_number);
         $('#guarantorPhone').text(guarantor.phone_primary);
-        $('#guarantorType').text(guarantor.customer_type_display);
-        $('#guarantorAddress').text(guarantor.address_line1 + (guarantor.address_line2 ? ', ' + guarantor.address_line2 : ''));
-        $('#guarantorDistrict').text(guarantor.district);
+        $('#guarantorType').text(guarantor.customer_type_display || 'N/A');
+        $('#guarantorAddress').text((guarantor.address_line1 || 'N/A') + (guarantor.address_line2 ? ', ' + guarantor.address_line2 : ''));
+        $('#guarantorDistrict').text(guarantor.district || 'N/A');
+        var eligibilityText = guarantor.eligibility_text || 'KYC Verified';
+        $('#guarantorEligibility').text(eligibilityText);
+        if (eligibilityText === 'KYC Verified') {
+            $('#guarantorEligibility').removeClass('bg-primary').addClass('bg-success');
+        } else {
+            $('#guarantorEligibility').removeClass('bg-success').addClass('bg-primary');
+        }
         
         $('#guarantorDetails').show();
         $('#guarantorSuggestions').hide();

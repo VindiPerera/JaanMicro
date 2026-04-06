@@ -8,10 +8,10 @@ from dateutil.relativedelta import relativedelta
 import os
 from app import db
 from app.loans import loans_bp
-from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride
+from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride, Branch
 from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
 from app.utils.decorators import permission_required, admin_required
-from app.utils.helpers import generate_loan_number, get_current_branch_id, should_filter_by_branch, generate_receipt_number
+from app.utils.helpers import generate_loan_number, generate_customer_id, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
 
 def _calculate_loan_totals_for_principal(
@@ -114,6 +114,124 @@ def _refresh_loan_financial_state(loan):
     elif loan.status == 'completed':
         loan.status = 'active'
         loan.closing_date = None
+
+
+def _get_active_user_for_customer(customer):
+    """Return active system user mapped to a customer by NIC, if any."""
+    if not customer or not customer.nic_number:
+        return None
+
+    return User.query.filter(
+        User.nic_number == customer.nic_number,
+        User.is_active == True
+    ).first()
+
+
+def _resolve_staff_loan_customer_selection(selected_customer_id):
+    """Resolve customer for staff loan selection.
+
+    Supports existing customer ids and synthetic negative ids representing users.
+    For synthetic user ids, creates a member profile on demand if missing.
+    """
+    selected_raw = str(selected_customer_id or '').strip()
+    if not selected_raw:
+        return None, 'Please select a staff member for Staff Loan.'
+
+    try:
+        selected_id = int(selected_raw)
+    except (TypeError, ValueError):
+        return None, 'Invalid staff member selection.'
+
+    current_branch_id = get_current_branch_id() if should_filter_by_branch() else None
+
+    # Existing member selected
+    if selected_id > 0:
+        customer = Customer.query.get(selected_id)
+        if not customer:
+            return None, 'Selected member not found.'
+
+        if current_branch_id and customer.branch_id != current_branch_id:
+            return None, 'Selected member is not in the current branch.'
+
+        if not _get_active_user_for_customer(customer):
+            return None, 'Staff Loan is only available for members linked to an active user in Settings > Users (NIC must match).'
+
+        return customer, None
+
+    # Synthetic user selection (negative user id)
+    user_id = abs(selected_id)
+    user = User.query.filter(
+        User.id == user_id,
+        User.is_active == True
+    ).first()
+    if not user:
+        return None, 'Selected staff user is not active or not found.'
+
+    if current_branch_id and user.branch_id != current_branch_id:
+        return None, 'Selected staff user is not in the current branch.'
+
+    # Reuse existing member profile by NIC when present
+    customer = Customer.query.filter_by(nic_number=user.nic_number).first()
+    if customer:
+        if current_branch_id and customer.branch_id != current_branch_id:
+            return None, 'Linked member record is not in the current branch.'
+        if customer.status != 'active':
+            return None, 'Linked member record is not active.'
+        return customer, None
+
+    # Auto-create a minimal member profile for this user
+    branch_id = user.branch_id or current_branch_id
+    if not branch_id:
+        fallback_branch = Branch.query.filter_by(is_active=True).order_by(Branch.id.asc()).first()
+        branch_id = fallback_branch.id if fallback_branch else None
+
+    if not branch_id:
+        return None, 'No active branch found to create member profile for this user.'
+
+    generated_customer_id = generate_customer_id('customer', branch_id)
+    customer = Customer(
+        customer_id=generated_customer_id,
+        branch_id=branch_id,
+        full_name=user.full_name,
+        nic_number=user.nic_number,
+        phone_primary=user.phone or 'N/A',
+        email=user.email,
+        address_line1='Auto-created from Settings User',
+        address_line2='',
+        city='N/A',
+        district='Colombo',
+        status='active',
+        kyc_verified=False,
+        created_by=current_user.id,
+        notes=f'Auto-created for Staff Loan from settings user: {user.username}'
+    )
+    customer.customer_types = ['customer', 'investor']
+    db.session.add(customer)
+    db.session.flush()
+    return customer, None
+
+
+def _resolve_staff_loan_guarantor_ids(raw_guarantor_ids, borrower_customer_id):
+    """Resolve and validate guarantor ids for staff loans."""
+    raw_tokens = [token.strip() for token in str(raw_guarantor_ids or '').split(',') if token.strip()]
+    if len(raw_tokens) != 2:
+        return None, 'Staff Loan requires exactly 2 staff guarantors.'
+
+    resolved_ids = []
+    for token in raw_tokens:
+        guarantor_customer, error = _resolve_staff_loan_customer_selection(token)
+        if error:
+            return None, f'Invalid staff guarantor selection: {error}'
+
+        if guarantor_customer.id == borrower_customer_id:
+            return None, 'Borrower cannot be selected as a guarantor.'
+
+        if guarantor_customer.id in resolved_ids:
+            return None, 'Duplicate guarantor selected. Please choose two different staff guarantors.'
+
+        resolved_ids.append(guarantor_customer.id)
+
+    return resolved_ids, None
 
 @loans_bp.route('/')
 @login_required
@@ -245,13 +363,13 @@ def add_loan():
             if form.end_date.data <= form.start_date.data:
                 flash('End Date must be after Start Date!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
-        elif form.loan_type.data == 'monthly_loan':
-            # For Monthly loans, validate months, interest type, and installment frequency
+        elif form.loan_type.data in ['monthly_loan', 'staff_loan']:
+            # For Monthly/Staff loans, validate months and interest type
             if not form.duration_months.data:
-                flash('Duration (Months) is required for Monthly Loan!', 'error')
+                flash('Duration (Months) is required for Monthly/Staff Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
             if not form.interest_type.data:
-                flash('Interest Type is required for Monthly Loan!', 'error')
+                flash('Interest Type is required for Monthly/Staff Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         else:
             # For other loan types, validate months, interest type, and installment frequency
@@ -270,15 +388,34 @@ def add_loan():
             flash('Please select a customer!', 'error')
             return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
-        # Get customer to determine branch
-        customer = Customer.query.get(form.customer_id.data)
-        if not customer:
-            flash('Customer not found!', 'error')
-            return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+        # Resolve selected member
+        if form.loan_type.data == 'staff_loan':
+            customer, staff_error = _resolve_staff_loan_customer_selection(form.customer_id.data)
+            if staff_error:
+                flash(staff_error, 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+        else:
+            customer = Customer.query.get(form.customer_id.data)
+            if not customer:
+                flash('Customer not found!', 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
         
         if not customer.branch_id:
             flash('Customer does not have a valid branch assigned!', 'error')
             return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+
+        raw_guarantor_ids = (request.form.get('guarantor_ids') or '').strip()
+        if form.loan_type.data == 'staff_loan':
+            resolved_guarantor_ids, guarantor_error = _resolve_staff_loan_guarantor_ids(
+                raw_guarantor_ids,
+                borrower_customer_id=customer.id
+            )
+            if guarantor_error:
+                flash(guarantor_error, 'error')
+                return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
+            guarantor_ids_value = ','.join(str(gid) for gid in resolved_guarantor_ids)
+        else:
+            guarantor_ids_value = raw_guarantor_ids
         
         # Generate loan number with new format: YY/B##/TYPE/#####
         loan_number = generate_loan_number(loan_type=form.loan_type.data, branch_id=customer.branch_id)
@@ -342,8 +479,8 @@ def add_loan():
             total_interest = (loan_amount * interest_rate / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             total_payable = (loan_amount + total_interest).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             emi = total_payable  # Single payment at end date
-        elif form.loan_type.data == 'monthly_loan':
-            # Monthly Loan: Standard monthly calculation
+        elif form.loan_type.data in ['monthly_loan', 'staff_loan']:
+            # Monthly/Staff Loan: Standard monthly calculation
             monthly_rate = interest_rate / (Decimal('12') * Decimal('100'))
             n = duration_months
             
@@ -405,7 +542,7 @@ def add_loan():
         
         loan = Loan(
             loan_number=loan_number,
-            customer_id=form.customer_id.data,
+            customer_id=customer.id,
             branch_id=customer.branch_id,
             loan_type=form.loan_type.data,
             loan_purpose=form.loan_purpose.data if form.loan_purpose.data else None,
@@ -427,7 +564,7 @@ def add_loan():
             security_details=form.security_details.data,
             document_path=document_filename,
             drive_link=form.drive_link.data or None,
-            guarantor_ids=request.form.get('guarantor_ids', ''),
+            guarantor_ids=guarantor_ids_value,
             final_approver_id=request.form.get('final_approver_id', type=int) or None,
             status='pending',  # All new loans start as pending and go through approval workflow
             created_by=current_user.id,
@@ -614,7 +751,7 @@ def edit_loan(id):
             if not form.duration_days.data:
                 flash('Duration (Days) is required for 54 Daily Loan!', 'error')
                 return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
-        elif form.loan_type.data in ['type4_micro', 'type4_daily', 'monthly_loan']:
+        elif form.loan_type.data in ['type4_micro', 'type4_daily', 'monthly_loan', 'staff_loan']:
             if not form.duration_months.data:
                 flash('Duration (Months) is required for this loan type!', 'error')
                 return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
@@ -634,11 +771,17 @@ def edit_loan(id):
             flash('Please select a customer!', 'error')
             return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
-        # Get customer to determine branch
-        customer = Customer.query.get(form.customer_id.data)
-        if not customer:
-            flash('Customer not found!', 'error')
-            return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        # Resolve selected member
+        if form.loan_type.data == 'staff_loan':
+            customer, staff_error = _resolve_staff_loan_customer_selection(form.customer_id.data)
+            if staff_error:
+                flash(staff_error, 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
+        else:
+            customer = Customer.query.get(form.customer_id.data)
+            if not customer:
+                flash('Customer not found!', 'error')
+                return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
         
         # Recalculate EMI and totals with updated values
         from decimal import Decimal, ROUND_HALF_UP
@@ -1537,42 +1680,83 @@ def get_guarantors():
 def search_customers():
     """Search customers for loan assignment"""
     search_term = request.args.get('q', '', type=str).strip()
+    loan_type = request.args.get('loan_type', '', type=str)
     
     if not search_term or len(search_term) < 2:
         return jsonify({'success': False, 'customers': []})
     
-    # Query active and KYC verified customers
-    query = Customer.query.filter(
-        Customer.status == 'active',
-        Customer.kyc_verified == True
-    )
-    
-    # Filter by current branch if needed
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            query = query.filter_by(branch_id=current_branch_id)
-    
-    # Search by name, customer ID, or NIC number
-    customers = query.filter(
-        db.or_(
-            Customer.full_name.ilike(f'%{search_term}%'),
-            Customer.customer_id.ilike(f'%{search_term}%'),
-            Customer.nic_number.ilike(f'%{search_term}%')
+    # Staff Loan search is driven by active system users.
+    if loan_type == 'staff_loan':
+        user_query = User.query.filter(User.is_active == True)
+
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                user_query = user_query.filter(User.branch_id == current_branch_id)
+
+        users = user_query.filter(
+            db.or_(
+                User.full_name.ilike(f'%{search_term}%'),
+                User.username.ilike(f'%{search_term}%'),
+                User.email.ilike(f'%{search_term}%'),
+                User.nic_number.ilike(f'%{search_term}%')
+            )
+        ).order_by(User.full_name).limit(10).all()
+
+        user_nics = [u.nic_number for u in users if u.nic_number]
+        customer_by_nic = {}
+        if user_nics:
+            linked_customers = Customer.query.filter(Customer.nic_number.in_(user_nics)).all()
+            customer_by_nic = {c.nic_number: c for c in linked_customers}
+
+        customer_list = []
+        for user in users:
+            linked_customer = customer_by_nic.get(user.nic_number)
+            if linked_customer and linked_customer.status != 'active':
+                continue
+            has_active_member = linked_customer and linked_customer.status == 'active'
+            selection_id = linked_customer.id if has_active_member else -user.id
+
+            customer_list.append({
+                'id': selection_id,
+                'text': f'{user.full_name} ({user.username}) - NIC: {user.nic_number}',
+                'customer_id': linked_customer.customer_id if has_active_member else f'USER-{user.id}',
+                'full_name': user.full_name,
+                'nic_number': user.nic_number,
+                'phone_primary': user.phone
+            })
+    else:
+        query = Customer.query.filter(
+            Customer.status == 'active',
+            Customer.kyc_verified == True
         )
-    ).order_by(Customer.full_name).limit(10).all()
-    
-    # Format customer data
-    customer_list = []
-    for customer in customers:
-        customer_list.append({
-            'id': customer.id,
-            'text': f'{customer.customer_id} - {customer.full_name} ({customer.nic_number})',
-            'customer_id': customer.customer_id,
-            'full_name': customer.full_name,
-            'nic_number': customer.nic_number,
-            'phone_primary': customer.phone_primary
-        })
+
+        # Filter by current branch if needed
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                query = query.filter_by(branch_id=current_branch_id)
+
+        # Search by name, customer ID, or NIC number
+        customers = query.filter(
+            db.or_(
+                Customer.full_name.ilike(f'%{search_term}%'),
+                Customer.customer_id.ilike(f'%{search_term}%'),
+                Customer.nic_number.ilike(f'%{search_term}%')
+            )
+        ).order_by(Customer.full_name).limit(10).all()
+
+        # Format customer data
+        customer_list = []
+        for customer in customers:
+            customer_list.append({
+                'id': customer.id,
+                'text': f'{customer.customer_id} - {customer.full_name} ({customer.nic_number})',
+                'customer_id': customer.customer_id,
+                'full_name': customer.full_name,
+                'nic_number': customer.nic_number,
+                'phone_primary': customer.phone_primary
+            })
     
     return jsonify({
         'success': True,
@@ -1584,59 +1768,122 @@ def search_customers():
 @login_required
 @permission_required('manage_loans')
 def search_guarantors():
-    """Search KYC approved guarantors and family guarantors"""
+    """Search guarantors with loan-type-specific eligibility rules."""
     search_term = request.args.get('q', '', type=str).strip()
     exclude_customer_id = request.args.get('exclude_customer_id', type=int)
+    loan_type = request.args.get('loan_type', '', type=str)
     
     if not search_term or len(search_term) < 2:
         return jsonify({'success': False, 'guarantors': []})
     
-    # Query customers who are guarantors or family guarantors and have KYC verified
-    query = Customer.query.filter(
-        db.or_(
-            Customer.customer_type.like('%guarantor%'),
-            Customer.customer_type.like('%family_guarantor%')
-        ),
-        Customer.kyc_verified == True,
-        Customer.status == 'active'
-    )
-    
-    # Exclude the selected loan member
-    if exclude_customer_id:
-        query = query.filter(Customer.id != exclude_customer_id)
-    
-    # Filter by current branch if needed
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            query = query.filter_by(branch_id=current_branch_id)
-    
-    # Search by name, customer ID, or NIC number
-    guarantors = query.filter(
-        db.or_(
-            Customer.full_name.ilike(f'%{search_term}%'),
-            Customer.customer_id.ilike(f'%{search_term}%'),
-            Customer.nic_number.ilike(f'%{search_term}%')
+    if loan_type == 'staff_loan':
+        user_query = User.query.filter(User.is_active == True)
+
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                user_query = user_query.filter(User.branch_id == current_branch_id)
+
+        exclude_user_id = None
+        if exclude_customer_id:
+            if exclude_customer_id < 0:
+                exclude_user_id = abs(exclude_customer_id)
+            else:
+                borrower_customer = Customer.query.get(exclude_customer_id)
+                if borrower_customer and borrower_customer.nic_number:
+                    borrower_user = User.query.filter(
+                        User.nic_number == borrower_customer.nic_number,
+                        User.is_active == True
+                    ).first()
+                    if borrower_user:
+                        exclude_user_id = borrower_user.id
+
+        if exclude_user_id:
+            user_query = user_query.filter(User.id != exclude_user_id)
+
+        users = user_query.filter(
+            db.or_(
+                User.full_name.ilike(f'%{search_term}%'),
+                User.username.ilike(f'%{search_term}%'),
+                User.email.ilike(f'%{search_term}%'),
+                User.nic_number.ilike(f'%{search_term}%')
+            )
+        ).order_by(User.full_name).limit(10).all()
+
+        user_nics = [u.nic_number for u in users if u.nic_number]
+        customer_by_nic = {}
+        if user_nics:
+            linked_customers = Customer.query.filter(Customer.nic_number.in_(user_nics)).all()
+            customer_by_nic = {c.nic_number: c for c in linked_customers}
+
+        guarantor_list = []
+        for user in users:
+            linked_customer = customer_by_nic.get(user.nic_number)
+            if linked_customer and linked_customer.status != 'active':
+                continue
+
+            has_active_member = linked_customer is not None
+            selection_id = linked_customer.id if has_active_member else -user.id
+
+            guarantor_list.append({
+                'id': selection_id,
+                'text': f'{user.full_name} ({user.username}) - NIC: {user.nic_number}',
+                'customer_id': linked_customer.customer_id if has_active_member else f'USER-{user.id}',
+                'full_name': user.full_name,
+                'nic_number': user.nic_number,
+                'phone_primary': user.phone,
+                'customer_type_display': 'Staff User',
+                'address_line1': linked_customer.address_line1 if has_active_member else 'From Settings Users',
+                'address_line2': (linked_customer.address_line2 if has_active_member and linked_customer.address_line2 else ''),
+                'city': linked_customer.city if has_active_member else '',
+                'district': linked_customer.district if has_active_member else '',
+                'email': user.email or '',
+                'eligibility_text': 'Active Settings User'
+            })
+    else:
+        # Non-staff loans use KYC-approved guarantor member records only.
+        query = Customer.query.filter(
+            db.or_(
+                Customer.customer_type.like('%guarantor%'),
+                Customer.customer_type.like('%family_guarantor%')
+            ),
+            Customer.kyc_verified == True,
+            Customer.status == 'active'
         )
-    ).order_by(Customer.full_name).limit(10).all()
-    
-    # Format guarantor data
-    guarantor_list = []
-    for guarantor in guarantors:
-        guarantor_list.append({
-            'id': guarantor.id,
-            'text': f'{guarantor.customer_id} - {guarantor.full_name} ({guarantor.nic_number})',
-            'customer_id': guarantor.customer_id,
-            'full_name': guarantor.full_name,
-            'nic_number': guarantor.nic_number,
-            'phone_primary': guarantor.phone_primary,
-            'customer_type_display': guarantor.customer_type_display,
-            'address_line1': guarantor.address_line1,
-            'address_line2': guarantor.address_line2 or '',
-            'city': guarantor.city,
-            'district': guarantor.district,
-            'email': guarantor.email or ''
-        })
+
+        if exclude_customer_id:
+            query = query.filter(Customer.id != exclude_customer_id)
+
+        if should_filter_by_branch():
+            current_branch_id = get_current_branch_id()
+            if current_branch_id:
+                query = query.filter_by(branch_id=current_branch_id)
+
+        guarantors = query.filter(
+            db.or_(
+                Customer.full_name.ilike(f'%{search_term}%'),
+                Customer.customer_id.ilike(f'%{search_term}%'),
+                Customer.nic_number.ilike(f'%{search_term}%')
+            )
+        ).order_by(Customer.full_name).limit(10).all()
+
+        guarantor_list = []
+        for guarantor in guarantors:
+            guarantor_list.append({
+                'id': guarantor.id,
+                'text': f'{guarantor.customer_id} - {guarantor.full_name} ({guarantor.nic_number})',
+                'customer_id': guarantor.customer_id,
+                'full_name': guarantor.full_name,
+                'nic_number': guarantor.nic_number,
+                'phone_primary': guarantor.phone_primary,
+                'customer_type_display': guarantor.customer_type_display,
+                'address_line1': guarantor.address_line1,
+                'address_line2': guarantor.address_line2 or '',
+                'city': guarantor.city,
+                'district': guarantor.district,
+                'email': guarantor.email or '',
+                'eligibility_text': 'KYC Verified'
+            })
     
     return jsonify({
         'success': True,
@@ -1777,9 +2024,9 @@ def receipt_entry():
         Loan.status == 'active'
     )
     
-    # Get monthly loans (monthly_loan and other monthly types)
+    # Get monthly loans (monthly_loan and staff_loan)
     monthly_loans_query = Loan.query.filter(
-        Loan.loan_type.in_(['monthly_loan']),
+        Loan.loan_type.in_(['monthly_loan', 'staff_loan']),
         Loan.status == 'active'
     )
     
@@ -1937,7 +2184,7 @@ def receipt_entry_export(loan_frequency):
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
-        'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'monthly': (['monthly_loan', 'staff_loan'], 'Monthly Loans'),
         'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:
@@ -2123,7 +2370,7 @@ def receipt_entry_pdf(loan_frequency):
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
-        'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'monthly': (['monthly_loan', 'staff_loan'], 'Monthly Loans'),
         'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:

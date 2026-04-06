@@ -203,7 +203,10 @@ $(document).ready(function() {
             $.ajax({
                 url: '{{ url_for("loans.search_customers") }}',
                 method: 'GET',
-                data: { q: searchTerm },
+                data: {
+                    q: searchTerm,
+                    loan_type: $('#loan_type').val()
+                },
                 success: function(response) {
                     if (response.success && response.customers.length > 0) {
                         var html = '';
@@ -215,7 +218,11 @@ $(document).ready(function() {
                         });
                         resultsContainer.html(html).removeClass('d-none');
                     } else {
-                        resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                        if ($('#loan_type').val() === 'staff_loan') {
+                            resultsContainer.html('<div class="p-2 text-muted">No eligible active user found in Settings > Users for this search.</div>').removeClass('d-none');
+                        } else {
+                            resultsContainer.html('<div class="p-2 text-muted">No customers found</div>').removeClass('d-none');
+                        }
                     }
                 },
                 error: function() {

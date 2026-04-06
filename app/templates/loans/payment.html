@@ -315,7 +315,8 @@ $(document).ready(function() {
         var totalPayment = paymentAmount;
         
         // Calculate outstanding after payment
-        // For flat rate loans (monthly, Type 1, 54 Daily, Type 4), outstanding includes all remaining interest
+        // For flat-rate style loans (monthly/staff and short-term fixed schedules),
+        // outstanding includes remaining scheduled interest.
         // So we need to subtract the full payment amount, not just principal
         var loanType = '{{ loan.loan_type }}';
         var outstandingAfter;
@@ -323,6 +324,7 @@ $(document).ready(function() {
         // Check if this is a flat rate loan type
         var isFlatRateLoan = (
             loanType === 'monthly_loan' || 
+            loanType === 'staff_loan' || 
             loanType === 'type1_9weeks' || 
             loanType === '54_daily' || 
             loanType === 'type4_micro' || 

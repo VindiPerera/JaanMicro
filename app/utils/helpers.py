@@ -72,7 +72,7 @@ def get_loan_type_code(loan_type):
         loan_type: Loan type string from form (e.g., 'type1_9weeks', '54_daily', etc.)
     
     Returns:
-        Loan type code (e.g., 'WS', 'DLS', 'MF', 'DL', 'ML')
+        Loan type code (e.g., 'WS', 'DLS', 'MF', 'DL', 'ML', 'SL')
     """
     loan_type_mapping = {
         'type1_9weeks': 'WS',      # 9 Week Loan - Weekly Short
@@ -80,6 +80,7 @@ def get_loan_type_code(loan_type):
         'type4_micro': 'MF',       # Micro Loan - Micro Finance
         'type4_daily': 'DL',       # Daily Loan - Daily
         'monthly_loan': 'ML',      # Monthly Loan - Monthly
+        'staff_loan': 'SL',        # Staff Loan - Monthly structure
         'special_loan': 'S'        # Special Loan
     }
     
