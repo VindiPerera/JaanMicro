@@ -254,6 +254,102 @@ def loan_report():
                          status=status,
                          loan_purpose=loan_purpose)
 
+
+@reports_bp.route('/staff-loans')
+@login_required
+@permission_required('view_reports')
+def staff_loan_report():
+    """Staff loan specific report."""
+    from decimal import Decimal
+
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    status = request.args.get('status', '')
+
+    query = Loan.query.filter(Loan.loan_type == 'staff_loan')
+
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
+
+    if start_date:
+        query = query.filter(Loan.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        query = query.filter(Loan.created_at <= datetime.strptime(end_date, '%Y-%m-%d'))
+    if status:
+        query = query.filter_by(status=status)
+
+    loans = query.order_by(Loan.created_at.desc()).all()
+
+    loan_payments = {}
+    total_arrears = 0.0
+    for loan in loans:
+        payment_stats = db.session.query(
+            func.sum(LoanPayment.principal_amount),
+            func.sum(LoanPayment.interest_amount)
+        ).filter(LoanPayment.loan_id == loan.id)
+
+        if start_date:
+            payment_stats = payment_stats.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            payment_stats = payment_stats.filter(LoanPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+        principal, interest = payment_stats.first()
+        principal_dec = Decimal(str(principal or 0))
+        interest_dec = Decimal(str(interest or 0))
+        total_dec = principal_dec + interest_dec
+
+        arrears_details = loan.get_arrears_details()
+        arrears_amount = float(arrears_details.get('total_overdue_amount', 0))
+        total_arrears += arrears_amount
+
+        schedule = loan.generate_payment_schedule()
+        paid_installments = len([inst for inst in schedule if inst.get('status') == 'paid']) if schedule else 0
+
+        last_payment_query = LoanPayment.query.filter_by(loan_id=loan.id)
+        if start_date:
+            last_payment_query = last_payment_query.filter(LoanPayment.payment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            last_payment_query = last_payment_query.filter(LoanPayment.payment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+        last_payment = last_payment_query.order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
+
+        loan_payments[loan.id] = {
+            'principal': float(principal_dec),
+            'interest': float(interest_dec),
+            'total': float(total_dec),
+            'arrears': arrears_amount,
+            'paid_installments': paid_installments,
+            'last_payment_date': last_payment.payment_date if last_payment else None,
+            'last_payment_amount': float(last_payment.payment_amount) if last_payment else None
+        }
+
+    principal_collected = sum(p['principal'] for p in loan_payments.values())
+    interest_collected = sum(p['interest'] for p in loan_payments.values())
+    total_collected = principal_collected + interest_collected
+    pending_statuses = {'pending', 'pending_staff_approval', 'pending_manager_approval', 'initiated'}
+
+    summary = {
+        'total_loans': len(loans),
+        'active_loans': len([loan for loan in loans if loan.status == 'active']),
+        'completed_loans': len([loan for loan in loans if loan.status == 'completed']),
+        'pending_loans': len([loan for loan in loans if loan.status in pending_statuses]),
+        'total_disbursed': sum(float(loan.disbursed_amount or 0) for loan in loans),
+        'total_outstanding': sum(float(loan.outstanding_amount or 0) for loan in loans),
+        'total_collected': total_collected,
+        'principal_collected': principal_collected,
+        'interest_collected': interest_collected,
+        'total_arrears': total_arrears
+    }
+
+    return render_template('reports/staff_loan_report.html',
+                         title='Staff Loan Report',
+                         loans=loans,
+                         loan_payments=loan_payments,
+                         summary=summary,
+                         start_date=start_date,
+                         end_date=end_date,
+                         status=status)
+
 @reports_bp.route('/collections')
 @login_required
 @permission_required('view_collection_reports')
@@ -1140,6 +1236,106 @@ def export_loans():
     response = make_response(output.getvalue())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     response.headers['Content-Disposition'] = f'attachment; filename=loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
+
+    return response
+
+
+@reports_bp.route('/export/staff-loans')
+@login_required
+@permission_required('view_reports')
+def export_staff_loans():
+    """Export staff loans to Excel."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    status = request.args.get('status', '')
+
+    query = Loan.query.filter(Loan.loan_type == 'staff_loan')
+
+    loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
+    if loan_branch_filter is not None:
+        query = query.filter(loan_branch_filter)
+
+    if start_date:
+        query = query.filter(Loan.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+    if end_date:
+        query = query.filter(Loan.created_at <= datetime.strptime(end_date, '%Y-%m-%d'))
+    if status:
+        query = query.filter_by(status=status)
+
+    loans = query.order_by(Loan.created_at.desc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Loan Report'
+
+    headers = [
+        'Loan Number', 'Customer', 'Loan Purpose', 'Calculation Type',
+        'Disbursement Date', 'Loan Amount', 'Interest Rate', 'Installment Amount',
+        'Duration', 'Paid Installments', 'Outstanding Amount', 'Arrears', 'Last Payment Date', 'Last Payment Amount', 'Total Paid', 'Status', 'Referred By', 'Created Date'
+    ]
+
+    header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center')
+
+    for loan in loans:
+        if loan.duration_weeks:
+            duration = f"{loan.duration_weeks} weeks"
+        elif loan.duration_months:
+            duration = f"{loan.duration_months} months"
+        else:
+            duration = 'N/A'
+
+        referred_by_name = loan.referrer.full_name if loan.referrer else 'N/A'
+
+        arrears_details = loan.get_arrears_details()
+        arrears_amount = float(arrears_details.get('total_overdue_amount', 0))
+        schedule = loan.generate_payment_schedule()
+        paid_installments = len([inst for inst in schedule if inst.get('status') == 'paid']) if schedule else 0
+
+        last_payment = LoanPayment.query.filter_by(loan_id=loan.id).order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
+        total_paid = db.session.query(func.sum(LoanPayment.payment_amount)).filter(LoanPayment.loan_id == loan.id).scalar() or 0
+
+        ws.append([
+            loan.loan_number,
+            loan.customer.full_name if loan.customer else 'N/A',
+            loan.loan_purpose or 'N/A',
+            loan.loan_type or 'N/A',
+            loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A',
+            float(loan.loan_amount) if loan.loan_amount else 0,
+            float(loan.interest_rate) if loan.interest_rate else 0,
+            float(loan.installment_amount) if loan.installment_amount else 0,
+            duration,
+            paid_installments,
+            float(loan.outstanding_amount) if loan.outstanding_amount else 0,
+            arrears_amount,
+            last_payment.payment_date.strftime('%Y-%m-%d') if last_payment and last_payment.payment_date else 'N/A',
+            float(last_payment.payment_amount) if last_payment else 0,
+            float(total_paid),
+            loan.status or 'N/A',
+            referred_by_name,
+            loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A'
+        ])
+
+    for col in ws.columns:
+        max_len = max((len(str(cell.value)) for cell in col if cell.value), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = make_response(output.getvalue())
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = f'attachment; filename=staff_loans_{datetime.now().strftime("%Y%m%d")}.xlsx'
 
     return response
 

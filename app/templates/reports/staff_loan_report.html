@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Staff Loan Report</h4>
+    <div>
+        <a href="{{ url_for('reports.export_staff_loans', start_date=start_date, end_date=end_date, status=status) }}" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel me-2"></i>Export to Excel
+        </a>
+        <button onclick="window.print()" class="btn btn-secondary">
+            <i class="bi bi-printer me-2"></i>Print
+        </button>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="pending_staff_approval" {% if status == 'pending_staff_approval' %}selected{% endif %}>Pending Staff Approval</option>
+                    <option value="pending_manager_approval" {% if status == 'pending_manager_approval' %}selected{% endif %}>Pending Manager Approval</option>
+                    <option value="initiated" {% if status == 'initiated' %}selected{% endif %}>Initiated</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="deactivated" {% if status == 'deactivated' %}selected{% endif %}>Deactivated</option>
+                    <option value="rejected" {% if status == 'rejected' %}selected{% endif %}>Rejected</option>
+                    <option value="defaulted" {% if status == 'defaulted' %}selected{% endif %}>Defaulted</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-2"></i>Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Total Staff Loans</div>
+                <div class="stats-value">{{ summary.total_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-primary">
+            <div class="card-body">
+                <div class="stats-label">Active</div>
+                <div class="stats-value text-primary">{{ summary.active_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-warning">
+            <div class="card-body">
+                <div class="stats-label">Pending</div>
+                <div class="stats-value text-warning">{{ summary.pending_loans }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="stats-label">Disbursed</div>
+                <div class="stats-value">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_disbursed|float) if summary.total_disbursed else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-danger">
+            <div class="card-body">
+                <div class="stats-label">Outstanding</div>
+                <div class="stats-value text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stats-card border-success">
+            <div class="card-body">
+                <div class="stats-label">Collected</div>
+                <div class="stats-value text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_collected|float) if summary.total_collected else '0.00' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-table me-2"></i>Staff Loan Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-scroll-container">
+            <table class="table table-hover data-table" id="staff-loan-report-table">
+                <thead>
+                    <tr>
+                        <th>Loan #</th>
+                        <th>Staff Member</th>
+                        <th>Member ID</th>
+                        <th>NIC</th>
+                        <th>Branch</th>
+                        <th>Applied Date</th>
+                        <th>Disbursement Date</th>
+                        <th>Loan Amount</th>
+                        <th>Installment</th>
+                        <th>Paid Inst.</th>
+                        <th>Outstanding</th>
+                        <th>Arrears</th>
+                        <th>Principal Collected</th>
+                        <th>Interest Collected</th>
+                        <th>Total Collected</th>
+                        <th>Last Payment Date</th>
+                        <th>Last Payment Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    {% set lp = loan_payments.get(loan.id, {}) %}
+                    <tr>
+                        <td><a href="{{ url_for('loans.view_loan', id=loan.id) }}">{{ loan.loan_number }}</a></td>
+                        <td>{{ loan.customer.full_name if loan.customer else 'N/A' }}</td>
+                        <td>{{ loan.customer.customer_id if loan.customer else 'N/A' }}</td>
+                        <td>{{ loan.customer.nic_number if loan.customer else 'N/A' }}</td>
+                        <td>{{ loan.branch.name if loan.branch else 'N/A' }}</td>
+                        <td>{{ loan.created_at.strftime('%Y-%m-%d') if loan.created_at else 'N/A' }}</td>
+                        <td>{{ loan.disbursement_date.strftime('%Y-%m-%d') if loan.disbursement_date else 'N/A' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.loan_amount|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.installment_amount|float) if loan.installment_amount else '0.00' }}</td>
+                        <td>{{ lp.get('paid_installments', 0) }}</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(lp.get('arrears', 0)|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(lp.get('principal', 0)|float) }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(lp.get('interest', 0)|float) }}</td>
+                        <td class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(lp.get('total', 0)|float) }}</td>
+                        <td>
+                            {% set lp_date = lp.get('last_payment_date') %}
+                            {{ lp_date.strftime('%Y-%m-%d') if lp_date else 'N/A' }}
+                        </td>
+                        <td>
+                            {% set lp_amt = lp.get('last_payment_amount') %}
+                            {{ system_settings.currency_symbol }} {{ "%.2f"|format(lp_amt) if lp_amt is not none else '0.00' }}
+                        </td>
+                        <td><span class="badge status-{{ loan.status }}">{{ loan.status|replace('_', ' ')|title }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="18" class="text-center text-muted">No staff loans found for the selected criteria</td></tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-primary fw-bold">
+                        <td colspan="7">TOTAL</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_disbursed|float) if summary.total_disbursed else '0.00' }}</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_outstanding|float) if summary.total_outstanding else '0.00' }}</td>
+                        <td class="text-danger">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_arrears|float) if summary.total_arrears else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.principal_collected|float) if summary.principal_collected else '0.00' }}</td>
+                        <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.interest_collected|float) if summary.interest_collected else '0.00' }}</td>
+                        <td class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(summary.total_collected|float) if summary.total_collected else '0.00' }}</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+var style = document.createElement('style');
+style.innerHTML = '@media print { .btn, .card-header, .top-navbar, .sidebar { display: none !important; } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}
+{% endblock %}
