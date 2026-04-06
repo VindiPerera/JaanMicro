@@ -318,7 +318,44 @@
 <script>
 function exportToExcel() {
     var table = document.getElementById('arrears-report-table');
-    var wb = XLSX.utils.table_to_book(table, {sheet: "Arrears Report"});
+    var tableClone = table.cloneNode(true);
+
+    // Keep UI display unchanged but export numeric-only values for selected amount columns.
+    var targetHeaders = ['Overdue Amount', 'Partial Overdue', 'Advance Balance'];
+    var headerCells = tableClone.querySelectorAll('thead th');
+    var targetIndexes = [];
+
+    headerCells.forEach(function(header, idx) {
+        var title = header.textContent.trim();
+        if (targetHeaders.indexOf(title) !== -1) {
+            targetIndexes.push(idx);
+        }
+    });
+
+    tableClone.querySelectorAll('tbody tr').forEach(function(row) {
+        var cells = row.querySelectorAll('td');
+        targetIndexes.forEach(function(colIdx) {
+            if (cells[colIdx]) {
+                var rawText = cells[colIdx].textContent.trim();
+                if (rawText === '-' || rawText === '') {
+                    return;
+                }
+
+                // Remove currency prefix and formatting; keep number characters only.
+                var cleaned = rawText
+                    .replace(/Rs\.?/gi, '')
+                    .replace(/,/g, '')
+                    .replace(/[^0-9.\-]/g, '')
+                    .trim();
+
+                if (cleaned !== '') {
+                    cells[colIdx].textContent = cleaned;
+                }
+            }
+        });
+    });
+
+    var wb = XLSX.utils.table_to_book(tableClone, {sheet: "Arrears Report"});
     XLSX.writeFile(wb, 'arrears_report_' + new Date().toISOString().split('T')[0] + '.xlsx');
 }
 
