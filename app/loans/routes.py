@@ -2016,7 +2016,7 @@ def delete_payment(payment_id):
 @login_required
 @permission_required('collect_payments')
 def receipt_entry():
-    """Receipt entry page with weekly, daily, and monthly loan payment tables"""
+    """Receipt entry page with weekly, daily, monthly, staff, and special loan tables."""
     referrer = request.args.get('collector', type=int)
     
     # Get weekly loans (type1_9weeks and type4_micro)
@@ -2031,9 +2031,15 @@ def receipt_entry():
         Loan.status == 'active'
     )
     
-    # Get monthly loans (monthly_loan and staff_loan)
+    # Get monthly loans (monthly_loan)
     monthly_loans_query = Loan.query.filter(
-        Loan.loan_type.in_(['monthly_loan', 'staff_loan']),
+        Loan.loan_type.in_(['monthly_loan']),
+        Loan.status == 'active'
+    )
+
+    # Get staff loans (staff_loan)
+    staff_loans_query = Loan.query.filter(
+        Loan.loan_type.in_(['staff_loan']),
         Loan.status == 'active'
     )
     
@@ -2050,6 +2056,7 @@ def receipt_entry():
             weekly_loans_query = weekly_loans_query.filter_by(branch_id=current_branch_id)
             daily_loans_query = daily_loans_query.filter_by(branch_id=current_branch_id)
             monthly_loans_query = monthly_loans_query.filter_by(branch_id=current_branch_id)
+            staff_loans_query = staff_loans_query.filter_by(branch_id=current_branch_id)
             special_loans_query = special_loans_query.filter_by(branch_id=current_branch_id)
     
     # Filter by referrer if specified
@@ -2057,11 +2064,13 @@ def receipt_entry():
         weekly_loans_query = weekly_loans_query.filter(Loan.referred_by == referrer)
         daily_loans_query = daily_loans_query.filter(Loan.referred_by == referrer)
         monthly_loans_query = monthly_loans_query.filter(Loan.referred_by == referrer)
+        staff_loans_query = staff_loans_query.filter(Loan.referred_by == referrer)
         special_loans_query = special_loans_query.filter(Loan.referred_by == referrer)
     
     weekly_loans = weekly_loans_query.order_by(Loan.created_at.desc()).all()
     daily_loans = daily_loans_query.order_by(Loan.created_at.desc()).all()
     monthly_loans = monthly_loans_query.order_by(Loan.created_at.desc()).all()
+    staff_loans = staff_loans_query.order_by(Loan.created_at.desc()).all()
     special_loans = special_loans_query.order_by(Loan.created_at.desc()).all()
     
     # Get recent payments for each loan with collector info
@@ -2087,6 +2096,15 @@ def receipt_entry():
     for loan in monthly_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
         monthly_payments.append({
+            'loan': loan,
+            'recent_payments': recent_payments,
+            'recommended_amount': loan.get_next_installment_amount()
+        })
+
+    staff_payments = []
+    for loan in staff_loans:
+        recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        staff_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
             'recommended_amount': loan.get_next_installment_amount()
@@ -2129,6 +2147,7 @@ def receipt_entry():
                          weekly_payments=weekly_payments,
                          daily_payments=daily_payments,
                          monthly_payments=monthly_payments,
+                         staff_payments=staff_payments,
                          special_payments=special_payments,
                          all_payments=all_payments,
                          users=users,
@@ -2183,7 +2202,7 @@ def quick_pay(id):
 @login_required
 @permission_required('collect_payments')
 def receipt_entry_export(loan_frequency):
-    """Export weekly/daily/monthly loans to Excel"""
+    """Export weekly/daily/monthly/staff/special loans to Excel."""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -2191,7 +2210,8 @@ def receipt_entry_export(loan_frequency):
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
-        'monthly': (['monthly_loan', 'staff_loan'], 'Monthly Loans'),
+        'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'staff': (['staff_loan'], 'Staff Loans'),
         'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:
@@ -2377,7 +2397,8 @@ def receipt_entry_pdf(loan_frequency):
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
         'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
-        'monthly': (['monthly_loan', 'staff_loan'], 'Monthly Loans'),
+        'monthly': (['monthly_loan'], 'Monthly Loans'),
+        'staff': (['staff_loan'], 'Staff Loans'),
         'special': (['special_loan'], 'Special Loans'),
     }
     if loan_frequency not in frequency_map:
