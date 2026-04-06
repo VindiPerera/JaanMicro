@@ -187,6 +187,122 @@ def view_investment(id):
                          investment=investment,
                          transactions=transactions)
 
+
+@investments_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+@permission_required('manage_investments')
+def edit_investment(id):
+    """Edit borrower details"""
+    investment = Investment.query.get_or_404(id)
+
+    # Check branch access
+    from app.utils.helpers import get_user_accessible_branch_ids
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
+        flash('Access denied: Borrowing not found in accessible branches.', 'danger')
+        return redirect(url_for('investments.list_investments'))
+
+    form = InvestmentForm(obj=investment)
+    settings = SystemSettings.get_settings()
+
+    # Get customers for dropdown
+    customer_query = Customer.query.filter_by(status='active', kyc_verified=True)
+
+    # Apply branch filtering
+    customer_branch_filter = get_branch_filter_for_query(Customer.branch_id)
+    if customer_branch_filter is not None:
+        customer_query = customer_query.filter(customer_branch_filter)
+
+    customers = customer_query.order_by(Customer.full_name).all()
+    form.customer_id.choices = [(0, 'Select Customer')] + [(c.id, f'{c.customer_id} - {c.full_name}') for c in customers]
+
+    # Ensure customer is selected on initial load
+    if request.method == 'GET':
+        form.customer_id.data = investment.customer_id
+
+    if form.validate_on_submit():
+        # Validate customer selection
+        if form.customer_id.data == 0:
+            flash('Please select a customer!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrowing', form=form, investment=investment)
+
+        # Get customer to determine branch
+        customer = Customer.query.get(form.customer_id.data)
+        if not customer:
+            flash('Customer not found!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrowing', form=form, investment=investment)
+
+        if not customer.branch_id:
+            flash('Customer does not have a valid branch assigned!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrowing', form=form, investment=investment)
+
+        # Validate minimum investment amount
+        if form.principal_amount.data < settings.minimum_investment_amount:
+            flash(f'Principal amount cannot be less than Rs. {settings.minimum_investment_amount}!', 'error')
+            return render_template('investments/edit.html', title='Edit Borrowing', form=form, investment=investment)
+
+        # Calculate maturity amount
+        if form.duration_months.data:
+            from decimal import Decimal, ROUND_HALF_UP
+
+            principal = Decimal(str(form.principal_amount.data))
+            interest_rate = Decimal(str(form.interest_rate.data))
+            duration = Decimal(str(form.duration_months.data))
+
+            interest = principal * interest_rate * duration / (Decimal('12') * Decimal('100'))
+            maturity_amount = principal + interest
+            maturity_amount = float(maturity_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        else:
+            maturity_amount = form.principal_amount.data
+
+        maturity_date = None
+        if form.duration_months.data:
+            maturity_date = form.start_date.data + relativedelta(months=form.duration_months.data)
+
+        # Keep current amount aligned with principal only if the account has not moved
+        # beyond its original principal (no net transactions yet).
+        from decimal import Decimal
+        old_principal = Decimal(str(investment.principal_amount or 0))
+        old_current = Decimal(str(investment.current_amount or 0))
+        should_sync_current = abs(old_current - old_principal) <= Decimal('0.01')
+
+        investment.customer_id = form.customer_id.data
+        investment.branch_id = customer.branch_id
+        investment.investment_type = form.investment_type.data
+        investment.principal_amount = form.principal_amount.data
+        investment.interest_rate = form.interest_rate.data
+        investment.duration_months = form.duration_months.data
+        investment.maturity_amount = maturity_amount
+        investment.start_date = form.start_date.data
+        investment.maturity_date = maturity_date
+        investment.installment_amount = form.installment_amount.data
+        investment.installment_frequency = form.installment_frequency.data
+        investment.notes = form.notes.data
+
+        if should_sync_current:
+            investment.current_amount = form.principal_amount.data
+
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='update_investment',
+            entity_type='investment',
+            entity_id=investment.id,
+            description=f'Updated borrowing: {investment.investment_number}',
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+
+        db.session.commit()
+
+        flash(f'Borrowing {investment.investment_number} updated successfully!', 'success')
+        return redirect(url_for('investments.view_investment', id=investment.id))
+
+    return render_template('investments/edit.html',
+                         title=f'Edit Borrowing: {investment.investment_number}',
+                         form=form,
+                         investment=investment)
+
 @investments_bp.route('/<int:id>/transaction', methods=['GET', 'POST'])
 @login_required
 @permission_required('manage_investments')

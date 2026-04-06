@@ -77,6 +77,9 @@
                             <a href="{{ url_for('investments.view_investment', id=investment.id) }}" class="btn btn-sm btn-info">
                                 <i class="bi bi-eye"></i>
                             </a>
+                            <a href="{{ url_for('investments.edit_investment', id=investment.id) }}" class="btn btn-sm btn-warning" title="Edit Borrowing">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
                             {% if investment.status == 'active' %}
                             <a href="{{ url_for('investments.add_transaction', id=investment.id) }}" class="btn btn-sm btn-success">
                                 <i class="bi bi-cash"></i>
