@@ -116,6 +116,72 @@ def _refresh_loan_financial_state(loan):
         loan.closing_date = None
 
 
+def _get_installment_advance_breakdown(loan):
+    """Return installment/advance deduction amounts for payment collection UI."""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    installment_amount = Decimal(str(loan.installment_amount or 0)).quantize(
+        Decimal('0.01'),
+        rounding=ROUND_HALF_UP,
+    )
+    advance_balance = Decimal(str(loan.advance_balance or 0)).quantize(
+        Decimal('0.01'),
+        rounding=ROUND_HALF_UP,
+    )
+
+    if installment_amount < Decimal('0.00'):
+        installment_amount = Decimal('0.00')
+    if advance_balance < Decimal('0.00'):
+        advance_balance = Decimal('0.00')
+
+    advance_to_apply = min(advance_balance, installment_amount)
+    deducted_installment_amount = (installment_amount - advance_to_apply).quantize(
+        Decimal('0.01'),
+        rounding=ROUND_HALF_UP,
+    )
+
+    return {
+        'installment_amount': installment_amount,
+        'advance_balance': advance_balance,
+        'advance_to_apply': advance_to_apply,
+        'deducted_installment_amount': deducted_installment_amount,
+    }
+
+
+def _resolve_payment_amount_with_optional_advance(
+    posted_amount,
+    use_advance_credit,
+    installment_amount,
+    advance_to_apply,
+):
+    """Resolve effective cash collection amount for installment payment screen."""
+    from decimal import Decimal, ROUND_HALF_UP
+
+    amount = Decimal(str(posted_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    installment = Decimal(str(installment_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    advance = Decimal(str(advance_to_apply or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    if amount < Decimal('0.00'):
+        amount = Decimal('0.00')
+    if installment < Decimal('0.00'):
+        installment = Decimal('0.00')
+    if advance < Decimal('0.00'):
+        advance = Decimal('0.00')
+
+    advance = min(advance, installment)
+    deducted_installment = (installment - advance).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    if not use_advance_credit or advance <= Decimal('0.00'):
+        return amount, False
+
+    # Auto-convert only when collector entered exact installment amount.
+    if installment > Decimal('0.00') and abs(amount - installment) <= Decimal('0.05'):
+        return deducted_installment, True
+
+    # Keep collector-entered custom amount untouched.
+    return amount, False
+
+
 def _get_active_user_for_customer(customer):
     """Return active system user mapped to a customer by NIC, if any."""
     if not customer or not customer.nic_number:
@@ -1498,6 +1564,8 @@ def _process_payment(loan, payment_amount, payment_date, payment_method, referen
 @permission_required('collect_payments')
 def add_payment(id):
     """Add loan payment"""
+    from decimal import Decimal
+
     loan = Loan.query.get_or_404(id)
 
     # Check branch access
@@ -1512,11 +1580,27 @@ def add_payment(id):
         return redirect(url_for('loans.view_loan', id=id))
 
     form = LoanPaymentForm()
+    advance_breakdown = _get_installment_advance_breakdown(loan)
 
     if form.validate_on_submit():
+        use_advance_credit = request.form.get('use_advance_credit') == '1'
+        payment_amount, auto_applied_advance = _resolve_payment_amount_with_optional_advance(
+            posted_amount=form.payment_amount.data,
+            use_advance_credit=use_advance_credit,
+            installment_amount=advance_breakdown['installment_amount'],
+            advance_to_apply=advance_breakdown['advance_to_apply'],
+        )
+
+        if auto_applied_advance:
+            flash(
+                f'Advance credit deducted: {advance_breakdown["advance_to_apply"]}. '
+                f'Cash collected set to {payment_amount}.',
+                'info',
+            )
+
         _process_payment(
             loan=loan,
-            payment_amount=form.payment_amount.data,
+            payment_amount=payment_amount,
             payment_date=form.payment_date.data,
             payment_method=form.payment_method.data,
             reference_number=form.reference_number.data,
@@ -1524,19 +1608,16 @@ def add_payment(id):
             penalty_amount=form.penalty_amount.data,
         )
 
-        flash(f'Payment of {form.payment_amount.data} recorded successfully!', 'success')
+        flash(f'Payment of {payment_amount} recorded successfully!', 'success')
         return redirect(url_for('loans.view_loan', id=id))
     
     # Set default values only for GET requests and calculate current amounts
     if request.method == 'GET':
-        # Auto-deduct advance balance from installment amount
-        from decimal import Decimal
-        installment = Decimal(str(loan.installment_amount or 0))
-        advance = Decimal(str(loan.advance_balance or 0))
-        if advance > Decimal('0') and installment > advance:
-            form.payment_amount.data = float((installment - advance).quantize(Decimal('0.01')))
+        # Default to installment after advance (if available), while UI allows toggling.
+        if advance_breakdown['advance_to_apply'] > Decimal('0.00'):
+            form.payment_amount.data = float(advance_breakdown['deducted_installment_amount'])
         else:
-            form.payment_amount.data = loan.installment_amount
+            form.payment_amount.data = float(advance_breakdown['installment_amount'])
         form.payment_date.data = datetime.now().date()
     
     # Get current outstanding amount with accrued interest for display
@@ -1545,7 +1626,7 @@ def add_payment(id):
     
     # Get arrears details for display
     arrears_details = loan.get_arrears_details()
-    advance_balance = float(loan.advance_balance or 0)
+    advance_balance = float(advance_breakdown['advance_balance'])
     
     # Update stored outstanding amount to match current calculation
     loan.update_outstanding_amount()
@@ -1558,7 +1639,11 @@ def add_payment(id):
                          current_outstanding=current_outstanding,
                          accrued_interest=accrued_interest,
                          arrears_details=arrears_details,
-                         advance_balance=advance_balance)
+                         advance_balance=advance_balance,
+                         installment_amount=float(advance_breakdown['installment_amount']),
+                         advance_to_apply=float(advance_breakdown['advance_to_apply']),
+                         deducted_installment_amount=float(advance_breakdown['deducted_installment_amount']),
+                         use_advance_credit_default=advance_breakdown['advance_to_apply'] > Decimal('0.00'))
 
 @loans_bp.route('/search')
 @login_required
@@ -2952,4 +3037,3 @@ def reset_installment(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
-
