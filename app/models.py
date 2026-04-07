@@ -722,23 +722,37 @@ class Loan(db.Model):
         # installment is appended at the end for every skipped day/week/month.
         num_installments += sum(1 for ov in overrides.values() if ov.is_skipped)
         
-        # Get total paid amount (including any advance balance already applied)
-        total_paid = Decimal(str(self.paid_amount or 0))
-
-        # Use a stable baseline for allocating paid amounts to installments so
-        # historical paid/partial paid values are not reduced retroactively when
-        # installment amount changes after disbursed-amount edits.
-        payment_allocation_amount = installment_amount
+        # Get total paid amount and the receipt stream used for schedule display.
+        # Payment history remains cash-only; schedule rows can additionally show
+        # how prior advance credit was applied to the next paid installment.
+        total_paid = Decimal(str(self.paid_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         try:
-            max_payment_amount = self.payments.with_entities(func.max(LoanPayment.payment_amount)).scalar()
+            payment_records = self.payments.order_by(LoanPayment.payment_date.asc(), LoanPayment.id.asc()).all()
         except Exception:
             # Detached/transient instances (e.g., standalone tests) may not have
-            # relationship loading available; fall back to current installment.
-            max_payment_amount = None
-        if max_payment_amount is not None:
-            max_payment_amount = Decimal(str(max_payment_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            if max_payment_amount > payment_allocation_amount:
-                payment_allocation_amount = max_payment_amount
+            # relationship loading available; fall back to aggregate paid amount.
+            payment_records = []
+
+        payment_entries = []
+        for payment in payment_records:
+            amount = Decimal(str(payment.payment_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            if amount > Decimal('0'):
+                payment_entries.append({
+                    'amount': amount,
+                    'payment_date': payment.payment_date,
+                })
+        if not payment_entries and total_paid > Decimal('0'):
+            payment_entries.append({
+                'amount': total_paid,
+                'payment_date': None,
+            })
+
+        payment_index = 0
+        carried_advance = Decimal('0.00')
+        latest_payment_date = max(
+            (entry['payment_date'] for entry in payment_entries if entry['payment_date']),
+            default=None
+        )
         
         # Calculate total interest
         total_interest = total_payable - loan_amount
@@ -762,11 +776,6 @@ class Loan(db.Model):
         cumulative_expected = Decimal('0')
         # Subtract one period so the first loop iteration lands exactly on first_date
         current_due_date = first_date - frequency_delta if frequency_delta else first_date
-        # Track cumulative payable amount for non-skipped installments so paid/
-        # partial allocation remains accurate even when installment values vary.
-        cumulative_payable_due = Decimal('0')
-        payable_installment_count = 0
-        
         for i in range(num_installments):
             installment_num = i + 1
             
@@ -817,6 +826,9 @@ class Loan(db.Model):
                     'status': skip_status,
                     'paid_amount': 0.0,
                     'remaining_amount': 0.0,
+                    'cash_paid_amount': 0.0,
+                    'advance_applied_amount': 0.0,
+                    'advance_generated_amount': 0.0,
                     'is_customized': True,
                     'is_skipped': True,
                     'reschedule_date': override_obj.reschedule_date,
@@ -855,10 +867,6 @@ class Loan(db.Model):
                 current_installment = installment_amount
             
             cumulative_expected += current_installment
-            
-            previous_cumulative_due = cumulative_payable_due
-            cumulative_payable_due += current_installment
-            payable_installment_count += 1
             
             # Calculate principal and interest breakdown based on loan type
             if is_monthly_reducing_balance:
@@ -906,12 +914,38 @@ class Loan(db.Model):
                 cumulative_principal_paid += principal
                 cumulative_interest_paid += interest
             
-            # Determine status based on payments. Paid allocation uses a stable
-            # baseline amount to preserve historical paid/partial values.
-            paid_for_this = max(Decimal('0'), min(payment_allocation_amount, total_paid - (payment_allocation_amount * Decimal(str(payable_installment_count - 1)))))
+            cash_paid_for_this = Decimal('0.00')
+            while payment_index < len(payment_entries):
+                cash_paid_for_this += payment_entries[payment_index]['amount']
+                payment_index += 1
+
+                effective_with_carried_advance = cash_paid_for_this + carried_advance
+                if effective_with_carried_advance >= current_installment - Decimal('0.02'):
+                    break
+
+            advance_applied = Decimal('0.00')
+            if carried_advance > Decimal('0.00'):
+                should_apply_advance = cash_paid_for_this > Decimal('0.00')
+                if not should_apply_advance and carried_advance >= current_installment - Decimal('0.02'):
+                    should_apply_advance = True
+                if not should_apply_advance and latest_payment_date and due_date <= latest_payment_date:
+                    should_apply_advance = True
+                if should_apply_advance:
+                    advance_applied = carried_advance
+
+            paid_for_this = cash_paid_for_this + advance_applied
             remaining_for_this = current_installment - paid_for_this
             if remaining_for_this < Decimal('0'):
                 remaining_for_this = Decimal('0')
+
+            advance_generated = Decimal('0.00')
+            if paid_for_this >= current_installment - Decimal('0.02'):
+                advance_generated = paid_for_this - current_installment
+                if advance_generated < Decimal('0.00'):
+                    advance_generated = Decimal('0.00')
+                carried_advance = advance_generated
+            elif advance_applied > Decimal('0.00') or cash_paid_for_this > Decimal('0.00'):
+                carried_advance = Decimal('0.00')
             
             if paid_for_this >= current_installment - Decimal('0.02'):
                 status = 'paid'
@@ -932,6 +966,9 @@ class Loan(db.Model):
                 'status': status,
                 'paid_amount': float(paid_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'remaining_amount': float(remaining_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'cash_paid_amount': float(cash_paid_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'advance_applied_amount': float(advance_applied.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'advance_generated_amount': float(advance_generated.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'is_customized': installment_num in overrides,  # Flag for UI
                 'is_skipped': False,
                 'reschedule_date': None,
@@ -1458,5 +1495,4 @@ class ActivityLog(db.Model):
     
     def __repr__(self):
         return f'<ActivityLog {self.action}>'
-
 

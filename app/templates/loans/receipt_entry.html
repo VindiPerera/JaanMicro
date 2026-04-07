@@ -868,6 +868,18 @@
                                                     <td>
                                                         {% if installment.paid_amount|float > 0 %}
                                                             <span class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.paid_amount|float) }}</span>
+                                                            {% if (installment.advance_applied_amount is defined and installment.advance_applied_amount|float > 0) or (installment.advance_generated_amount is defined and installment.advance_generated_amount|float > 0) %}
+                                                                <br>
+                                                                <small class="text-muted">
+                                                                    Cash: {{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.cash_paid_amount|float) }}
+                                                                    {% if installment.advance_applied_amount is defined and installment.advance_applied_amount|float > 0 %}
+                                                                        + Advance: {{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.advance_applied_amount|float) }}
+                                                                    {% endif %}
+                                                                    {% if installment.advance_generated_amount is defined and installment.advance_generated_amount|float > 0 %}
+                                                                        <br>Advance carried: {{ system_settings.currency_symbol }} {{ "%.2f"|format(installment.advance_generated_amount|float) }}
+                                                                    {% endif %}
+                                                                </small>
+                                                            {% endif %}
                                                         {% else %}
                                                             <span class="text-muted">-</span>
                                                         {% endif %}

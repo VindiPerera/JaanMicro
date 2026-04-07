@@ -676,6 +676,18 @@
                                 <td>
                                     {% if inst.paid_amount is defined and inst.paid_amount|float > 0 %}
                                         <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.paid_amount|float) }}</span>
+                                        {% if (inst.advance_applied_amount is defined and inst.advance_applied_amount|float > 0) or (inst.advance_generated_amount is defined and inst.advance_generated_amount|float > 0) %}
+                                            <br>
+                                            <small class="text-muted">
+                                                Cash: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.cash_paid_amount|float) }}
+                                                {% if inst.advance_applied_amount is defined and inst.advance_applied_amount|float > 0 %}
+                                                    + Advance: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_applied_amount|float) }}
+                                                {% endif %}
+                                                {% if inst.advance_generated_amount is defined and inst.advance_generated_amount|float > 0 %}
+                                                    <br>Advance carried: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_generated_amount|float) }}
+                                                {% endif %}
+                                            </small>
+                                        {% endif %}
                                     {% else %}
                                         <span class="text-muted">-</span>
                                     {% endif %}
