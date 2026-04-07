@@ -4,7 +4,7 @@ from decimal import Decimal
 import unittest
 
 from app import create_app, db
-from app.models import Branch, Customer, Loan, LoanPayment, User
+from app.models import Branch, Customer, Loan, LoanPayment, LoanScheduleOverride, User
 
 
 class AdvanceScheduleAllocationTest(unittest.TestCase):
@@ -117,6 +117,137 @@ class AdvanceScheduleAllocationTest(unittest.TestCase):
         self.assertEqual(schedule[2]['paid_amount'], 0.0)
         self.assertEqual(schedule[2]['remaining_amount'], 10667.0)
         self.assertEqual(self.loan.get_next_installment_amount(), 10334.0)
+
+    def test_prepaid_future_installments_remain_paid_after_last_receipt_date(self):
+        prepaid_loan = Loan(
+            loan_number='TEST-ADV-002',
+            customer_id=self.loan.customer_id,
+            branch_id=self.loan.branch_id,
+            loan_type='type1_9weeks',
+            loan_amount=Decimal('2500.00'),
+            disbursed_amount=Decimal('2500.00'),
+            total_payable=Decimal('3000.00'),
+            paid_amount=Decimal('3000.00'),
+            outstanding_amount=Decimal('0.00'),
+            advance_balance=Decimal('0.00'),
+            interest_rate=Decimal('10.00'),
+            interest_type='flat',
+            duration_months=0,
+            duration_weeks=3,
+            installment_amount=Decimal('1000.00'),
+            installment_frequency='weekly',
+            status='completed',
+            application_date=date(2026, 4, 1),
+            disbursement_date=date(2026, 4, 1),
+            first_installment_date=date(2026, 4, 1),
+            maturity_date=date(2026, 4, 15),
+            created_by=self.loan.created_by,
+        )
+        db.session.add(prepaid_loan)
+        db.session.flush()
+
+        db.session.add(LoanPayment(
+            loan_id=prepaid_loan.id,
+            payment_date=date(2026, 4, 1),
+            payment_amount=Decimal('3000.00'),
+            principal_amount=Decimal('2500.00'),
+            interest_amount=Decimal('500.00'),
+            penalty_amount=Decimal('0.00'),
+            balance_after=Decimal('0.00'),
+            payment_method='cash',
+        ))
+        db.session.commit()
+
+        schedule = prepaid_loan.generate_payment_schedule()
+        self.assertEqual([inst['status'] for inst in schedule], ['paid', 'paid', 'paid'])
+        self.assertEqual([inst['paid_amount'] for inst in schedule], [1000.0, 1000.0, 1000.0])
+
+    def test_advance_balance_matches_schedule_with_skipped_installment(self):
+        skipped_loan = Loan(
+            loan_number='TEST-ADV-003',
+            customer_id=self.loan.customer_id,
+            branch_id=self.loan.branch_id,
+            loan_type='type1_9weeks',
+            loan_amount=Decimal('20000.00'),
+            disbursed_amount=Decimal('20000.00'),
+            total_payable=Decimal('24000.00'),
+            paid_amount=Decimal('10800.00'),
+            outstanding_amount=Decimal('13200.00'),
+            advance_balance=Decimal('0.00'),
+            interest_rate=Decimal('10.00'),
+            interest_type='flat',
+            duration_months=0,
+            duration_weeks=9,
+            installment_amount=Decimal('2667.00'),
+            installment_frequency='weekly',
+            status='active',
+            application_date=date(2026, 3, 6),
+            disbursement_date=date(2026, 3, 6),
+            first_installment_date=date(2026, 3, 6),
+            maturity_date=date(2026, 5, 8),
+            created_by=self.loan.created_by,
+        )
+        db.session.add(skipped_loan)
+        db.session.flush()
+
+        db.session.add(LoanScheduleOverride(
+            loan_id=skipped_loan.id,
+            installment_number=1,
+            is_skipped=True,
+            created_by=self.loan.created_by,
+            notes='Regression setup',
+        ))
+
+        db.session.add_all([
+            LoanPayment(
+                loan_id=skipped_loan.id,
+                payment_date=date(2026, 3, 11),
+                payment_amount=Decimal('2700.00'),
+                principal_amount=Decimal('2300.00'),
+                interest_amount=Decimal('400.00'),
+                penalty_amount=Decimal('0.00'),
+                balance_after=Decimal('21300.00'),
+                payment_method='cash',
+            ),
+            LoanPayment(
+                loan_id=skipped_loan.id,
+                payment_date=date(2026, 3, 18),
+                payment_amount=Decimal('2700.00'),
+                principal_amount=Decimal('2300.00'),
+                interest_amount=Decimal('400.00'),
+                penalty_amount=Decimal('0.00'),
+                balance_after=Decimal('18600.00'),
+                payment_method='cash',
+            ),
+            LoanPayment(
+                loan_id=skipped_loan.id,
+                payment_date=date(2026, 3, 25),
+                payment_amount=Decimal('2700.00'),
+                principal_amount=Decimal('2300.00'),
+                interest_amount=Decimal('400.00'),
+                penalty_amount=Decimal('0.00'),
+                balance_after=Decimal('15900.00'),
+                payment_method='cash',
+            ),
+            LoanPayment(
+                loan_id=skipped_loan.id,
+                payment_date=date(2026, 4, 1),
+                payment_amount=Decimal('2700.00'),
+                principal_amount=Decimal('2300.00'),
+                interest_amount=Decimal('400.00'),
+                penalty_amount=Decimal('0.00'),
+                balance_after=Decimal('13200.00'),
+                payment_method='cash',
+            ),
+        ])
+        db.session.commit()
+
+        schedule = skipped_loan.generate_payment_schedule()
+        first_unpaid = next(
+            inst for inst in schedule if not inst.get('is_skipped') and float(inst.get('paid_amount', 0)) == 0.0
+        )
+        self.assertEqual(first_unpaid['advance_brought_amount'], 132.0)
+        self.assertEqual(skipped_loan.calculate_available_advance_balance(schedule=schedule), Decimal('132.00'))
 
 
 if __name__ == '__main__':

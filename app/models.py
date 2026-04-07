@@ -928,9 +928,11 @@ class Loan(db.Model):
 
             allow_future_auto_apply = True
             if latest_payment_date and due_date > latest_payment_date and payment_index >= len(payment_entries):
-                # Keep excess as advance for a future collection; do not mark
-                # future installments as partially paid only from carried credit.
-                allow_future_auto_apply = False
+                # Keep excess as advance for a future collection and avoid
+                # speculative partials on future rows. Still allow auto-apply
+                # when carried advance can fully settle the installment.
+                if carried_advance < current_installment - tolerance:
+                    allow_future_auto_apply = False
 
             if allow_future_auto_apply:
                 while paid_for_this < current_installment - tolerance and (carried_advance > Decimal('0.00') or payment_index < len(payment_entries)):
@@ -1047,6 +1049,29 @@ class Loan(db.Model):
             'advance_balance': Decimal(str(self.advance_balance or 0))
         }
 
+    def calculate_available_advance_balance(self, schedule=None):
+        """Return unapplied advance credit based on schedule allocation."""
+        from decimal import Decimal, ROUND_HALF_UP
+
+        if schedule is None:
+            schedule = self.generate_payment_schedule()
+
+        total_paid = Decimal(str(self.paid_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        applied_total = Decimal('0.00')
+
+        for installment in schedule:
+            if installment.get('is_skipped', False):
+                continue
+            applied_total += Decimal(str(installment.get('paid_amount', 0))).quantize(
+                Decimal('0.01'),
+                rounding=ROUND_HALF_UP,
+            )
+
+        advance = total_paid - applied_total
+        if advance < Decimal('0.00'):
+            advance = Decimal('0.00')
+        return advance.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
     def get_next_installment_amount(self):
         """Return the recommended next installment amount, adjusted for any advance balance."""
         from decimal import Decimal, ROUND_HALF_UP
@@ -1055,7 +1080,7 @@ class Loan(db.Model):
         if not schedule:
             return float(self.installment_amount or 0)
 
-        advance = Decimal(str(self.advance_balance or 0))
+        advance = self.calculate_available_advance_balance(schedule=schedule)
         next_due = None
         for inst in schedule:
             if inst['status'] in ['overdue', 'partial', 'pending']:

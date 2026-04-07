@@ -83,16 +83,10 @@ def _refresh_loan_financial_state(loan):
     # 1) Recalculate current outstanding using model rules
     loan.update_outstanding_amount()
 
-    # 2) Recalculate advance balance from schedule due so far
+    # 2) Recalculate advance balance from schedule allocation (keeps loan card
+    # and schedule "Advance out" in sync, even with skipped installments).
     schedule = loan.generate_payment_schedule()
-    today = datetime.utcnow().date()
-    total_due_so_far = Decimal('0.00')
-    for inst in schedule:
-        if inst['due_date'] <= today and not inst.get('is_skipped', False):
-            total_due_so_far += Decimal(str(inst['amount']))
-
-    paid_total = Decimal(str(loan.paid_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    loan.advance_balance = (paid_total - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if paid_total > total_due_so_far else Decimal('0.00')
+    loan.advance_balance = loan.calculate_available_advance_balance(schedule=schedule)
 
     # 3) Rebuild historical `balance_after` in payment history from new total payable
     running_outstanding = Decimal(str(loan.total_payable or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -124,10 +118,7 @@ def _get_installment_advance_breakdown(loan):
         Decimal('0.01'),
         rounding=ROUND_HALF_UP,
     )
-    advance_balance = Decimal(str(loan.advance_balance or 0)).quantize(
-        Decimal('0.01'),
-        rounding=ROUND_HALF_UP,
-    )
+    advance_balance = loan.calculate_available_advance_balance()
 
     if installment_amount < Decimal('0.00'):
         installment_amount = Decimal('0.00')
@@ -733,6 +724,7 @@ def view_loan(id):
     
     # Update the loan's stored outstanding amount to reflect current calculation
     loan.update_outstanding_amount()
+    loan.advance_balance = loan.calculate_available_advance_balance()
     db.session.commit()
     
     # Get guarantors
@@ -1519,20 +1511,9 @@ def _process_payment(loan, payment_amount, payment_date, payment_method, referen
     loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + payment_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     loan.update_outstanding_amount()  # Use our new method to calculate current outstanding
     
-    # Calculate advance balance (overpayment credit)
-    # Check if total paid exceeds what's due up to the current point in time
+    # Calculate advance balance from schedule allocation (not due-so-far shortcut)
     schedule = loan.generate_payment_schedule()
-    today = payment_date or datetime.now().date()
-    total_due_so_far = Decimal('0')
-    for inst in schedule:
-        if inst['due_date'] <= today and not inst.get('is_skipped', False):
-            total_due_so_far += Decimal(str(inst['amount']))
-    
-    new_total_paid = Decimal(str(loan.paid_amount or 0))
-    if new_total_paid > total_due_so_far:
-        loan.advance_balance = (new_total_paid - total_due_so_far).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    else:
-        loan.advance_balance = Decimal('0')
+    loan.advance_balance = loan.calculate_available_advance_balance(schedule=schedule)
     
     # Set balance_after for the payment record
     payment.balance_after = float(loan.outstanding_amount or 0)
@@ -2035,7 +2016,7 @@ def edit_payment(payment_id):
         # Adjust loan paid_amount by the difference
         if diff != 0:
             loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) + diff).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-            loan.update_outstanding_amount()
+            _refresh_loan_financial_state(loan)
 
         # Log activity
         log = ActivityLog(
@@ -2082,7 +2063,7 @@ def delete_payment(payment_id):
     loan.paid_amount = (Decimal(str(loan.paid_amount or 0)) - amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     if loan.paid_amount < 0:
         loan.paid_amount = Decimal('0')
-    loan.update_outstanding_amount()
+    _refresh_loan_financial_state(loan)
 
     db.session.delete(payment)
 
