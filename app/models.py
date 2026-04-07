@@ -667,6 +667,7 @@ class Loan(db.Model):
         """Generate payment schedule based on loan type and frequency"""
         from decimal import Decimal, ROUND_HALF_UP
         from datetime import timedelta, datetime
+        from collections import defaultdict
         
         # Allow schedule generation for disbursed, active, and completed loans
         if self.status not in ['disbursed', 'active', 'completed']:
@@ -722,9 +723,9 @@ class Loan(db.Model):
         # installment is appended at the end for every skipped day/week/month.
         num_installments += sum(1 for ov in overrides.values() if ov.is_skipped)
         
-        # Get total paid amount and the receipt stream used for schedule display.
-        # Payment history remains cash-only; schedule rows can additionally show
-        # how prior advance credit was applied to the next paid installment.
+        # Build receipt stream for FIFO installment application.
+        # Payment History remains raw receipts; schedule "Paid" is "applied to
+        # this installment" and may span multiple receipts.
         total_paid = Decimal(str(self.paid_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         try:
             payment_records = self.payments.order_by(LoanPayment.payment_date.asc(), LoanPayment.id.asc()).all()
@@ -734,6 +735,7 @@ class Loan(db.Model):
             payment_records = []
 
         payment_entries = []
+        cash_received_by_date = defaultdict(lambda: Decimal('0.00'))
         for payment in payment_records:
             amount = Decimal(str(payment.payment_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             if amount > Decimal('0'):
@@ -741,6 +743,8 @@ class Loan(db.Model):
                     'amount': amount,
                     'payment_date': payment.payment_date,
                 })
+                if payment.payment_date:
+                    cash_received_by_date[payment.payment_date] += amount
         if not payment_entries and total_paid > Decimal('0'):
             payment_entries.append({
                 'amount': total_paid,
@@ -748,12 +752,12 @@ class Loan(db.Model):
             })
 
         payment_index = 0
-        carried_advance = Decimal('0.00')
+        carried_advance = Decimal('0.00')  # Unallocated excess from previous installment
         latest_payment_date = max(
             (entry['payment_date'] for entry in payment_entries if entry['payment_date']),
             default=None
         )
-        
+
         # Calculate total interest
         total_interest = total_payable - loan_amount
         
@@ -827,8 +831,12 @@ class Loan(db.Model):
                     'paid_amount': 0.0,
                     'remaining_amount': 0.0,
                     'cash_paid_amount': 0.0,
+                    'cash_applied_amount': 0.0,
+                    'cash_received_on_due_date': float(cash_received_by_date.get(original_due_date, Decimal('0.00'))),
+                    'advance_brought_amount': 0.0,
                     'advance_applied_amount': 0.0,
                     'advance_generated_amount': 0.0,
+                    'advance_carried_amount': 0.0,
                     'is_customized': True,
                     'is_skipped': True,
                     'reschedule_date': override_obj.reschedule_date,
@@ -914,37 +922,41 @@ class Loan(db.Model):
                 cumulative_principal_paid += principal
                 cumulative_interest_paid += interest
             
-            cash_paid_for_this = Decimal('0.00')
-            while payment_index < len(payment_entries):
-                cash_paid_for_this += payment_entries[payment_index]['amount']
-                payment_index += 1
+            advance_brought = carried_advance
+            paid_for_this = Decimal('0.00')
+            tolerance = Decimal('0.02')
 
-                effective_with_carried_advance = cash_paid_for_this + carried_advance
-                if effective_with_carried_advance >= current_installment - Decimal('0.02'):
-                    break
+            allow_future_auto_apply = True
+            if latest_payment_date and due_date > latest_payment_date and payment_index >= len(payment_entries):
+                # Keep excess as advance for a future collection; do not mark
+                # future installments as partially paid only from carried credit.
+                allow_future_auto_apply = False
 
-            advance_applied = Decimal('0.00')
-            if carried_advance > Decimal('0.00'):
-                should_apply_advance = cash_paid_for_this > Decimal('0.00')
-                if not should_apply_advance and carried_advance >= current_installment - Decimal('0.02'):
-                    should_apply_advance = True
-                if not should_apply_advance and latest_payment_date and due_date <= latest_payment_date:
-                    should_apply_advance = True
-                if should_apply_advance:
-                    advance_applied = carried_advance
+            if allow_future_auto_apply:
+                while paid_for_this < current_installment - tolerance and (carried_advance > Decimal('0.00') or payment_index < len(payment_entries)):
+                    if carried_advance <= Decimal('0.00') and payment_index < len(payment_entries):
+                        carried_advance += payment_entries[payment_index]['amount']
+                        payment_index += 1
 
-            paid_for_this = cash_paid_for_this + advance_applied
+                    alloc = min(current_installment - paid_for_this, carried_advance)
+                    if alloc <= Decimal('0.00'):
+                        break
+                    paid_for_this += alloc
+                    carried_advance -= alloc
+
+            advance_applied = min(advance_brought, paid_for_this)
+            cash_applied = paid_for_this - advance_applied
             remaining_for_this = current_installment - paid_for_this
             if remaining_for_this < Decimal('0'):
                 remaining_for_this = Decimal('0')
 
             advance_generated = Decimal('0.00')
-            if paid_for_this >= current_installment - Decimal('0.02'):
-                advance_generated = paid_for_this - current_installment
+            if paid_for_this >= current_installment - tolerance:
+                advance_generated = carried_advance
                 if advance_generated < Decimal('0.00'):
                     advance_generated = Decimal('0.00')
-                carried_advance = advance_generated
-            elif advance_applied > Decimal('0.00') or cash_paid_for_this > Decimal('0.00'):
+            else:
+                # No installment closure yet; don't carry synthetic credit on partials.
                 carried_advance = Decimal('0.00')
             
             if paid_for_this >= current_installment - Decimal('0.02'):
@@ -966,9 +978,13 @@ class Loan(db.Model):
                 'status': status,
                 'paid_amount': float(paid_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'remaining_amount': float(remaining_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
-                'cash_paid_amount': float(cash_paid_for_this.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'cash_paid_amount': float(cash_applied.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'cash_applied_amount': float(cash_applied.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'cash_received_on_due_date': float(cash_received_by_date.get(due_date, Decimal('0.00')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'advance_brought_amount': float(advance_brought.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'advance_applied_amount': float(advance_applied.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'advance_generated_amount': float(advance_generated.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
+                'advance_carried_amount': float(advance_generated.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)),
                 'is_customized': installment_num in overrides,  # Flag for UI
                 'is_skipped': False,
                 'reschedule_date': None,
@@ -1495,4 +1511,3 @@ class ActivityLog(db.Model):
     
     def __repr__(self):
         return f'<ActivityLog {self.action}>'
-

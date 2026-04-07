@@ -665,26 +665,42 @@
                         <tbody>
                             {% for inst in schedule %}
                             <tr class="
-                                {% if inst.status == 'paid' %}table-success
+                                {% if inst.is_skipped and inst.reschedule_date %}table-warning
+                                {% elif inst.is_skipped %}table-secondary
+                                {% elif inst.status == 'paid' %}table-success
                                 {% elif inst.status == 'overdue' %}table-danger
                                 {% elif inst.status == 'partial' %}table-warning
                                 {% elif inst.status == 'skipped' %}table-secondary
                                 {% endif %}">
                                 <td>{{ inst.installment_number }}</td>
-                                <td>{{ inst.due_date.strftime('%Y-%m-%d') if inst.due_date else 'N/A' }}</td>
+                                <td>
+                                    {% if inst.is_skipped and inst.reschedule_date %}
+                                        {{ inst.reschedule_date.strftime('%Y-%m-%d') }}
+                                        <span class="badge bg-warning text-dark ms-1">Rescheduled</span>
+                                        <br><small class="text-muted"><s>{{ inst.due_date.strftime('%Y-%m-%d') if inst.due_date else 'N/A' }}</s></small>
+                                    {% elif inst.is_skipped %}
+                                        <s>{{ inst.due_date.strftime('%Y-%m-%d') if inst.due_date else 'N/A' }}</s>
+                                        <br><small class="text-muted">Skipped</small>
+                                    {% else %}
+                                        {{ inst.due_date.strftime('%Y-%m-%d') if inst.due_date else 'N/A' }}
+                                    {% endif %}
+                                </td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.amount|float) }}</td>
                                 <td>
                                     {% if inst.paid_amount is defined and inst.paid_amount|float > 0 %}
                                         <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.paid_amount|float) }}</span>
-                                        {% if (inst.advance_applied_amount is defined and inst.advance_applied_amount|float > 0) or (inst.advance_generated_amount is defined and inst.advance_generated_amount|float > 0) %}
+                                        {% if (inst.cash_received_on_due_date is defined and inst.cash_received_on_due_date|float > 0) or (inst.advance_applied_amount is defined and inst.advance_applied_amount|float > 0) or (inst.advance_generated_amount is defined and inst.advance_generated_amount|float > 0) %}
                                             <br>
                                             <small class="text-muted">
-                                                Cash: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.cash_paid_amount|float) }}
+                                                Applied Cash: {{ system_settings.currency_symbol }} {{ "%.2f"|format((inst.cash_applied_amount if inst.cash_applied_amount is defined else inst.cash_paid_amount)|float) }}
+                                                {% if inst.cash_received_on_due_date is defined and inst.cash_received_on_due_date|float > 0 %}
+                                                    <br>Cash on due date: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.cash_received_on_due_date|float) }}
+                                                {% endif %}
                                                 {% if inst.advance_applied_amount is defined and inst.advance_applied_amount|float > 0 %}
-                                                    + Advance: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_applied_amount|float) }}
+                                                    <br>Advance in: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_applied_amount|float) }}
                                                 {% endif %}
                                                 {% if inst.advance_generated_amount is defined and inst.advance_generated_amount|float > 0 %}
-                                                    <br>Advance carried: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_generated_amount|float) }}
+                                                    <br>Advance out: {{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.advance_generated_amount|float) }}
                                                 {% endif %}
                                             </small>
                                         {% endif %}
@@ -702,7 +718,11 @@
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.principal|float) }}</td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(inst.interest|float) }}</td>
                                 <td>
-                                    {% if inst.status == 'paid' %}
+                                    {% if inst.is_skipped and inst.reschedule_date %}
+                                        <span class="badge bg-warning text-dark">Skipped</span>
+                                    {% elif inst.is_skipped %}
+                                        <span class="badge bg-secondary">Skipped</span>
+                                    {% elif inst.status == 'paid' %}
                                         <span class="badge bg-success">Paid</span>
                                     {% elif inst.status == 'overdue' %}
                                         <span class="badge bg-danger">Overdue</span>

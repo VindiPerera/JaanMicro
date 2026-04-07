@@ -98,13 +98,17 @@ class AdvanceScheduleAllocationTest(unittest.TestCase):
     def test_advance_credit_is_applied_to_next_paid_installment(self):
         schedule = self.loan.generate_payment_schedule()
 
-        self.assertEqual(schedule[0]['paid_amount'], 11000.0)
-        self.assertEqual(schedule[0]['cash_paid_amount'], 11000.0)
+        # Installment view is "amount applied to this installment", not raw
+        # receipt amount. Any excess is tracked as advance carried.
+        self.assertEqual(schedule[0]['paid_amount'], 10667.0)
+        self.assertEqual(schedule[0]['cash_paid_amount'], 10667.0)
+        self.assertEqual(schedule[0]['cash_received_on_due_date'], 11000.0)
         self.assertEqual(schedule[0]['advance_applied_amount'], 0.0)
         self.assertEqual(schedule[0]['advance_generated_amount'], 333.0)
 
-        self.assertEqual(schedule[1]['paid_amount'], 11000.0)
-        self.assertEqual(schedule[1]['cash_paid_amount'], 10667.0)
+        self.assertEqual(schedule[1]['paid_amount'], 10667.0)
+        self.assertEqual(schedule[1]['cash_paid_amount'], 10334.0)
+        self.assertEqual(schedule[1]['cash_received_on_due_date'], 10667.0)
         self.assertEqual(schedule[1]['advance_applied_amount'], 333.0)
         self.assertEqual(schedule[1]['advance_generated_amount'], 333.0)
         self.assertEqual(schedule[1]['remaining_amount'], 0.0)
