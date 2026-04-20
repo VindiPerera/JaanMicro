@@ -784,24 +784,22 @@ def arrears_report():
     # Get branch filtering info
     current_branch_id = get_current_branch_id()
     
-    from datetime import date
+    from datetime import date, datetime
     from decimal import Decimal, ROUND_HALF_UP
     today = date.today()
     
+    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
+    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
+    
     arrears_data = []
     
-    # Loan arrears - only active loans past maturity date
+    # Loan arrears - active loans with overdue or partially overdue installments
     if product_type in ['', 'loan']:
         loan_query = Loan.query.filter_by(status='active')
         
         loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
         if loan_branch_filter is not None:
             loan_query = loan_query.filter(loan_branch_filter)
-        
-        if start_date:
-            loan_query = loan_query.filter(Loan.disbursement_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-        if end_date:
-            loan_query = loan_query.filter(Loan.disbursement_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
         
         loans = loan_query.all()
         
@@ -815,6 +813,15 @@ def arrears_report():
             # Skip loans with no overdue amounts (neither past maturity nor installment overdue)
             if total_overdue_amount <= Decimal('0'):
                 continue
+            
+            # Apply arrears date filter using overdue schedule dates
+            schedule = loan.generate_payment_schedule()
+            if start_date_obj or end_date_obj:
+                matching_overdue = [inst for inst in schedule if inst.get('status') in ['overdue', 'partial']
+                                    and (not start_date_obj or inst['due_date'] >= start_date_obj)
+                                    and (not end_date_obj or inst['due_date'] <= end_date_obj)]
+                if not matching_overdue:
+                    continue
             
             # Calculate outstanding amounts
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
@@ -887,19 +894,19 @@ def arrears_report():
         if pawning_branch_filter is not None:
             pawning_query = pawning_query.filter(pawning_branch_filter)
         
-        if start_date:
-            pawning_query = pawning_query.filter(Pawning.pawning_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-        if end_date:
-            pawning_query = pawning_query.filter(Pawning.pawning_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
-        
         pawnings = pawning_query.all()
         
         # Filter pawnings that are actually overdue (past maturity date)
         overdue_pawnings = []
         for pawning in pawnings:
             maturity_date = pawning.extended_date or pawning.maturity_date
-            if maturity_date and maturity_date < today:
-                overdue_pawnings.append(pawning)
+            if not (maturity_date and maturity_date < today):
+                continue
+            if start_date_obj and maturity_date < start_date_obj:
+                continue
+            if end_date_obj and maturity_date > end_date_obj:
+                continue
+            overdue_pawnings.append(pawning)
         
         pawnings = overdue_pawnings
         
@@ -1344,13 +1351,15 @@ def export_staff_loans():
 @permission_required('view_reports')
 def export_arrears():
     """Export arrears report to CSV with full detail"""
-    from datetime import date
+    from datetime import date, datetime
     from decimal import Decimal, ROUND_HALF_UP
     today = date.today()
     
     product_type = request.args.get('product_type', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
+    end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
     
     arrears_data = []
     
@@ -1360,16 +1369,20 @@ def export_arrears():
         loan_branch_filter = get_branch_filter_for_query(Loan.branch_id)
         if loan_branch_filter is not None:
             loan_query = loan_query.filter(loan_branch_filter)
-        if start_date:
-            loan_query = loan_query.filter(Loan.disbursement_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-        if end_date:
-            loan_query = loan_query.filter(Loan.disbursement_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
         
         for loan in loan_query.all():
             details = loan.get_arrears_details()
             total_overdue = details['total_overdue_amount']
             if total_overdue <= Decimal('0'):
                 continue
+            
+            schedule = loan.generate_payment_schedule()
+            if start_date_obj or end_date_obj:
+                matching_overdue = [inst for inst in schedule if inst.get('status') in ['overdue', 'partial']
+                                    and (not start_date_obj or inst['due_date'] >= start_date_obj)
+                                    and (not end_date_obj or inst['due_date'] <= end_date_obj)]
+                if not matching_overdue:
+                    continue
             
             disbursed = Decimal(str(loan.disbursed_amount or loan.loan_amount))
             is_past_maturity = loan.maturity_date and loan.maturity_date < today
@@ -1391,6 +1404,7 @@ def export_arrears():
                 'outstanding': float(loan.outstanding_amount or 0),
                 'overdue_installments': details['overdue_installments'],
                 'partial_installments': details['partial_overdue_installments'],
+                'paid_installments': len([inst for inst in loan.generate_payment_schedule() if inst.get('status') == 'paid']),
                 'overdue_amount': float(total_overdue),
                 'partial_overdue': float(details['partial_overdue_amount']),
                 'advance_balance': float(loan.advance_balance or 0),
@@ -1410,6 +1424,10 @@ def export_arrears():
         for pawning in pawning_query.all():
             maturity_date = pawning.extended_date or pawning.maturity_date
             if not (maturity_date and maturity_date < today):
+                continue
+            if start_date_obj and maturity_date < start_date_obj:
+                continue
+            if end_date_obj and maturity_date > end_date_obj:
                 continue
             
             loan_amount = Decimal(str(pawning.loan_amount))
@@ -1436,6 +1454,7 @@ def export_arrears():
                 'outstanding': float(outstanding_principal + interest_due),
                 'overdue_installments': 0,
                 'partial_installments': 0,
+                'paid_installments': 0,
                 'overdue_amount': float(total_arrears),
                 'partial_overdue': 0,
                 'advance_balance': 0,

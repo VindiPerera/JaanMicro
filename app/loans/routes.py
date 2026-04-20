@@ -10,7 +10,7 @@ from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride, Branch
 from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
-from app.utils.decorators import permission_required, admin_required
+from app.utils.decorators import permission_required, admin_required, admin_only
 from app.utils.helpers import generate_loan_number, generate_customer_id, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
 
@@ -663,7 +663,7 @@ def add_loan():
 
 @loans_bp.route('/edit-loan-select')
 @login_required
-@admin_required
+@admin_only
 def edit_loan_select():
     """Select loan to edit (Admin only)"""
     page = request.args.get('page', 1, type=int)
@@ -767,7 +767,7 @@ def view_loan(id):
 
 @loans_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@admin_only
 def edit_loan(id):
     """Edit loan (Admin only)"""
     loan = Loan.query.get_or_404(id)
@@ -1599,7 +1599,8 @@ def add_payment(id):
             form.payment_amount.data = float(advance_breakdown['deducted_installment_amount'])
         else:
             form.payment_amount.data = float(advance_breakdown['installment_amount'])
-        form.payment_date.data = datetime.now().date()
+        from app.utils.helpers import get_current_date
+        form.payment_date.data = get_current_date()
     
     # Get current outstanding amount with accrued interest for display
     current_outstanding = loan.calculate_current_outstanding()
@@ -2202,7 +2203,7 @@ def receipt_entry():
     if referrer:
         all_payments_query = all_payments_query.filter(Loan.referred_by == referrer)
     
-    all_payments = all_payments_query.order_by(LoanPayment.payment_date.desc()).limit(100).all()
+    all_payments = all_payments_query.order_by(LoanPayment.created_at.desc()).limit(100).all()
     
     # Get users for referrer dropdown
     users_query = User.query.filter_by(is_active=True)
@@ -2250,7 +2251,8 @@ def quick_pay(id):
     if amount_value <= 0:
         return jsonify({'success': False, 'message': 'Amount must be greater than zero'}), 400
 
-    payment_date = datetime.now().date()
+    from app.utils.helpers import get_current_date
+    payment_date = get_current_date()
 
     try:
         _process_payment(

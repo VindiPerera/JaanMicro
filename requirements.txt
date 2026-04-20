@@ -14,4 +14,4 @@ pandas
 openpyxl
 Werkzeug
 python-dateutil
-bleach
+bleachpytz

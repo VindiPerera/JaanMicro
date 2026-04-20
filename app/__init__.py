@@ -114,7 +114,7 @@ def create_app(config_name='default'):
     @app.context_processor
     def inject_settings():
         from app.models import SystemSettings, Branch
-        from app.utils.helpers import get_current_branch
+        from app.utils.helpers import get_current_branch, get_current_time, get_current_date, format_datetime_local
         from flask_login import current_user
         from flask_wtf.csrf import generate_csrf
         from datetime import datetime
@@ -136,13 +136,14 @@ def create_app(config_name='default'):
 
         return dict(
             system_settings=settings, 
-            now=datetime.now, 
-            today=datetime.now().date(), 
+            now=get_current_time, 
+            today=get_current_date(), 
             current_branch=current_branch,
             branches=branches,
             csrf_token=generate_csrf,
             messaging_enabled=messaging_enabled,
-            unread_count=unread_count
+            unread_count=unread_count,
+            format_datetime_local=format_datetime_local
         )
     
     return app
