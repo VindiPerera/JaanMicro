@@ -2,9 +2,74 @@
 import os
 import uuid
 from datetime import datetime
+import pytz
 from flask import current_app, session
 from werkzeug.utils import secure_filename
 from app.models import Customer, Loan, Investment, Pawning, Branch
+
+def get_system_timezone():
+    """Get the configured system timezone from settings"""
+    try:
+        from app.models import SystemSettings
+        settings = SystemSettings.query.first()
+        return settings.timezone if settings and settings.timezone else 'Asia/Colombo'
+    except:
+        # Fallback if database is not available
+        return 'Asia/Colombo'
+
+def get_current_time():
+    """Get current time in system timezone as naive datetime"""
+    tz = get_system_timezone()
+    try:
+        timezone = pytz.timezone(tz)
+        return datetime.now(timezone).replace(tzinfo=None)
+    except:
+        # Fallback if timezone is invalid
+        return datetime.now()
+
+def get_current_date():
+    """Get current date in system timezone"""
+    return get_current_time().date()
+
+def convert_utc_to_local(utc_datetime):
+    """Convert UTC datetime to system timezone datetime (naive)"""
+    if utc_datetime is None:
+        return None
+    
+    tz = get_system_timezone()
+    try:
+        # Assume input is UTC if naive
+        if utc_datetime.tzinfo is None:
+            utc_datetime = utc_datetime.replace(tzinfo=pytz.UTC)
+        elif utc_datetime.tzinfo != pytz.UTC:
+            # Already has timezone info, convert to UTC first
+            utc_datetime = utc_datetime.astimezone(pytz.UTC)
+        
+        timezone = pytz.timezone(tz)
+        local_dt = utc_datetime.astimezone(timezone)
+        return local_dt.replace(tzinfo=None)  # Return naive datetime
+    except Exception as e:
+        # If conversion fails, return original datetime
+        return utc_datetime
+
+def format_datetime_local(dt, format_str='%Y-%m-%d %H:%M'):
+    """Format datetime in system timezone"""
+    if dt is None:
+        return 'N/A'
+    
+    try:
+        # Convert to local if it has timezone or is UTC
+        if hasattr(dt, 'tzinfo') and dt.tzinfo is not None:
+            local_dt = convert_utc_to_local(dt)
+        else:
+            # Assume naive datetime is stored as UTC
+            local_dt = convert_utc_to_local(dt)
+        
+        if local_dt:
+            return local_dt.strftime(format_str)
+        return dt.strftime(format_str)
+    except:
+        return 'N/A'
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -101,7 +166,7 @@ def generate_loan_number(loan_type=None, branch_id=None):
         - #####: 5-digit sequential number
     """
     # Get current year (last 2 digits)
-    year = datetime.now().strftime('%y')
+    year = get_current_date().strftime('%y')
     
     # Get branch code
     if branch_id:
@@ -177,7 +242,7 @@ def generate_receipt_number(entity_type='LOAN', entity_id=None):
         Receipt number in format: LOAN-RCP-{id}-{timestamp}
         Example: LOAN-RCP-123-20260217130530
     """
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    timestamp = get_current_time().strftime("%Y%m%d%H%M%S")
     if entity_id:
         return f"{entity_type}-RCP-{entity_id}-{timestamp}"
     else:

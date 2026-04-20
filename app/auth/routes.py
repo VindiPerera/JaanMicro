@@ -27,7 +27,8 @@ def login():
             return redirect(url_for('auth.login'))
         
         login_user(user, remember=form.remember_me.data)
-        user.last_login = datetime.utcnow()
+        from app.utils.helpers import get_current_time
+        user.last_login = get_current_time()
         
         # Set current branch in session
         if user.role in ['admin', 'regional_manager']:

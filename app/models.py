@@ -7,6 +7,17 @@ from app import db, login_manager
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
+from functools import wraps
+
+# Timezone-aware datetime helper
+def get_local_datetime():
+    """Get current datetime in system timezone"""
+    try:
+        from app.utils.helpers import get_current_time
+        return get_current_time()
+    except:
+        # Fallback during database initialization
+        return datetime.utcnow()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1423,7 +1434,7 @@ class SystemSettings(db.Model):
     currency = db.Column(db.String(10), default='LKR')
     currency_symbol = db.Column(db.String(10), default='Rs.')
     date_format = db.Column(db.String(20), default='%Y-%m-%d')
-    timezone = db.Column(db.String(50), default='UTC')
+    timezone = db.Column(db.String(50), default='Asia/Colombo')
     
     # Business Settings
     company_name = db.Column(db.String(200))
