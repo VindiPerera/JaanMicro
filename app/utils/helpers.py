@@ -12,7 +12,15 @@ def get_system_timezone():
     try:
         from app.models import SystemSettings
         settings = SystemSettings.query.first()
-        return settings.timezone if settings and settings.timezone else 'Asia/Colombo'
+        if settings and settings.timezone:
+            return settings.timezone
+        else:
+            # No settings or timezone not set, ensure default is set to Asia/Colombo
+            if settings:
+                settings.timezone = 'Asia/Colombo'
+                from app.models import db
+                db.session.commit()
+            return 'Asia/Colombo'
     except:
         # Fallback if database is not available
         return 'Asia/Colombo'

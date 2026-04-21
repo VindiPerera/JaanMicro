@@ -1479,6 +1479,10 @@ class SystemSettings(db.Model):
             settings = SystemSettings()
             db.session.add(settings)
             db.session.commit()
+        # Ensure timezone is always set to Asia/Colombo
+        if not settings.timezone or settings.timezone == 'UTC':
+            settings.timezone = 'Asia/Colombo'
+            db.session.commit()
         return settings
     
     def __repr__(self):
