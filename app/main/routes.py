@@ -33,7 +33,7 @@ def dashboard():
         loan_query = loan_query.filter_by(branch_id=current_branch_id)
     active_loans = loan_query.all()
     stats['active_loans'] = len(active_loans)
-    stats['total_loan_outstanding'] = sum(float(loan.disbursed_amount or loan.loan_amount or 0) for loan in active_loans)
+    stats['total_loan_outstanding'] = sum(float(loan.loan_amount or 0) for loan in active_loans)
     
     loan_disbursed_query = Loan.query.filter(Loan.status.in_(['active', 'completed']))
     if should_filter and current_branch_id:
