@@ -114,8 +114,12 @@ class AdvanceScheduleAllocationTest(unittest.TestCase):
         self.assertEqual(schedule[1]['remaining_amount'], 0.0)
         self.assertEqual(schedule[1]['status'], 'paid')
 
-        self.assertEqual(schedule[2]['paid_amount'], 0.0)
-        self.assertEqual(schedule[2]['remaining_amount'], 10667.0)
+        self.assertEqual(schedule[2]['paid_amount'], 333.0)
+        self.assertEqual(schedule[2]['cash_paid_amount'], 0.0)
+        self.assertEqual(schedule[2]['advance_applied_amount'], 333.0)
+        self.assertEqual(schedule[2]['remaining_amount'], 10334.0)
+        self.assertEqual(schedule[2]['status'], 'partial')
+        self.assertEqual(self.loan.calculate_available_advance_balance(schedule=schedule), Decimal('0.00'))
         self.assertEqual(self.loan.get_next_installment_amount(), 10334.0)
 
     def test_prepaid_future_installments_remain_paid_after_last_receipt_date(self):
@@ -243,11 +247,15 @@ class AdvanceScheduleAllocationTest(unittest.TestCase):
         db.session.commit()
 
         schedule = skipped_loan.generate_payment_schedule()
-        first_unpaid = next(
-            inst for inst in schedule if not inst.get('is_skipped') and float(inst.get('paid_amount', 0)) == 0.0
+        first_partial = next(
+            inst for inst in schedule if not inst.get('is_skipped') and inst['status'] == 'partial'
         )
-        self.assertEqual(first_unpaid['advance_brought_amount'], 132.0)
-        self.assertEqual(skipped_loan.calculate_available_advance_balance(schedule=schedule), Decimal('132.00'))
+        self.assertEqual(first_partial['advance_brought_amount'], 132.0)
+        self.assertEqual(first_partial['advance_applied_amount'], 132.0)
+        self.assertEqual(first_partial['cash_paid_amount'], 0.0)
+        self.assertEqual(first_partial['remaining_amount'], 2535.0)
+        self.assertEqual(skipped_loan.calculate_available_advance_balance(schedule=schedule), Decimal('0.00'))
+        self.assertEqual(skipped_loan.get_next_installment_amount(), 2535.0)
 
     def test_rescheduled_skipped_installments_do_not_create_false_arrears(self):
         today = date.today()

@@ -111,66 +111,58 @@ def _refresh_loan_financial_state(loan):
 
 
 def _get_installment_advance_breakdown(loan):
-    """Return installment/advance deduction amounts for payment collection UI."""
+    """Return next-due and advance deduction details for payment collection UI."""
     from decimal import Decimal, ROUND_HALF_UP
+
+    schedule = loan.generate_payment_schedule()
+    advance_balance = loan.calculate_available_advance_balance(schedule=schedule)
+    if advance_balance < Decimal('0.00'):
+        advance_balance = Decimal('0.00')
+
+    next_due = None
+    for installment in schedule:
+        if installment.get('is_skipped', False):
+            continue
+        if installment['status'] in ['overdue', 'partial', 'pending']:
+            next_due = installment
+            break
 
     installment_amount = Decimal(str(loan.installment_amount or 0)).quantize(
         Decimal('0.01'),
         rounding=ROUND_HALF_UP,
     )
-    advance_balance = loan.calculate_available_advance_balance()
+    remaining_due_amount = installment_amount
+    auto_deducted_advance = Decimal('0.00')
+    if next_due:
+        installment_amount = Decimal(str(next_due.get('amount', installment_amount))).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
+        if next_due.get('status', 'pending') == 'partial':
+            remaining_due_amount = Decimal(str(next_due.get('remaining_amount', installment_amount))).quantize(
+                Decimal('0.01'),
+                rounding=ROUND_HALF_UP,
+            )
+        else:
+            remaining_due_amount = installment_amount
 
-    if installment_amount < Decimal('0.00'):
-        installment_amount = Decimal('0.00')
-    if advance_balance < Decimal('0.00'):
-        advance_balance = Decimal('0.00')
-
-    advance_to_apply = min(advance_balance, installment_amount)
-    deducted_installment_amount = (installment_amount - advance_to_apply).quantize(
-        Decimal('0.01'),
-        rounding=ROUND_HALF_UP,
-    )
+        auto_deducted_advance = Decimal(str(next_due.get('advance_applied_amount', 0))).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
+    else:
+        remaining_due_amount = loan.get_next_installment_amount()
+        remaining_due_amount = Decimal(str(remaining_due_amount)).quantize(
+            Decimal('0.01'),
+            rounding=ROUND_HALF_UP,
+        )
 
     return {
         'installment_amount': installment_amount,
         'advance_balance': advance_balance,
-        'advance_to_apply': advance_to_apply,
-        'deducted_installment_amount': deducted_installment_amount,
+        'remaining_due_amount': remaining_due_amount,
+        'auto_deducted_advance': auto_deducted_advance,
     }
-
-
-def _resolve_payment_amount_with_optional_advance(
-    posted_amount,
-    use_advance_credit,
-    installment_amount,
-    advance_to_apply,
-):
-    """Resolve effective cash collection amount for installment payment screen."""
-    from decimal import Decimal, ROUND_HALF_UP
-
-    amount = Decimal(str(posted_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    installment = Decimal(str(installment_amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    advance = Decimal(str(advance_to_apply or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-    if amount < Decimal('0.00'):
-        amount = Decimal('0.00')
-    if installment < Decimal('0.00'):
-        installment = Decimal('0.00')
-    if advance < Decimal('0.00'):
-        advance = Decimal('0.00')
-
-    advance = min(advance, installment)
-    deducted_installment = (installment - advance).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-    if not use_advance_credit or advance <= Decimal('0.00'):
-        return amount, False
-
-    # Auto-convert only when collector entered exact installment amount.
-    if installment > Decimal('0.00') and abs(amount - installment) <= Decimal('0.05'):
-        return deducted_installment, True
-
-    # Keep collector-entered custom amount untouched.
-    return amount, False
 
 
 def _get_active_user_for_customer(customer):
@@ -1564,20 +1556,7 @@ def add_payment(id):
     advance_breakdown = _get_installment_advance_breakdown(loan)
 
     if form.validate_on_submit():
-        use_advance_credit = request.form.get('use_advance_credit') == '1'
-        payment_amount, auto_applied_advance = _resolve_payment_amount_with_optional_advance(
-            posted_amount=form.payment_amount.data,
-            use_advance_credit=use_advance_credit,
-            installment_amount=advance_breakdown['installment_amount'],
-            advance_to_apply=advance_breakdown['advance_to_apply'],
-        )
-
-        if auto_applied_advance:
-            flash(
-                f'Advance credit deducted: {advance_breakdown["advance_to_apply"]}. '
-                f'Cash collected set to {payment_amount}.',
-                'info',
-            )
+        payment_amount = Decimal(str(form.payment_amount.data or 0))
 
         _process_payment(
             loan=loan,
@@ -1594,11 +1573,8 @@ def add_payment(id):
     
     # Set default values only for GET requests and calculate current amounts
     if request.method == 'GET':
-        # Default to installment after advance (if available), while UI allows toggling.
-        if advance_breakdown['advance_to_apply'] > Decimal('0.00'):
-            form.payment_amount.data = float(advance_breakdown['deducted_installment_amount'])
-        else:
-            form.payment_amount.data = float(advance_breakdown['installment_amount'])
+        # Advance is auto-applied in schedule; default to next due cash amount.
+        form.payment_amount.data = float(advance_breakdown['remaining_due_amount'])
         from app.utils.helpers import get_current_date
         form.payment_date.data = get_current_date()
     
@@ -1623,9 +1599,8 @@ def add_payment(id):
                          arrears_details=arrears_details,
                          advance_balance=advance_balance,
                          installment_amount=float(advance_breakdown['installment_amount']),
-                         advance_to_apply=float(advance_breakdown['advance_to_apply']),
-                         deducted_installment_amount=float(advance_breakdown['deducted_installment_amount']),
-                         use_advance_credit_default=advance_breakdown['advance_to_apply'] > Decimal('0.00'))
+                         remaining_due_amount=float(advance_breakdown['remaining_due_amount']),
+                         auto_deducted_advance=float(advance_breakdown['auto_deducted_advance']))
 
 @loans_bp.route('/search')
 @login_required
@@ -2148,46 +2123,56 @@ def receipt_entry():
     weekly_payments = []
     for loan in weekly_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        advance_balance_display = float(loan.calculate_available_advance_balance())
         weekly_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
-            'recommended_amount': loan.get_next_installment_amount()
+            'recommended_amount': loan.get_next_installment_amount(),
+            'advance_balance_display': advance_balance_display,
         })
     
     daily_payments = []
     for loan in daily_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        advance_balance_display = float(loan.calculate_available_advance_balance())
         daily_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
-            'recommended_amount': loan.get_next_installment_amount()
+            'recommended_amount': loan.get_next_installment_amount(),
+            'advance_balance_display': advance_balance_display,
         })
     
     monthly_payments = []
     for loan in monthly_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        advance_balance_display = float(loan.calculate_available_advance_balance())
         monthly_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
-            'recommended_amount': loan.get_next_installment_amount()
+            'recommended_amount': loan.get_next_installment_amount(),
+            'advance_balance_display': advance_balance_display,
         })
 
     staff_payments = []
     for loan in staff_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        advance_balance_display = float(loan.calculate_available_advance_balance())
         staff_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
-            'recommended_amount': loan.get_next_installment_amount()
+            'recommended_amount': loan.get_next_installment_amount(),
+            'advance_balance_display': advance_balance_display,
         })
     
     special_payments = []
     for loan in special_loans:
         recent_payments = loan.payments.order_by(LoanPayment.payment_date.desc()).limit(5).all()
+        advance_balance_display = float(loan.calculate_available_advance_balance())
         special_payments.append({
             'loan': loan,
             'recent_payments': recent_payments,
-            'recommended_amount': loan.get_next_installment_amount()
+            'recommended_amount': loan.get_next_installment_amount(),
+            'advance_balance_display': advance_balance_display,
         })
     
     # Get all payments for payment history

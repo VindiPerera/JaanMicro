@@ -1,59 +1,90 @@
 import unittest
 from decimal import Decimal
 
-from app.loans.routes import _resolve_payment_amount_with_optional_advance
+from app.loans.routes import _get_installment_advance_breakdown
+
+
+class _DummyLoan:
+    def __init__(self, installment_amount, schedule, advance_balance, recommended_amount):
+        self.installment_amount = installment_amount
+        self._schedule = schedule
+        self._advance_balance = advance_balance
+        self._recommended_amount = recommended_amount
+
+    def generate_payment_schedule(self):
+        return self._schedule
+
+    def calculate_available_advance_balance(self, schedule=None):
+        return Decimal(str(self._advance_balance))
+
+    def get_next_installment_amount(self):
+        return self._recommended_amount
 
 
 class TestPaymentAdvanceDeduction(unittest.TestCase):
-    def test_full_installment_with_advance_deducts_cash_collection(self):
-        amount, auto_applied = _resolve_payment_amount_with_optional_advance(
-            posted_amount=Decimal('10667.00'),
-            use_advance_credit=True,
+    def test_partial_next_due_uses_remaining_cash_amount(self):
+        loan = _DummyLoan(
             installment_amount=Decimal('10667.00'),
-            advance_to_apply=Decimal('333.00'),
+            schedule=[
+                {
+                    'is_skipped': False,
+                    'status': 'partial',
+                    'amount': 10667.0,
+                    'remaining_amount': 10334.0,
+                    'advance_applied_amount': 333.0,
+                }
+            ],
+            advance_balance=Decimal('0.00'),
+            recommended_amount=10334.0,
         )
-        self.assertEqual(amount, Decimal('10334.00'))
-        self.assertTrue(auto_applied)
 
-    def test_custom_amount_is_not_overridden(self):
-        amount, auto_applied = _resolve_payment_amount_with_optional_advance(
-            posted_amount=Decimal('9000.00'),
-            use_advance_credit=True,
-            installment_amount=Decimal('10667.00'),
-            advance_to_apply=Decimal('333.00'),
+        breakdown = _get_installment_advance_breakdown(loan)
+        self.assertEqual(breakdown['installment_amount'], Decimal('10667.00'))
+        self.assertEqual(breakdown['remaining_due_amount'], Decimal('10334.00'))
+        self.assertEqual(breakdown['auto_deducted_advance'], Decimal('333.00'))
+        self.assertEqual(breakdown['advance_balance'], Decimal('0.00'))
+
+    def test_skipped_installments_are_ignored_for_next_due(self):
+        loan = _DummyLoan(
+            installment_amount=Decimal('2000.00'),
+            schedule=[
+                {
+                    'is_skipped': True,
+                    'status': 'overdue',
+                    'amount': 2000.0,
+                    'remaining_amount': 2000.0,
+                    'advance_applied_amount': 0.0,
+                },
+                {
+                    'is_skipped': False,
+                    'status': 'pending',
+                    'amount': 2000.0,
+                    'remaining_amount': 2000.0,
+                    'advance_applied_amount': 0.0,
+                },
+            ],
+            advance_balance=Decimal('0.00'),
+            recommended_amount=2000.0,
         )
-        self.assertEqual(amount, Decimal('9000.00'))
-        self.assertFalse(auto_applied)
 
-    def test_disabled_advance_keeps_full_amount(self):
-        amount, auto_applied = _resolve_payment_amount_with_optional_advance(
-            posted_amount=Decimal('10667.00'),
-            use_advance_credit=False,
-            installment_amount=Decimal('10667.00'),
-            advance_to_apply=Decimal('333.00'),
-        )
-        self.assertEqual(amount, Decimal('10667.00'))
-        self.assertFalse(auto_applied)
+        breakdown = _get_installment_advance_breakdown(loan)
+        self.assertEqual(breakdown['installment_amount'], Decimal('2000.00'))
+        self.assertEqual(breakdown['remaining_due_amount'], Decimal('2000.00'))
+        self.assertEqual(breakdown['auto_deducted_advance'], Decimal('0.00'))
 
-    def test_advance_capped_by_installment(self):
-        amount, auto_applied = _resolve_payment_amount_with_optional_advance(
-            posted_amount=Decimal('1000.00'),
-            use_advance_credit=True,
+    def test_fallback_uses_recommended_amount_when_no_due_found(self):
+        loan = _DummyLoan(
             installment_amount=Decimal('1000.00'),
-            advance_to_apply=Decimal('1500.00'),
+            schedule=[],
+            advance_balance=Decimal('25.00'),
+            recommended_amount=700.0,
         )
-        self.assertEqual(amount, Decimal('0.00'))
-        self.assertTrue(auto_applied)
 
-    def test_installment_tolerance_still_auto_applies(self):
-        amount, auto_applied = _resolve_payment_amount_with_optional_advance(
-            posted_amount=Decimal('10667.03'),
-            use_advance_credit=True,
-            installment_amount=Decimal('10667.00'),
-            advance_to_apply=Decimal('333.00'),
-        )
-        self.assertEqual(amount, Decimal('10334.00'))
-        self.assertTrue(auto_applied)
+        breakdown = _get_installment_advance_breakdown(loan)
+        self.assertEqual(breakdown['installment_amount'], Decimal('1000.00'))
+        self.assertEqual(breakdown['remaining_due_amount'], Decimal('700.00'))
+        self.assertEqual(breakdown['auto_deducted_advance'], Decimal('0.00'))
+        self.assertEqual(breakdown['advance_balance'], Decimal('25.00'))
 
 
 if __name__ == '__main__':

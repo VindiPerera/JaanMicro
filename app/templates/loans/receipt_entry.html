@@ -183,9 +183,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                    {% if (item.advance_balance_display or 0)|float > 0 %}
                                     <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{
-                                        "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                        "%.2f"|format(item.advance_balance_display|float) }}</span>
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -326,9 +326,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                    {% if (item.advance_balance_display or 0)|float > 0 %}
                                     <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{
-                                        "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                        "%.2f"|format(item.advance_balance_display|float) }}</span>
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -463,9 +463,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                    {% if (item.advance_balance_display or 0)|float > 0 %}
                                     <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{
-                                        "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                        "%.2f"|format(item.advance_balance_display|float) }}</span>
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -600,9 +600,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                    {% if (item.advance_balance_display or 0)|float > 0 %}
                                     <span class="text-success fw-bold">{{ system_settings.currency_symbol }} {{
-                                        "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                        "%.2f"|format(item.advance_balance_display|float) }}</span>
                                     {% else %}
                                     <span class="text-muted">-</span>
                                     {% endif %}
@@ -913,9 +913,9 @@
                                 aria-controls="collapse{{ item.loan.id }}">
                                 <strong>{{ item.loan.loan_number }}</strong> - {{ item.loan.customer.full_name }} ({{
                                 entry.type }})
-                                {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                {% if (item.advance_balance_display or 0)|float > 0 %}
                                 <span class="badge bg-success ms-2">Credit: {{ system_settings.currency_symbol }} {{
-                                    "%.2f"|format(item.loan.advance_balance|float) }}</span>
+                                    "%.2f"|format(item.advance_balance_display|float) }}</span>
                                 {% endif %}
                             </button>
                         </h2>
@@ -923,12 +923,12 @@
                             class="accordion-collapse {% if loop.first %}show{% else %}collapse{% endif %}"
                             aria-labelledby="heading{{ item.loan.id }}" data-bs-parent="#scheduleAccordion">
                             <div class="accordion-body">
-                                {% if (item.loan.advance_balance or 0)|float > 0 %}
+                                {% if (item.advance_balance_display or 0)|float > 0 %}
                                 <div class="alert alert-success py-1 mb-2">
                                     <small><i class="bi bi-wallet2 me-1"></i>Advance Balance: <strong>{{
                                             system_settings.currency_symbol }} {{
-                                            "%.2f"|format(item.loan.advance_balance|float) }}</strong> — will be
-                                        auto-deducted from next payment</small>
+                                            "%.2f"|format(item.advance_balance_display|float) }}</strong> — auto-applied
+                                        in schedule before next collection</small>
                                 </div>
                                 {% endif %}
                                 <div class="table-responsive">

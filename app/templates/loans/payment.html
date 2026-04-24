@@ -46,15 +46,26 @@
                     </div>
                 </div>
                 
-                {% if advance_balance > 0 %}
+                {% if auto_deducted_advance|float > 0 %}
                 <div class="alert alert-success">
-                    <h6 class="mb-1"><i class="bi bi-wallet2 me-2"></i>Advance Balance (Overpayment Credit)</h6>
+                    <h6 class="mb-1"><i class="bi bi-wallet2 me-2"></i>Advance Auto-Deducted</h6>
                     <div class="row">
-                        <div class="col-md-6">
-                            <strong>Available Credit:</strong> <span class="fs-5 fw-bold text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(advance_balance|float) }}</span>
+                        <div class="col-md-12">
+                            <small class="text-muted">
+                                Next installment: {{ system_settings.currency_symbol }} {{ "%.2f"|format(installment_amount|float) }} |
+                                Auto-deducted advance: {{ system_settings.currency_symbol }} {{ "%.2f"|format(auto_deducted_advance|float) }} |
+                                Cash to collect now: <strong class="text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(remaining_due_amount|float) }}</strong>
+                            </small>
                         </div>
-                        <div class="col-md-6">
-                            <small class="text-muted">Choose below whether to deduct this from the current installment.</small>
+                    </div>
+                </div>
+                {% elif advance_balance > 0 %}
+                <div class="alert alert-success">
+                    <h6 class="mb-1"><i class="bi bi-wallet2 me-2"></i>Advance Credit</h6>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <strong>Available Credit:</strong> <span class="fs-5 fw-bold text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(advance_balance|float) }}</span>
+                            <br><small class="text-muted">This credit is automatically reflected in the next due amount.</small>
                         </div>
                     </div>
                 </div>
@@ -97,17 +108,9 @@
                             {{ form.payment_amount.label(class="form-label") }}
                             {{ form.payment_amount(class="form-control", id="payment_amount") }}
                             <small class="text-muted">Maximum: {{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) if loan.outstanding_amount else '0.00' }}</small>
-                            {% if advance_balance > 0 %}
-                            <div class="form-check form-switch mt-2">
-                                <input class="form-check-input" type="checkbox" id="use_advance_credit" name="use_advance_credit" value="1" {% if use_advance_credit_default %}checked{% endif %}>
-                                <label class="form-check-label" for="use_advance_credit">Deduct advance credit from this installment</label>
-                            </div>
-                            <small id="advance_deduction_note" class="text-muted d-block mt-1">
-                                Installment: {{ system_settings.currency_symbol }} {{ "%.2f"|format(installment_amount|float) }} |
-                                Advance used: <span id="advance_apply_preview">{{ system_settings.currency_symbol }} {{ "%.2f"|format(advance_to_apply|float if use_advance_credit_default else 0) }}</span> |
-                                Cash to collect: <span id="deducted_installment_preview" class="fw-bold text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(deducted_installment_amount|float if use_advance_credit_default else installment_amount|float) }}</span>
+                            <small class="text-muted d-block mt-1">
+                                Suggested next due cash amount: <span class="fw-bold text-success">{{ system_settings.currency_symbol }} {{ "%.2f"|format(remaining_due_amount|float) }}</span>
                             </small>
-                            {% endif %}
                         </div>
                     </div>
                     
@@ -211,37 +214,16 @@
 <script>
 $(document).ready(function() {
     var outstandingAmount = {{ loan.outstanding_amount|float if loan.outstanding_amount else 0 }};
-    var installmentAmount = {{ installment_amount|float if installment_amount else (loan.installment_amount|float if loan.installment_amount else 0) }};
-    var advanceToApply = {{ advance_to_apply|float if advance_to_apply else 0 }};
-    var deductedInstallmentAmount = {{ deducted_installment_amount|float if deducted_installment_amount is not none else (installment_amount|float if installment_amount is not none else (loan.installment_amount|float if loan.installment_amount else 0)) }};
-    var hasAdvanceOption = advanceToApply > 0;
+    var scheduledInstallmentAmount = {{ installment_amount|float if installment_amount else (loan.installment_amount|float if loan.installment_amount else 0) }};
+    var nextDueCashAmount = {{ remaining_due_amount|float if remaining_due_amount is not none else (installment_amount|float if installment_amount is not none else (loan.installment_amount|float if loan.installment_amount else 0)) }};
+    var autoDeductedAdvance = {{ auto_deducted_advance|float if auto_deducted_advance else 0 }};
     var currencySymbol = '{{ system_settings.currency_symbol }}';
 
     function getInstallmentTargetAmount() {
-        if (hasAdvanceOption && $('#use_advance_credit').is(':checked')) {
-            return deductedInstallmentAmount;
+        if (nextDueCashAmount > 0) {
+            return nextDueCashAmount;
         }
-        return installmentAmount;
-    }
-
-    function refreshAdvanceDeductionPreview() {
-        if (!hasAdvanceOption) {
-            return;
-        }
-
-        var useAdvance = $('#use_advance_credit').is(':checked');
-        var appliedAdvance = useAdvance ? advanceToApply : 0;
-        var cashToCollect = useAdvance ? deductedInstallmentAmount : installmentAmount;
-
-        $('#advance_apply_preview').text(currencySymbol + ' ' + appliedAdvance.toFixed(2));
-        $('#deducted_installment_preview').text(currencySymbol + ' ' + cashToCollect.toFixed(2));
-
-        var installmentBtn = $('#quick_installment_btn');
-        if (installmentBtn.length) {
-            installmentBtn.data('amount', cashToCollect);
-            installmentBtn.attr('data-amount', cashToCollect);
-            installmentBtn.text(useAdvance ? 'Installment (After Advance)' : 'Installment');
-        }
+        return scheduledInstallmentAmount;
     }
     
     function calculatePaymentBreakdown() {
@@ -393,9 +375,9 @@ $(document).ready(function() {
     }
     
     // Quick amount buttons
-    if (installmentAmount > 0) {
+    if (scheduledInstallmentAmount > 0 || nextDueCashAmount > 0) {
         var installmentTarget = getInstallmentTargetAmount();
-        var installmentLabel = (hasAdvanceOption && $('#use_advance_credit').is(':checked')) ? 'Installment (After Advance)' : 'Installment';
+        var installmentLabel = autoDeductedAdvance > 0 ? 'Next Due (After Auto Credit)' : 'Next Due';
         $('#payment_amount').after(
             '<div class="btn-group mt-2" role="group">' +
             '<button type="button" class="btn btn-sm btn-outline-primary quick-amount" id="quick_installment_btn" data-amount="' + installmentTarget + '">' + installmentLabel + '</button>' +
@@ -410,19 +392,12 @@ $(document).ready(function() {
     });
     
     $('#payment_amount, #penalty_amount').on('input', calculatePaymentBreakdown);
-
-    $(document).on('change', '#use_advance_credit', function() {
-        refreshAdvanceDeductionPreview();
-        $('#payment_amount').val(getInstallmentTargetAmount().toFixed(2));
-        calculatePaymentBreakdown();
-    });
     
     // Set default to installment amount
-    if (installmentAmount > 0) {
+    if (scheduledInstallmentAmount > 0 || nextDueCashAmount > 0) {
         $('#payment_amount').val(getInstallmentTargetAmount().toFixed(2));
     }
     
-    refreshAdvanceDeductionPreview();
     calculatePaymentBreakdown();
 });
 </script>

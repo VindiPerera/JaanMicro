@@ -764,10 +764,6 @@ class Loan(db.Model):
 
         payment_index = 0
         carried_advance = Decimal('0.00')  # Unallocated excess from previous installment
-        latest_payment_date = max(
-            (entry['payment_date'] for entry in payment_entries if entry['payment_date']),
-            default=None
-        )
 
         # Calculate total interest
         total_interest = total_payable - loan_amount
@@ -937,25 +933,18 @@ class Loan(db.Model):
             paid_for_this = Decimal('0.00')
             tolerance = Decimal('0.02')
 
-            allow_future_auto_apply = True
-            if latest_payment_date and due_date > latest_payment_date and payment_index >= len(payment_entries):
-                # Keep excess as advance for a future collection and avoid
-                # speculative partials on future rows. Still allow auto-apply
-                # when carried advance can fully settle the installment.
-                if carried_advance < current_installment - tolerance:
-                    allow_future_auto_apply = False
+            # Always apply carried advance/receipts FIFO so overpayments are
+            # reflected immediately on the next installment(s) in the schedule.
+            while paid_for_this < current_installment - tolerance and (carried_advance > Decimal('0.00') or payment_index < len(payment_entries)):
+                if carried_advance <= Decimal('0.00') and payment_index < len(payment_entries):
+                    carried_advance += payment_entries[payment_index]['amount']
+                    payment_index += 1
 
-            if allow_future_auto_apply:
-                while paid_for_this < current_installment - tolerance and (carried_advance > Decimal('0.00') or payment_index < len(payment_entries)):
-                    if carried_advance <= Decimal('0.00') and payment_index < len(payment_entries):
-                        carried_advance += payment_entries[payment_index]['amount']
-                        payment_index += 1
-
-                    alloc = min(current_installment - paid_for_this, carried_advance)
-                    if alloc <= Decimal('0.00'):
-                        break
-                    paid_for_this += alloc
-                    carried_advance -= alloc
+                alloc = min(current_installment - paid_for_this, carried_advance)
+                if alloc <= Decimal('0.00'):
+                    break
+                paid_for_this += alloc
+                carried_advance -= alloc
 
             advance_applied = min(advance_brought, paid_for_this)
             cash_applied = paid_for_this - advance_applied
