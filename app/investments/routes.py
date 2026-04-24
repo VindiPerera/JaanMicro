@@ -97,7 +97,8 @@ def add_investment():
             flash(f'Principal amount cannot be less than Rs. {settings.minimum_investment_amount}!', 'error')
             return render_template('investments/add.html', title='Add Borrower', form=form)
         
-        investment_number = generate_investment_number(settings.investment_number_prefix)
+        # Borrowing IDs must use BOR prefix.
+        investment_number = generate_investment_number('BOR')
         
         # Calculate maturity amount
         if form.duration_months.data:

@@ -217,15 +217,27 @@ def generate_loan_number(loan_type=None, branch_id=None):
     
     return f"{year}/{branch_code}/{type_code}/{new_number:05d}"
 
-def generate_investment_number(prefix='INV'):
-    """Generate unique investment number"""
-    last_investment = Investment.query.order_by(Investment.id.desc()).first()
+def generate_investment_number(prefix='BOR'):
+    """Generate unique borrower number."""
+    prefix = (prefix or 'BOR').strip().upper()
+
+    # Continue sequence within the same prefix so older INV records don't break
+    # BOR number generation.
+    last_investment = Investment.query.filter(
+        Investment.investment_number.like(f'{prefix}%')
+    ).order_by(Investment.id.desc()).first()
+
     if last_investment:
-        last_number = int(last_investment.investment_number.replace(prefix, ''))
+        suffix = (last_investment.investment_number or '')[len(prefix):]
+        digits = ''.join(ch for ch in suffix if ch.isdigit())
+        try:
+            last_number = int(digits) if digits else 0
+        except (TypeError, ValueError):
+            last_number = 0
         new_number = last_number + 1
     else:
         new_number = 1
-    
+
     return f"{prefix}{new_number:06d}"
 
 def generate_pawning_number(prefix='PWN'):
