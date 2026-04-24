@@ -1,5 +1,5 @@
 """Regression coverage for advance-credit display in loan schedules."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import unittest
 
@@ -248,6 +248,85 @@ class AdvanceScheduleAllocationTest(unittest.TestCase):
         )
         self.assertEqual(first_unpaid['advance_brought_amount'], 132.0)
         self.assertEqual(skipped_loan.calculate_available_advance_balance(schedule=schedule), Decimal('132.00'))
+
+    def test_rescheduled_skipped_installments_do_not_create_false_arrears(self):
+        today = date.today()
+        first_installment_date = today - timedelta(days=67)
+
+        loan = Loan(
+            loan_number='TEST-ADV-004',
+            customer_id=self.loan.customer_id,
+            branch_id=self.loan.branch_id,
+            loan_type='type1_9weeks',
+            loan_amount=Decimal('15000.00'),
+            disbursed_amount=Decimal('15000.00'),
+            total_payable=Decimal('18000.00'),
+            paid_amount=Decimal('16000.00'),
+            outstanding_amount=Decimal('2000.00'),
+            advance_balance=Decimal('0.00'),
+            interest_rate=Decimal('10.00'),
+            interest_type='flat',
+            duration_months=0,
+            duration_weeks=9,
+            installment_amount=Decimal('2000.00'),
+            installment_frequency='weekly',
+            status='active',
+            application_date=first_installment_date,
+            disbursement_date=first_installment_date,
+            first_installment_date=first_installment_date,
+            maturity_date=first_installment_date + timedelta(weeks=9),
+            created_by=self.loan.created_by,
+        )
+        db.session.add(loan)
+        db.session.flush()
+
+        db.session.add_all([
+            LoanScheduleOverride(
+                loan_id=loan.id,
+                installment_number=1,
+                is_skipped=True,
+                reschedule_date=today - timedelta(days=4),
+                created_by=self.loan.created_by,
+                notes='Rescheduled and paid on new date',
+            ),
+            LoanScheduleOverride(
+                loan_id=loan.id,
+                installment_number=9,
+                is_skipped=True,
+                reschedule_date=today + timedelta(days=3),
+                created_by=self.loan.created_by,
+                notes='Future reschedule',
+            ),
+        ])
+
+        payment_dates = [
+            first_installment_date + timedelta(weeks=1),
+            first_installment_date + timedelta(weeks=2),
+            first_installment_date + timedelta(weeks=3),
+            first_installment_date + timedelta(weeks=4),
+            first_installment_date + timedelta(weeks=5),
+            first_installment_date + timedelta(weeks=6),
+            first_installment_date + timedelta(weeks=7),
+            today - timedelta(days=4),
+        ]
+        for payment_date in payment_dates:
+            db.session.add(LoanPayment(
+                loan_id=loan.id,
+                payment_date=payment_date,
+                payment_amount=Decimal('2000.00'),
+                principal_amount=Decimal('1942.49'),
+                interest_amount=Decimal('57.51'),
+                penalty_amount=Decimal('0.00'),
+                balance_after=Decimal('0.00'),
+                payment_method='cash',
+            ))
+
+        db.session.commit()
+
+        arrears = loan.get_arrears_details()
+        self.assertEqual(arrears['total_overdue_amount'], Decimal('0'))
+        self.assertEqual(arrears['overdue_installments'], 0)
+        self.assertEqual(arrears['days_overdue'], 0)
 
 
 if __name__ == '__main__':
