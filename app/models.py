@@ -1030,6 +1030,10 @@ class Loan(db.Model):
         today = date.today()
         
         for installment in schedule:
+            # Skipped installments are placeholders/annotations; only
+            # payable rows should contribute to arrears.
+            if installment.get('is_skipped', False):
+                continue
             if installment['status'] == 'overdue':
                 # Fully unpaid overdue installment
                 total_overdue += Decimal(str(installment['amount']))
@@ -1094,6 +1098,8 @@ class Loan(db.Model):
         advance = self.calculate_available_advance_balance(schedule=schedule)
         next_due = None
         for inst in schedule:
+            if inst.get('is_skipped', False):
+                continue
             if inst['status'] in ['overdue', 'partial', 'pending']:
                 next_due = inst
                 break

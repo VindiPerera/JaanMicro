@@ -2311,7 +2311,10 @@ def receipt_entry_export(loan_frequency):
     for loan in loans:
         schedule = loan.generate_payment_schedule()
         loan_schedules[loan.id] = {
-            'num_arrears': sum(1 for inst in schedule if inst['status'] == 'overdue'),
+            'num_arrears': sum(
+                1 for inst in schedule
+                if not inst.get('is_skipped') and inst['status'] == 'overdue'
+            ),
         }
 
     wb = openpyxl.Workbook()
