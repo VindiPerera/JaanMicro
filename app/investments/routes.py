@@ -10,6 +10,16 @@ from app.investments.forms import InvestmentForm, InvestmentTransactionForm
 from app.utils.decorators import permission_required
 from app.utils.helpers import generate_investment_number, get_current_branch_id, should_filter_by_branch, get_branch_filter_for_query
 
+def _display_borrowing_id(investment_number):
+    """Return UI-safe borrowing ID with BOR prefix while preserving DB values."""
+    if not investment_number:
+        return ''
+
+    value = str(investment_number)
+    if value[:3].upper() == 'INV':
+        return f'BOR{value[3:]}'
+    return value
+
 @investments_bp.route('/')
 @login_required
 @permission_required('manage_investments')
@@ -162,7 +172,7 @@ def add_investment():
         
         db.session.commit()
         
-        flash(f'Borrower {investment.investment_number} created successfully!', 'success')
+        flash(f'Borrower {_display_borrowing_id(investment.investment_number)} created successfully!', 'success')
         return redirect(url_for('investments.view_investment', id=investment.id))
 
     return render_template('investments/add.html', title='Add Borrower', form=form)
@@ -183,7 +193,7 @@ def view_investment(id):
     transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
     
     return render_template('investments/view.html',
-                         title=f'Borrower: {investment.investment_number}',
+                         title=f'Borrower: {_display_borrowing_id(investment.investment_number)}',
                          investment=investment,
                          transactions=transactions)
 
@@ -295,11 +305,11 @@ def edit_investment(id):
 
         db.session.commit()
 
-        flash(f'Borrowing {investment.investment_number} updated successfully!', 'success')
+        flash(f'Borrowing {_display_borrowing_id(investment.investment_number)} updated successfully!', 'success')
         return redirect(url_for('investments.view_investment', id=investment.id))
 
     return render_template('investments/edit.html',
-                         title=f'Edit Borrowing: {investment.investment_number}',
+                         title=f'Edit Borrowing: {_display_borrowing_id(investment.investment_number)}',
                          form=form,
                          investment=investment)
 
@@ -370,6 +380,6 @@ def add_transaction(id):
         return redirect(url_for('investments.view_investment', id=id))
     
     return render_template('investments/transaction.html',
-                         title=f'Add Transaction: {investment.investment_number}',
+                         title=f'Add Transaction: {_display_borrowing_id(investment.investment_number)}',
                          form=form,
                          investment=investment)

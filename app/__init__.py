@@ -110,6 +110,17 @@ def create_app(config_name='default'):
             path = path[len('uploads/'):]
         return f'/static/uploads/{path}'
 
+    @app.template_filter('borrowing_id')
+    def borrowing_id(value):
+        """Display borrowing IDs with BOR prefix without changing stored DB values."""
+        if not value:
+            return ''
+
+        value = str(value)
+        if value[:3].upper() == 'INV':
+            return f'BOR{value[3:]}'
+        return value
+
     # Context processor for global variables
     @app.context_processor
     def inject_settings():

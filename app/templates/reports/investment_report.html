@@ -152,7 +152,7 @@
                         <tbody>
                             {% for investment in maturing_soon %}
                             <tr>
-                                <td>{{ investment.investment_number }}</td>
+                                <td>{{ investment.investment_number|borrowing_id }}</td>
                                 <td>{{ investment.customer.full_name }}</td>
                                 <td>{{ investment.maturity_date.strftime('%Y-%m-%d') if investment.maturity_date else 'N/A' }}</td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(investment.current_amount|float) if investment.current_amount else investment.principal_amount }}</td>
@@ -193,7 +193,7 @@
                 <tbody>
                     {% for investment in investments %}
                     <tr>
-                        <td>{{ investment.investment_number }}</td>
+                        <td>{{ investment.investment_number|borrowing_id }}</td>
                         <td>{{ investment.customer.full_name }}</td>
                         <td>{{ investment.investment_type|title }}</td>
                         <td>{{ investment.start_date.strftime('%Y-%m-%d') if investment.start_date else 'N/A' }}</td>
