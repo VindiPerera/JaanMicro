@@ -1234,6 +1234,7 @@ class InvestmentTransaction(db.Model):
     notes = db.Column(db.Text)
     
     processed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    processed_by_user = db.relationship('User', foreign_keys=[processed_by], backref='processed_investment_transactions')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -1456,7 +1457,7 @@ class SystemSettings(db.Model):
     
     # Auto-numbering Settings
     loan_number_prefix = db.Column(db.String(10), default='LN')
-    investment_number_prefix = db.Column(db.String(10), default='INV')
+    investment_number_prefix = db.Column(db.String(10), default='BOR')
     pawning_number_prefix = db.Column(db.String(10), default='PWN')
     customer_id_prefix = db.Column(db.String(10), default='CUST')
     

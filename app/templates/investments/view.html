@@ -205,7 +205,7 @@
                         </td>
                         <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.balance_after|float) if transaction.balance_after else '0.00' }}</strong></td>
                         <td>{{ transaction.description or '-' }}</td>
-                        <td>{{ transaction.processed_by.full_name if transaction.processed_by else 'System' }}</td>
+                        <td>{{ transaction.processed_by_user.full_name if transaction.processed_by_user else 'System' }}</td>
                     </tr>
                     {% else %}
                     <tr><td colspan="7" class="text-center text-muted">No transactions recorded yet</td></tr>
