@@ -2878,8 +2878,8 @@ def skip_all_daily_loans():
             target_installment = None
             for inst in schedule:
                 if inst['due_date'] == skip_date and not inst['is_skipped']:
-                    # Only skip unpaid/pending installments
-                    if inst['status'] in ('pending', 'overdue', 'partial'):
+                    # Allow skipping installments regardless of payment state.
+                    if inst['status'] in ('pending', 'overdue', 'partial', 'paid'):
                         target_installment = inst
                         break
                 elif inst['due_date'] == skip_date and inst['is_skipped']:
