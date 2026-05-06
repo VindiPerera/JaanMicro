@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """Application entry point"""
+import utils.net
+import utils.clients
+import utils.http_session
+import utils.transport
+import utils.session
 import os
 import sys
 

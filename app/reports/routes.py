@@ -7,7 +7,7 @@ import os
 from app import db
 from app.reports import reports_bp
 from app.models import Customer, Loan, LoanPayment, Investment, InvestmentTransaction, Pawning, PawningPayment
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, admin_only
 from app.utils.helpers import get_current_branch_id, get_branch_filter_for_query
 import io
 import csv
@@ -601,6 +601,7 @@ def customer_report():
 @reports_bp.route('/investments')
 @login_required
 @permission_required('view_reports')
+@admin_only
 def investment_report():
     """Borrower reports"""
     start_date = request.args.get('start_date', '')
