@@ -22,9 +22,14 @@ class InvestmentForm(FlaskForm):
     installment_amount = DecimalField('Installment Amount', validators=[Optional(), NumberRange(min=0)], places=2)
     installment_frequency = SelectField('Installment Frequency', choices=[
         ('', 'Select'),
+        ('daily', 'Daily'),
+        ('weekly', 'Weekly'),
         ('monthly', 'Monthly'),
-        ('quarterly', 'Quarterly')
+        ('end-of-term', 'End-of-Term')
     ], validators=[Optional()])
+    
+    lock_in_period = IntegerField('Lock-in Period (Months)', validators=[Optional(), NumberRange(min=0)])
+    early_withdrawal_penalty = DecimalField('Early Withdrawal Penalty (%)', validators=[Optional(), NumberRange(min=0, max=100)], places=2)
     
     notes = TextAreaField('Notes', validators=[Optional()])
     submit = SubmitField('Save Borrower')

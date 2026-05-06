@@ -1191,7 +1191,10 @@ class Investment(db.Model):
     
     # Payment frequency for recurring deposits
     installment_amount = db.Column(db.Numeric(15, 2))
-    installment_frequency = db.Column(db.String(20))  # monthly, quarterly
+    installment_frequency = db.Column(db.String(20))  # daily, weekly, monthly, end-of-term
+    
+    lock_in_period = db.Column(db.Integer)
+    early_withdrawal_penalty = db.Column(db.Numeric(15, 2))
     
     # Metadata
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)

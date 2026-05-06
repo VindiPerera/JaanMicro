@@ -141,6 +141,8 @@ def add_investment():
             maturity_date=maturity_date,
             installment_amount=form.installment_amount.data,
             installment_frequency=form.installment_frequency.data,
+            lock_in_period=form.lock_in_period.data,
+            early_withdrawal_penalty=form.early_withdrawal_penalty.data,
             created_by=current_user.id,
             notes=form.notes.data
         )
@@ -287,6 +289,8 @@ def edit_investment(id):
         investment.maturity_date = maturity_date
         investment.installment_amount = form.installment_amount.data
         investment.installment_frequency = form.installment_frequency.data
+        investment.lock_in_period = form.lock_in_period.data
+        investment.early_withdrawal_penalty = form.early_withdrawal_penalty.data
         investment.notes = form.notes.data
 
         if should_sync_current:

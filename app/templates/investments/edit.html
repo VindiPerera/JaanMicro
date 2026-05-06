@@ -68,12 +68,22 @@
                         <div class="col-md-6 mb-3">
                             {{ form.installment_frequency.label(class="form-label") }}
                             {{ form.installment_frequency(class="form-select") }}
-                            <small class="text-muted">For recurring deposits</small>
+                            <small class="text-muted">Interest payout frequency</small>
                         </div>
                         <div class="col-md-6 mb-3">
                             {{ form.installment_amount.label(class="form-label") }}
                             {{ form.installment_amount(class="form-control") }}
                             <small class="text-muted">For recurring deposits</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.lock_in_period.label(class="form-label") }}
+                            {{ form.lock_in_period(class="form-control") }}
+                            <small class="text-muted">Lock-in period in months</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            {{ form.early_withdrawal_penalty.label(class="form-label") }}
+                            {{ form.early_withdrawal_penalty(class="form-control") }}
+                            <small class="text-muted">Early withdrawal penalty (%)</small>
                         </div>
                     </div>
 
@@ -99,9 +109,9 @@ $(document).ready(function() {
     // Show/hide recurring deposit fields
     $('#investment_type').on('change', function() {
         if ($(this).val() === 'recurring_deposit') {
-            $('#installment_frequency, #installment_amount').closest('.col-md-6').show();
+            $('#installment_amount').closest('.col-md-6').show();
         } else {
-            $('#installment_frequency, #installment_amount').closest('.col-md-6').hide();
+            $('#installment_amount').closest('.col-md-6').hide();
         }
     }).trigger('change');
 });

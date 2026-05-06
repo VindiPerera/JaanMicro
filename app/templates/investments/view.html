@@ -116,6 +116,14 @@
                         {{ investment.installment_frequency|title if investment.installment_frequency else 'N/A' }}
                     </div>
                     <div class="col-md-6 mb-3">
+                        <strong>Lock-in Period:</strong><br>
+                        {{ investment.lock_in_period ~ ' months' if investment.lock_in_period is not none else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Early Withdrawal Penalty:</strong><br>
+                        {{ investment.early_withdrawal_penalty ~ '%' if investment.early_withdrawal_penalty is not none else 'N/A' }}
+                    </div>
+                    <div class="col-md-6 mb-3">
                         <strong>Status:</strong><br>
                         <span class="badge status-{{ investment.status }}">{{ investment.status|title }}</span>
                     </div>
