@@ -99,13 +99,20 @@ def _refresh_loan_financial_state(loan):
         payment.balance_after = float(running_outstanding)
 
     # 4) Keep status aligned with outstanding
+    # To properly transition from 'completed' to 'active', we need to calculate outstanding
+    # without the status guard that prevents calculation for non-active loans.
+    # Temporarily set status to 'active' to get accurate calculation.
+    original_status = loan.status
+    loan.status = 'active'
     current_outstanding = loan.calculate_current_outstanding()
+    loan.status = original_status
+    
     if current_outstanding <= Decimal('0.02'):
         loan.status = 'completed'
         if not loan.closing_date:
             last_payment = loan.payments.order_by(LoanPayment.payment_date.desc(), LoanPayment.id.desc()).first()
             loan.closing_date = last_payment.payment_date if last_payment else datetime.utcnow().date()
-    elif loan.status == 'completed':
+    elif loan.status == 'completed' and current_outstanding > Decimal('0.02'):
         loan.status = 'active'
         loan.closing_date = None
 
@@ -1396,7 +1403,13 @@ def _process_payment(loan, payment_amount, payment_date, payment_method, referen
     payment_amount = Decimal(str(payment_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
     # Calculate current outstanding with accrued interest
+    # For completed loans, temporarily set status to 'active' to get accurate calculation
+    original_status = loan.status
+    if loan.status == 'completed':
+        loan.status = 'active'
     current_outstanding = loan.calculate_current_outstanding()
+    loan.status = original_status
+    
     accrued_interest = loan.calculate_accrued_interest()
 
     # Current outstanding principal (without accrued interest)
@@ -1511,7 +1524,13 @@ def _process_payment(loan, payment_amount, payment_date, payment_method, referen
     payment.balance_after = float(loan.outstanding_amount or 0)
     
     # Check if loan is fully paid
-    if loan.calculate_current_outstanding() <= Decimal('0.02'):  # Allow for small rounding differences
+    # For accurate calculation on potentially completed loans, temporarily set status to 'active'
+    temp_status = loan.status
+    loan.status = 'active'
+    is_fully_paid = loan.calculate_current_outstanding() <= Decimal('0.02')
+    loan.status = temp_status
+    
+    if is_fully_paid:  # Allow for small rounding differences
         loan.status = 'completed'
         loan.outstanding_amount = Decimal('0')
         loan.advance_balance = Decimal('0')
