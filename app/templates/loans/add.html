@@ -248,8 +248,7 @@
                                 </label>
                                 <select name="final_approver_id" id="final_approver_id" class="form-select" required>
                                     <option value="">— Select Final Approver —</option>
-                                    {% set admins = (final_approvers | default([])) | selectattr('role', 'equalto', 'admin') | list %}
-                                    {% set accountants = (final_approvers | default([])) | selectattr('role', 'equalto', 'accountant') | list %}
+                                    {% set admins = (final_approvers | default([])) | list %}
                                     {% if admins %}
                                     <optgroup label="Administrators">
                                         {% for approver in admins %}
@@ -257,24 +256,17 @@
                                         {% endfor %}
                                     </optgroup>
                                     {% endif %}
-                                    {% if accountants %}
-                                    <optgroup label="Accountants">
-                                        {% for approver in accountants %}
-                                        <option value="{{ approver.id }}">{{ approver.full_name }} (Accountant)</option>
-                                        {% endfor %}
-                                    </optgroup>
-                                    {% endif %}
                                 </select>
                                 <small class="text-muted">
                                     <i class="bi bi-info-circle me-1"></i>
-                                    Only this person will be able to perform the final Admin Approval step for this loan.
+                                    Only this administrator can perform final approval for this loan.
                                     Others can still view the loan.
                                 </small>
                             </div>
                             {% if not (final_approvers | default([])) %}
                             <div class="alert alert-warning">
                                 <i class="bi bi-exclamation-triangle me-2"></i>
-                                No Admin or Accountant users found. Please create one in Settings before adding loans.
+                                No Admin users found. Please create one in Settings before adding loans.
                             </div>
                             {% endif %}
                         </div>

@@ -176,6 +176,25 @@ class AdminApprovalForm(FlaskForm):
     submit = SubmitField('Submit')
 
 
+class LoanStatusUpdateForm(FlaskForm):
+    """Manual loan status update form (Admin only)"""
+    status = SelectField('New Status', choices=[
+        ('pending', 'Pending'),
+        ('pending_staff_approval', 'Pending Staff Approval'),
+        ('pending_manager_approval', 'Pending Manager Approval'),
+        ('initiated', 'Initiated'),
+        ('active', 'Active'),
+        ('disbursed', 'Disbursed'),
+        ('completed', 'Completed'),
+        ('defaulted', 'Defaulted'),
+        ('rejected', 'Rejected'),
+        ('deactivated', 'Deactivated')
+    ], validators=[DataRequired()])
+    status_date = DateField('Status Date', validators=[DataRequired()], default=datetime.utcnow().date)
+    reason = TextAreaField('Reason / Notes', validators=[Optional()])
+    submit = SubmitField('Update Status')
+
+
 class LoanDeactivationForm(FlaskForm):
     """Loan deactivation form"""
     deactivation_reason = TextAreaField("Deactivation Reason", validators=[DataRequired()], 

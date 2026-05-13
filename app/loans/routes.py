@@ -9,7 +9,7 @@ import os
 from app import db
 from app.loans import loans_bp
 from app.models import Loan, LoanPayment, Customer, ActivityLog, SystemSettings, User, LoanScheduleOverride, Branch
-from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanDeactivationForm
+from app.loans.forms import LoanForm, LoanPaymentForm, EditPaymentForm, LoanApprovalForm, StaffApprovalForm, ManagerApprovalForm, InitiateLoanForm, AdminApprovalForm, LoanStatusUpdateForm, LoanDeactivationForm
 from app.utils.decorators import permission_required, admin_required, admin_only
 from app.utils.helpers import generate_loan_number, generate_customer_id, get_current_branch_id, should_filter_by_branch, generate_receipt_number
 
@@ -376,18 +376,12 @@ def add_loan():
     users = user_query.order_by(User.full_name).all()
     form.referred_by.choices = [(0, 'Select User (Optional)')] + [(u.id, f'{u.full_name} ({u.username})') for u in users]
     
-    # Get admin and accountant users as final approver candidates
+    # Admin users are the only final approver candidates
     final_approver_query = User.query.filter(
         User.is_active == True,
-        User.role.in_(['admin', 'accountant'])
+        User.role == 'admin'
     )
-    if should_filter_by_branch():
-        current_branch_id = get_current_branch_id()
-        if current_branch_id:
-            final_approver_query = final_approver_query.filter(
-                db.or_(User.role == 'admin', User.branch_id == current_branch_id)
-            )
-    final_approvers = final_approver_query.order_by(User.role.desc(), User.full_name).all()
+    final_approvers = final_approver_query.order_by(User.full_name).all()
     
     # Pre-fill interest rate from settings on GET request
     if request.method == 'GET':
@@ -967,7 +961,7 @@ def edit_loan(id):
 
 @loans_bp.route('/<int:id>/approve', methods=['GET', 'POST'])
 @login_required
-@permission_required('approve_loans')
+@admin_only
 def approve_loan(id):
     """Approve loan"""
     loan = Loan.query.get_or_404(id)
@@ -983,11 +977,11 @@ def approve_loan(id):
         flash('Only pending loans can be approved!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
-    # Check if this loan has a designated final approver
-    if loan.final_approver_id and current_user.id != loan.final_approver_id:
-        designated = User.query.get(loan.final_approver_id)
+    # If a designated admin approver exists, only that admin can approve
+    designated = User.query.get(loan.final_approver_id) if loan.final_approver_id else None
+    if designated and designated.role == 'admin' and current_user.id != designated.id:
         name = designated.full_name if designated else 'Unknown'
-        flash(f'This loan can only be finally approved by the designated approver: {name}.', 'danger')
+        flash(f'This loan can only be approved by the designated admin approver: {name}.', 'danger')
         return redirect(url_for('loans.view_loan', id=id))
     
     form = LoanApprovalForm()
@@ -1071,7 +1065,7 @@ def approve_loan(id):
 
 @loans_bp.route('/<int:id>/approve-staff', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_loans')
+@admin_only
 def approve_loan_staff(id):
     """Staff approval (First stage)"""
     loan = Loan.query.get_or_404(id)
@@ -1086,11 +1080,6 @@ def approve_loan_staff(id):
     # Check if loan is in correct status
     if loan.status != 'pending':
         flash('Only pending loans can be approved by staff!', 'warning')
-        return redirect(url_for('loans.view_loan', id=id))
-    
-    # Check if user is staff (not manager or admin)
-    if current_user.role not in ['staff', 'loan_collector']:
-        flash('Only staff members can perform first-stage approval!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
     form = StaffApprovalForm()
@@ -1142,6 +1131,7 @@ def approve_loan_staff(id):
 
 @loans_bp.route('/<int:id>/approve-manager', methods=['GET', 'POST'])
 @login_required
+@admin_only
 def approve_loan_manager(id):
     """Manager approval (Second stage)"""
     loan = Loan.query.get_or_404(id)
@@ -1156,11 +1146,6 @@ def approve_loan_manager(id):
     # Check if loan is in correct status
     if loan.status != 'pending_manager_approval':
         flash('Only loans approved by staff can be approved by manager!', 'warning')
-        return redirect(url_for('loans.view_loan', id=id))
-    
-    # Check if user is manager
-    if current_user.role not in ['manager', 'accountant']:
-        flash('Only managers can perform second-stage approval!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
     form = ManagerApprovalForm()
@@ -1212,6 +1197,7 @@ def approve_loan_manager(id):
 
 @loans_bp.route('/<int:id>/approve-admin', methods=['GET', 'POST'])
 @login_required
+@admin_only
 def approve_loan_admin(id):
     """Admin approval (Final stage - Disburse loan)"""
     loan = Loan.query.get_or_404(id)
@@ -1228,19 +1214,11 @@ def approve_loan_admin(id):
         flash('Only initiated loans can be approved by admin!', 'warning')
         return redirect(url_for('loans.view_loan', id=id))
     
-    is_admin_or_manager = current_user.role in ['admin', 'regional_manager']
-    is_designated_approver = loan.final_approver_id is not None and current_user.id == loan.final_approver_id
-
-    # Must be admin/regional_manager OR the designated final approver
-    if not is_admin_or_manager and not is_designated_approver:
-        flash('Only admins can perform final approval and disbursement!', 'warning')
-        return redirect(url_for('loans.view_loan', id=id))
-
-    # If admin/manager but a different person is designated, block them
-    if is_admin_or_manager and loan.final_approver_id and current_user.id != loan.final_approver_id:
-        designated = User.query.get(loan.final_approver_id)
+    # If a designated admin approver exists, only that admin can approve
+    designated = User.query.get(loan.final_approver_id) if loan.final_approver_id else None
+    if designated and designated.role == 'admin' and current_user.id != designated.id:
         name = designated.full_name if designated else 'Unknown'
-        flash(f'This loan can only be finally approved by the designated approver: {name}.', 'danger')
+        flash(f'This loan can only be finally approved by the designated admin approver: {name}.', 'danger')
         return redirect(url_for('loans.view_loan', id=id))
     
     form = AdminApprovalForm()
@@ -1341,7 +1319,7 @@ def approve_loan_admin(id):
 
 @loans_bp.route('/<int:id>/deactivate', methods=['GET', 'POST'])
 @login_required
-@permission_required('manage_loans')
+@admin_only
 def deactivate_loan(id):
     """Deactivate loan"""
     loan = Loan.query.get_or_404(id)
@@ -1352,11 +1330,6 @@ def deactivate_loan(id):
         if current_branch_id and loan.branch_id != current_branch_id:
             flash('Access denied: Loan not found in current branch.', 'danger')
             return redirect(url_for('loans.list_loans'))
-    
-    # Check if user has admin role for deactivation
-    if current_user.role not in ['admin', 'regional_manager']:
-        flash('Only administrators can deactivate loans.', 'danger')
-        return redirect(url_for('loans.view_loan', id=id))
     
     # Check if loan can be deactivated
     if loan.status in ['completed', 'defaulted', 'rejected', 'deactivated']:
@@ -1395,6 +1368,84 @@ def deactivate_loan(id):
                          title=f'Deactivate Loan: {loan.loan_number}',
                          form=form,
                          loan=loan)
+
+
+@loans_bp.route('/<int:id>/status', methods=['GET', 'POST'])
+@login_required
+@admin_only
+def change_loan_status(id):
+    """Manually update loan status (Admin only)"""
+    loan = Loan.query.get_or_404(id)
+
+    # Check branch access
+    if should_filter_by_branch():
+        current_branch_id = get_current_branch_id()
+        if current_branch_id and loan.branch_id != current_branch_id:
+            flash('Access denied: Loan not found in current branch.', 'danger')
+            return redirect(url_for('loans.list_loans'))
+
+    form = LoanStatusUpdateForm()
+
+    if request.method == 'GET':
+        form.status.data = loan.status
+        form.status_date.data = datetime.utcnow().date()
+
+    if form.validate_on_submit():
+        new_status = form.status.data
+        reason = (form.reason.data or '').strip()
+
+        if new_status == loan.status:
+            flash('Loan status is already set to that value.', 'info')
+            return redirect(url_for('loans.view_loan', id=loan.id))
+
+        if new_status in ['rejected', 'defaulted', 'deactivated'] and not reason:
+            flash('Please provide a reason for this status change.', 'warning')
+            return render_template('loans/change_status.html',
+                                   title=f'Change Status: {loan.loan_number}',
+                                   form=form,
+                                   loan=loan)
+
+        previous_status = loan.status
+        loan.status = new_status
+
+        # Update status-related fields
+        if new_status == 'completed':
+            loan.closing_date = form.status_date.data
+        elif previous_status == 'completed':
+            loan.closing_date = None
+
+        if new_status == 'deactivated':
+            loan.deactivation_reason = reason
+            loan.deactivation_date = form.status_date.data
+            loan.deactivated_by = current_user.id
+
+        if new_status == 'rejected':
+            loan.rejection_reason = reason
+
+        loan.updated_at = datetime.utcnow()
+
+        # Log activity
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='change_loan_status',
+            entity_type='loan',
+            entity_id=loan.id,
+            description=(
+                f'Changed loan status: {loan.loan_number} '
+                f'from {previous_status} to {new_status}'
+            ),
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        flash(f'Loan {loan.loan_number} status updated to {new_status}.', 'success')
+        return redirect(url_for('loans.view_loan', id=loan.id))
+
+    return render_template('loans/change_status.html',
+                           title=f'Change Status: {loan.loan_number}',
+                           form=form,
+                           loan=loan)
 
 def _process_payment(loan, payment_amount, payment_date, payment_method, reference_number, notes, penalty_amount=0):
     """Shared payment processor used by both form and quick-pay (keeps logic in one place)."""
