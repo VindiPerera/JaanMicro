@@ -7,7 +7,7 @@ import os
 from app import db
 from app.reports import reports_bp
 from app.models import Customer, Loan, LoanPayment, Investment, InvestmentTransaction, Pawning, PawningPayment
-from app.utils.decorators import permission_required, admin_only
+from app.utils.decorators import permission_required
 from app.utils.helpers import get_current_branch_id, get_branch_filter_for_query
 import io
 import csv
@@ -17,7 +17,7 @@ import csv
 def index():
     """Reports dashboard"""
     # Allow access if user has either view_reports or view_collection_reports permission
-    if not (current_user.has_permission('view_reports') or current_user.has_permission('view_collection_reports')):
+    if not (current_user.has_permission('view_reports') or current_user.has_permission('view_collection_reports') or current_user.has_permission('view_borrowings_report')):
         abort(403)
     
     # Calculate quick statistics
@@ -600,8 +600,7 @@ def customer_report():
 
 @reports_bp.route('/investments')
 @login_required
-@permission_required('view_reports')
-@admin_only
+@permission_required('view_borrowings_report')
 def investment_report():
     """Borrower reports"""
     start_date = request.args.get('start_date', '')

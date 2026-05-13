@@ -58,6 +58,7 @@ class User(UserMixin, db.Model):
     can_manage_pawnings = db.Column(db.Boolean, default=True)
     can_view_reports = db.Column(db.Boolean, default=True)
     can_view_collection_reports = db.Column(db.Boolean, default=False)
+    can_view_borrowings_report = db.Column(db.Boolean, default=False)
     can_manage_settings = db.Column(db.Boolean, default=False)
     can_collect_payments = db.Column(db.Boolean, default=True)
     can_verify_kyc = db.Column(db.Boolean, default=False)
@@ -101,6 +102,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': False,
                 'can_view_collection_reports': False,
+                'can_view_borrowings_report': False,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -115,6 +117,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': False,
                 'can_view_reports': True,
                 'can_view_collection_reports': True,
+                'can_view_borrowings_report': False,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -129,6 +132,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_view_collection_reports': True,
+                'can_view_borrowings_report': True,
                 'can_manage_settings': False,
                 'can_collect_payments': True,
                 'can_verify_kyc': False
@@ -143,6 +147,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_view_collection_reports': True,
+                'can_view_borrowings_report': True,
                 'can_manage_settings': True,
                 'can_collect_payments': True,
                 'can_verify_kyc': True
@@ -157,6 +162,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_view_collection_reports': True,
+                'can_view_borrowings_report': True,
                 'can_manage_settings': True,
                 'can_collect_payments': True,
                 'can_verify_kyc': True
@@ -171,6 +177,7 @@ class User(UserMixin, db.Model):
                 'can_manage_pawnings': True,
                 'can_view_reports': True,
                 'can_view_collection_reports': True,
+                'can_view_borrowings_report': True,
                 'can_manage_settings': True,
                 'can_collect_payments': True,
                 'can_verify_kyc': False

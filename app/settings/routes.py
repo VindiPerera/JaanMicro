@@ -149,6 +149,7 @@ def add_user():
             can_manage_pawnings=form.can_manage_pawnings.data,
             can_view_reports=form.can_view_reports.data,
             can_view_collection_reports=form.can_view_collection_reports.data,
+            can_view_borrowings_report=form.can_view_borrowings_report.data,
             can_manage_settings=form.can_manage_settings.data,
             can_collect_payments=form.can_collect_payments.data,
             can_verify_kyc=form.can_verify_kyc.data
@@ -206,6 +207,7 @@ def edit_user(id):
         user.can_manage_pawnings = form.can_manage_pawnings.data
         user.can_view_reports = form.can_view_reports.data
         user.can_view_collection_reports = form.can_view_collection_reports.data
+        user.can_view_borrowings_report = form.can_view_borrowings_report.data
         user.can_manage_settings = form.can_manage_settings.data
         user.can_collect_payments = form.can_collect_payments.data
         user.can_verify_kyc = form.can_verify_kyc.data

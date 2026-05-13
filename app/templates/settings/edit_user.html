@@ -149,6 +149,10 @@
                                 {{ form.can_view_reports.label(class="form-check-label", title="Allows user to access general system reports and analytics") }}
                             </div>
                             <div class="form-check mb-2">
+                                {{ form.can_view_borrowings_report(class="form-check-input") }}
+                                {{ form.can_view_borrowings_report.label(class="form-check-label", title="Allows user to access the borrowings report") }}
+                            </div>
+                            <div class="form-check mb-2">
                                 {{ form.can_view_collection_reports(class="form-check-input") }}
                                 {{ form.can_view_collection_reports.label(class="form-check-label", title="Allows user to access collection-specific reports") }}
                             </div>
@@ -231,6 +235,7 @@ $(document).ready(function() {
             'can_manage_investments': false,
             'can_manage_pawnings': true,
             'can_view_reports': false,
+            'can_view_borrowings_report': false,
             'can_view_collection_reports': false,
             'can_manage_settings': false,
             'can_collect_payments': true
@@ -244,6 +249,7 @@ $(document).ready(function() {
             'can_manage_investments': false,
             'can_manage_pawnings': false,
             'can_view_reports': true,
+            'can_view_borrowings_report': false,
             'can_view_collection_reports': true,
             'can_manage_settings': false,
             'can_collect_payments': true
@@ -257,6 +263,7 @@ $(document).ready(function() {
             'can_manage_investments': true,
             'can_manage_pawnings': true,
             'can_view_reports': true,
+            'can_view_borrowings_report': true,
             'can_view_collection_reports': true,
             'can_manage_settings': false,
             'can_collect_payments': true
@@ -270,6 +277,7 @@ $(document).ready(function() {
             'can_manage_investments': true,
             'can_manage_pawnings': true,
             'can_view_reports': true,
+            'can_view_borrowings_report': true,
             'can_view_collection_reports': true,
             'can_manage_settings': true,
             'can_collect_payments': true,
@@ -284,6 +292,7 @@ $(document).ready(function() {
             'can_manage_investments': true,
             'can_manage_pawnings': true,
             'can_view_reports': true,
+            'can_view_borrowings_report': true,
             'can_view_collection_reports': true,
             'can_manage_settings': true,
             'can_collect_payments': true,
@@ -298,6 +307,7 @@ $(document).ready(function() {
             'can_manage_investments': true,
             'can_manage_pawnings': true,
             'can_view_reports': true,
+            'can_view_borrowings_report': true,
             'can_view_collection_reports': true,
             'can_manage_settings': true,
             'can_collect_payments': true
