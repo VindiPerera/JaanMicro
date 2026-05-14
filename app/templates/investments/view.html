@@ -180,6 +180,9 @@
                         <th>Balance After</th>
                         <th>Description</th>
                         <th>Processed By</th>
+                        {% if current_user.has_permission('manage_investments') %}
+                        <th class="text-end">Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -191,8 +194,8 @@
                                 <span class="badge bg-success">{{ transaction.transaction_type|title }}</span>
                             {% elif transaction.transaction_type == 'withdrawal' %}
                                 <span class="badge bg-danger">{{ transaction.transaction_type|title }}</span>
-                            {% elif transaction.transaction_type == 'interest' %}
-                                <span class="badge bg-info">{{ transaction.transaction_type|title }}</span>
+                            {% elif transaction.transaction_type == 'interest_credit' %}
+                                <span class="badge bg-info">Interest Credit</span>
                             {% else %}
                                 <span class="badge bg-secondary">{{ transaction.transaction_type|title }}</span>
                             {% endif %}
@@ -205,18 +208,27 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if transaction.transaction_type in ['deposit', 'interest'] %}
+                            {% if transaction.transaction_type in ['deposit', 'interest_credit'] %}
                                 {{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.amount|float) }}
                             {% else %}
                                 -
                             {% endif %}
                         </td>
                         <td><strong>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.balance_after|float) if transaction.balance_after else '0.00' }}</strong></td>
-                        <td>{{ transaction.description or '-' }}</td>
+                        <td>{{ transaction.notes or '-' }}</td>
                         <td>{{ transaction.processed_by_user.full_name if transaction.processed_by_user else 'System' }}</td>
+                        {% if current_user.has_permission('manage_investments') %}
+                        <td class="text-end">
+                            <a href="{{ url_for('investments.edit_transaction', id=investment.id, transaction_id=transaction.id) }}"
+                               class="btn btn-sm btn-outline-warning"
+                               title="Edit Transaction">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% else %}
-                    <tr><td colspan="7" class="text-center text-muted">No transactions recorded yet</td></tr>
+                    <tr><td colspan="{{ 8 if current_user.has_permission('manage_investments') else 7 }}" class="text-center text-muted">No transactions recorded yet</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

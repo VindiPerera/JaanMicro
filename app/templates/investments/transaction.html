@@ -5,7 +5,7 @@
     <div class="col-lg-8 mx-auto">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Add Borrowing Transaction</h5>
+                <h5 class="mb-0">{{ 'Edit Borrowing Transaction' if is_edit else 'Add Borrowing Transaction' }}</h5>
             </div>
             <div class="card-body">
                 <!-- Borrowing Summary -->
@@ -24,6 +24,14 @@
                         </div>
                     </div>
                 </div>
+
+                {% if is_edit %}
+                <div class="alert alert-warning">
+                    <strong>Editing Transaction:</strong>
+                    #{{ edit_transaction.id }}.
+                    After saving, this transaction and all later balances will be recalculated in date order.
+                </div>
+                {% endif %}
                 
                 <form method="POST" action="">
                     {{ form.hidden_tag() }}
@@ -66,6 +74,7 @@
                     </div>
                     
                     <!-- Balance Summary -->
+                    {% if not is_edit %}
                     <div class="alert alert-success mt-4">
                         <h6 class="mb-2">Balance Summary</h6>
                         <div class="row">
@@ -78,9 +87,10 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
                     
                     <div class="mt-4">
-                        {{ form.submit(class="btn btn-success btn-lg") }}
+                        {{ form.submit(class="btn btn-lg " + ("btn-warning" if is_edit else "btn-success")) }}
                         <a href="{{ url_for('investments.view_investment', id=investment.id) }}" class="btn btn-secondary">Cancel</a>
                     </div>
                 </form>
@@ -113,8 +123,10 @@
                                         <span class="badge bg-success">{{ transaction.transaction_type|title }}</span>
                                     {% elif transaction.transaction_type == 'withdrawal' %}
                                         <span class="badge bg-danger">{{ transaction.transaction_type|title }}</span>
+                                    {% elif transaction.transaction_type == 'interest_credit' %}
+                                        <span class="badge bg-info">Interest Credit</span>
                                     {% else %}
-                                        <span class="badge bg-info">{{ transaction.transaction_type|title }}</span>
+                                        <span class="badge bg-secondary">{{ transaction.transaction_type|title }}</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(transaction.amount|float) }}</td>
@@ -133,6 +145,10 @@
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    if ({{ 'true' if is_edit else 'false' }}) {
+        return;
+    }
+
     var currentBalance = {{ investment.current_balance|float if investment.current_balance else investment.principal_amount|float }};
     
     function updateBalanceSummary() {
@@ -140,7 +156,7 @@ $(document).ready(function() {
         var amount = parseFloat($('#amount').val()) || 0;
         var balanceAfter = currentBalance;
         
-        if (transactionType === 'deposit' || transactionType === 'interest') {
+        if (transactionType === 'deposit' || transactionType === 'interest_credit') {
             balanceAfter = currentBalance + amount;
             $('#amount-hint').text('Amount to deposit/add');
         } else if (transactionType === 'withdrawal' || transactionType === 'fee') {
