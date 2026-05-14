@@ -2,6 +2,7 @@
 from flask import render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from dateutil.relativedelta import relativedelta
 from app import db
 from app.investments import investments_bp
@@ -19,6 +20,39 @@ def _display_borrowing_id(investment_number):
     if value[:3].upper() == 'INV':
         return f'BOR{value[3:]}'
     return value
+
+
+def _signed_investment_transaction_amount(transaction_type, amount):
+    """Return signed amount for a transaction type."""
+    normalized_amount = Decimal(str(amount or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    if transaction_type in ['withdrawal', 'fee']:
+        return -normalized_amount
+    return normalized_amount
+
+
+def _recalculate_investment_transaction_balances(investment):
+    """Rebuild running balances chronologically and sync investment current amount."""
+    running_balance = Decimal('0.00')
+    ordered_transactions = investment.transactions.order_by(
+        InvestmentTransaction.transaction_date.asc(),
+        InvestmentTransaction.id.asc()
+    ).all()
+
+    for transaction in ordered_transactions:
+        running_balance += _signed_investment_transaction_amount(
+            transaction.transaction_type,
+            transaction.amount
+        )
+
+        if running_balance < Decimal('0.00'):
+            tx_date = transaction.transaction_date.strftime('%Y-%m-%d') if transaction.transaction_date else 'unknown date'
+            raise ValueError(
+                f'Transaction history goes below zero on {tx_date} (transaction #{transaction.id}).'
+            )
+
+        transaction.balance_after = running_balance.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    investment.current_amount = running_balance.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 @investments_bp.route('/')
 @login_required
@@ -192,7 +226,10 @@ def view_investment(id):
         flash('Access denied: Borrowing not found in accessible branches.', 'danger')
         return redirect(url_for('investments.list_investments'))
     
-    transactions = investment.transactions.order_by(InvestmentTransaction.transaction_date.desc()).all()
+    transactions = investment.transactions.order_by(
+        InvestmentTransaction.transaction_date.desc(),
+        InvestmentTransaction.id.desc()
+    ).all()
     
     return render_template('investments/view.html',
                          title=f'Borrower: {_display_borrowing_id(investment.investment_number)}',
@@ -338,24 +375,12 @@ def add_transaction(id):
     form = InvestmentTransactionForm()
     
     if form.validate_on_submit():
-        amount = form.amount.data
-        transaction_type = form.transaction_type.data
-        
-        # Calculate new balance
-        if transaction_type in ['deposit', 'interest_credit']:
-            new_balance = investment.current_amount + amount
-        else:  # withdrawal
-            if amount > investment.current_amount:
-                flash('Withdrawal amount exceeds current balance!', 'danger')
-                return redirect(url_for('investments.add_transaction', id=id))
-            new_balance = investment.current_amount - amount
-        
         transaction = InvestmentTransaction(
             investment_id=investment.id,
             transaction_date=form.transaction_date.data,
-            transaction_type=transaction_type,
-            amount=amount,
-            balance_after=new_balance,
+            transaction_type=form.transaction_type.data,
+            amount=form.amount.data,
+            balance_after=Decimal('0.00'),
             payment_method=form.payment_method.data,
             reference_number=form.reference_number.data,
             notes=form.notes.data,
@@ -363,9 +388,13 @@ def add_transaction(id):
         )
         
         db.session.add(transaction)
-        
-        # Update investment balance
-        investment.current_amount = new_balance
+
+        try:
+            _recalculate_investment_transaction_balances(investment)
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+            return redirect(url_for('investments.add_transaction', id=id))
         
         # Log activity
         log = ActivityLog(
@@ -373,7 +402,7 @@ def add_transaction(id):
             action='add_investment_transaction',
             entity_type='investment',
             entity_id=investment.id,
-            description=f'Added {transaction_type} for borrower: {investment.investment_number}',
+            description=f'Added {form.transaction_type.data} for borrower: {investment.investment_number}',
             ip_address=request.remote_addr
         )
         db.session.add(log)
@@ -382,8 +411,90 @@ def add_transaction(id):
         
         flash('Transaction added successfully!', 'success')
         return redirect(url_for('investments.view_investment', id=id))
-    
+
+    recent_transactions = investment.transactions.order_by(
+        InvestmentTransaction.transaction_date.desc(),
+        InvestmentTransaction.id.desc()
+    ).limit(5).all()
+
     return render_template('investments/transaction.html',
                          title=f'Add Transaction: {_display_borrowing_id(investment.investment_number)}',
                          form=form,
-                         investment=investment)
+                         investment=investment,
+                         recent_transactions=recent_transactions,
+                         is_edit=False)
+
+
+@investments_bp.route('/<int:id>/transaction/<int:transaction_id>/edit', methods=['GET', 'POST'])
+@login_required
+@permission_required('manage_investments')
+def edit_transaction(id, transaction_id):
+    """Edit borrower transaction and rebuild balances."""
+    investment = Investment.query.get_or_404(id)
+    transaction = InvestmentTransaction.query.filter_by(
+        id=transaction_id,
+        investment_id=investment.id
+    ).first_or_404()
+
+    # Check branch access
+    from app.utils.helpers import get_user_accessible_branch_ids
+    accessible_branch_ids = get_user_accessible_branch_ids()
+    if accessible_branch_ids and investment.branch_id not in accessible_branch_ids:
+        flash('Access denied: Borrower not found in accessible branches.', 'danger')
+        return redirect(url_for('investments.list_investments'))
+
+    form = InvestmentTransactionForm()
+    form.submit.label.text = 'Update Transaction'
+
+    if request.method == 'GET':
+        form.transaction_date.data = transaction.transaction_date
+        form.transaction_type.data = transaction.transaction_type
+        form.amount.data = transaction.amount
+        form.payment_method.data = transaction.payment_method
+        form.reference_number.data = transaction.reference_number
+        form.notes.data = transaction.notes
+
+    if form.validate_on_submit():
+        transaction.transaction_date = form.transaction_date.data
+        transaction.transaction_type = form.transaction_type.data
+        transaction.amount = form.amount.data
+        transaction.payment_method = form.payment_method.data
+        transaction.reference_number = form.reference_number.data
+        transaction.notes = form.notes.data
+
+        try:
+            _recalculate_investment_transaction_balances(investment)
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+            return redirect(url_for('investments.edit_transaction', id=investment.id, transaction_id=transaction.id))
+
+        log = ActivityLog(
+            user_id=current_user.id,
+            action='update_investment_transaction',
+            entity_type='investment',
+            entity_id=investment.id,
+            description=(
+                f'Updated transaction #{transaction.id} for borrower: '
+                f'{investment.investment_number}'
+            ),
+            ip_address=request.remote_addr
+        )
+        db.session.add(log)
+
+        db.session.commit()
+        flash('Transaction updated successfully!', 'success')
+        return redirect(url_for('investments.view_investment', id=investment.id))
+
+    recent_transactions = investment.transactions.order_by(
+        InvestmentTransaction.transaction_date.desc(),
+        InvestmentTransaction.id.desc()
+    ).limit(5).all()
+
+    return render_template('investments/transaction.html',
+                         title=f'Edit Transaction: {_display_borrowing_id(investment.investment_number)}',
+                         form=form,
+                         investment=investment,
+                         recent_transactions=recent_transactions,
+                         is_edit=True,
+                         edit_transaction=transaction)
