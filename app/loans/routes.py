@@ -700,6 +700,7 @@ def edit_loan_select():
 
 @loans_bp.route('/<int:id>')
 @login_required
+@permission_required('manage_loans')
 def view_loan(id):
     """View loan details"""
     loan = Loan.query.get_or_404(id)

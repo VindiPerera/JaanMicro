@@ -123,9 +123,11 @@
                             <a href="{{ url_for('customers.view_customer', id=customer.id) }}" class="btn btn-sm btn-info" title="View">
                                 <i class="bi bi-eye"></i>
                             </a>
+                            {% if current_user.has_permission('edit_customers') %}
                             <a href="{{ url_for('customers.edit_customer', id=customer.id) }}" class="btn btn-sm btn-warning" title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

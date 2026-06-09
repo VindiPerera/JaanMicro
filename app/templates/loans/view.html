@@ -755,7 +755,7 @@
         <div class="card mb-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
-                {% if loan.status == 'active' %}
+                {% if loan.status == 'active' and current_user.has_permission('collect_payments') %}
                 <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-sm btn-success">
                     <i class="bi bi-plus-circle me-1"></i>Add Payment
                 </a>

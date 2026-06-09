@@ -215,6 +215,7 @@ def add_investment():
 
 @investments_bp.route('/<int:id>')
 @login_required
+@permission_required('manage_investments')
 def view_investment(id):
     """View borrower details"""
     investment = Investment.query.get_or_404(id)

@@ -74,7 +74,7 @@
                             <a href="{{ url_for('pawnings.view_pawning', id=pawning.id) }}" class="btn btn-sm btn-info">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            {% if pawning.status == 'active' %}
+                            {% if pawning.status == 'active' and current_user.has_permission('collect_payments') %}
                             <a href="{{ url_for('pawnings.add_payment', id=pawning.id) }}" class="btn btn-sm btn-success">
                                 <i class="bi bi-cash"></i>
                             </a>

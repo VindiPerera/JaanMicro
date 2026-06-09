@@ -133,12 +133,12 @@
                             <a href="{{ url_for('loans.view_loan', id=loan.id) }}" class="btn btn-sm btn-info" title="View">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            {% if loan.status == 'active' %}
+                            {% if loan.status == 'active' and current_user.has_permission('collect_payments') %}
                             <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-sm btn-success" title="Add Payment">
                                 <i class="bi bi-cash"></i>
                             </a>
                             {% endif %}
-                            {% if loan.status == 'pending' %}
+                            {% if loan.status == 'pending' and current_user.role == 'admin' %}
                             <a href="{{ url_for('loans.approve_loan', id=loan.id) }}" class="btn btn-sm btn-primary" title="Approve">
                                 <i class="bi bi-check-circle"></i>
                             </a>

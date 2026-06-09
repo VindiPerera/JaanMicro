@@ -11,11 +11,28 @@ def permission_required(permission):
             if not current_user.is_authenticated:
                 flash('Please log in to access this page.', 'warning')
                 return redirect(url_for('auth.login'))
-            
+
             if not current_user.has_permission(permission):
                 flash('You do not have permission to access this page.', 'danger')
                 return redirect(url_for('main.dashboard'))
-            
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def any_permission_required(*permissions):
+    """Decorator to check if user has ANY of the listed permissions"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                flash('Please log in to access this page.', 'warning')
+                return redirect(url_for('auth.login'))
+
+            if not any(current_user.has_permission(p) for p in permissions):
+                flash('You do not have permission to access this page.', 'danger')
+                return redirect(url_for('main.dashboard'))
+
             return f(*args, **kwargs)
         return decorated_function
     return decorator

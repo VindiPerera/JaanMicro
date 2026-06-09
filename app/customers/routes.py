@@ -9,7 +9,7 @@ from app import db
 from app.customers import customers_bp
 from app.models import Customer, ActivityLog, User
 from app.customers.forms import CustomerForm, KYCForm
-from app.utils.decorators import permission_required
+from app.utils.decorators import permission_required, any_permission_required
 from app.utils.helpers import allowed_file, generate_customer_id, get_current_branch_id, should_filter_by_branch
 
 
@@ -22,7 +22,7 @@ def _exclude_internal_staff_members(query):
 
 @customers_bp.route('/')
 @login_required
-@permission_required('add_customers')
+@any_permission_required('add_customers', 'edit_customers', 'delete_customers')
 def list_customers():
     """List all customers"""
     page = request.args.get('page', 1, type=int)
@@ -466,7 +466,7 @@ def edit_customer(id):
 
 @customers_bp.route('/<int:id>/kyc', methods=['GET', 'POST'])
 @login_required
-@permission_required('edit_customers')
+@any_permission_required('edit_customers', 'verify_kyc')
 def customer_kyc(id):
     """Manage Member KYC"""
     customer = Customer.query.get_or_404(id)
@@ -546,7 +546,7 @@ def delete_customer(id):
 
 @customers_bp.route('/edit-member-select')
 @login_required
-@permission_required('add_customers')
+@permission_required('edit_customers')
 def edit_member_select():
     """Select member to edit"""
     page = request.args.get('page', 1, type=int)
@@ -582,7 +582,7 @@ def edit_member_select():
 
 @customers_bp.route('/search')
 @login_required
-@permission_required('add_customers')
+@any_permission_required('add_customers', 'edit_customers')
 def search_members():
     """Search members page"""
     page = request.args.get('page', 1, type=int)

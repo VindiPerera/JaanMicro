@@ -164,9 +164,11 @@
                                 <td>{{ system_settings.currency_symbol }} {{ "%.2f"|format(loan.outstanding_amount|float) }}</td>
                                 <td>{{ loan.first_installment_date }}</td>
                                 <td>
+                                    {% if current_user.has_permission('collect_payments') %}
                                     <a href="{{ url_for('loans.add_payment', id=loan.id) }}" class="btn btn-sm btn-primary">
                                         <i class="bi bi-cash"></i> Add Payment
                                     </a>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

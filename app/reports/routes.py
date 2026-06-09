@@ -681,7 +681,7 @@ def investment_report():
 
 @reports_bp.route('/pawnings')
 @login_required
-@permission_required('view_reports')
+@permission_required('manage_pawnings')
 def pawning_report():
     """Pawning reports"""
     start_date = request.args.get('start_date', '')

@@ -130,13 +130,15 @@ class UserForm(FlaskForm):
         from app.models import Branch
         self.branch_id.choices = [(0, '-- Select Branch --')] + [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
         self.regional_branches.choices = [(b.id, f"{b.branch_code} - {b.name}") for b in Branch.query.filter_by(is_active=True).all()]
-        
-        # Set default permissions for staff role on new forms only if no data provided
-        if not args and not kwargs.get('obj'):  # New form, no existing data
-            # Set default role to staff if not provided
-            if not self.role.data:
-                self.role.data = 'staff'
-            self._set_default_permissions_for_role('staff')
+
+        # Set default permissions only on GET (page load), never on POST — otherwise
+        # the staff-role defaults override the checkboxes the admin actually submitted.
+        if not args and not kwargs.get('obj'):  # New form, no existing object
+            from flask import request as _request
+            if _request.method == 'GET':
+                if not self.role.data:
+                    self.role.data = 'staff'
+                self._set_default_permissions_for_role('staff')
     
     def _set_default_permissions_for_role(self, role):
         """Set default permissions based on role"""

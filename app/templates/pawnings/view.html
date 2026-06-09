@@ -5,12 +5,16 @@
     <h4>Pawning Details - {{ pawning.pawning_number }}</h4>
     <div>
         {% if pawning.status in ['active', 'extended', 'overdue'] %}
+        {% if current_user.has_permission('collect_payments') %}
         <a href="{{ url_for('pawnings.add_payment', id=pawning.id) }}" class="btn btn-success">
             <i class="bi bi-cash me-2"></i>Add Payment
         </a>
+        {% endif %}
+        {% if current_user.has_permission('manage_pawnings') %}
         <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#extendModal">
             <i class="bi bi-calendar-plus me-2"></i>Extend Period
         </button>
+        {% endif %}
         {% endif %}
         <a href="{{ url_for('pawnings.list_pawnings') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left me-2"></i>Back

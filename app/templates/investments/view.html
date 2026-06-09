@@ -9,7 +9,7 @@
             <i class="bi bi-pencil-square me-2"></i>Edit Borrowing
         </a>
         {% endif %}
-        {% if investment.status == 'active' %}
+        {% if investment.status == 'active' and current_user.has_permission('manage_investments') %}
         <a href="{{ url_for('investments.add_transaction', id=investment.id) }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-2"></i>Add Transaction
         </a>

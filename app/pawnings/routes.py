@@ -205,6 +205,7 @@ def add_pawning():
 
 @pawnings_bp.route('/<int:id>')
 @login_required
+@permission_required('manage_pawnings')
 def view_pawning(id):
     """View pawning details - Sri Lankan style"""
     pawning = Pawning.query.get_or_404(id)
