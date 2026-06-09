@@ -15,6 +15,7 @@ class LoanForm(FlaskForm):
         ('', 'Select'),
         ('type1_9weeks', '9 Week Loan'),
         ('54_daily', '54 Daily Loan'),
+        ('54_daily_monday_friday', '54 Daily Loan (Monday-Friday)'),
         ('type4_micro', 'Micro Loan (Weekly Installment)'),
         ('type4_daily', 'Daily Loan (Daily Installment)'),
         ('monthly_loan', 'Monthly Loan'),

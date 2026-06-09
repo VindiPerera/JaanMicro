@@ -40,6 +40,7 @@
                         <option value="">All Types</option>
                         <option value="type1_9weeks" {% if loan_type == 'type1_9weeks' %}selected{% endif %}>9 Week Loan</option>
                         <option value="54_daily" {% if loan_type == '54_daily' %}selected{% endif %}>54 Daily Loan</option>
+                        <option value="54_daily_monday_friday" {% if loan_type == '54_daily_monday_friday' %}selected{% endif %}>54 Daily Loan (Monday-Friday)</option>
                         <option value="type4_micro" {% if loan_type == 'type4_micro' %}selected{% endif %}>Micro Loan</option>
                         <option value="type4_daily" {% if loan_type == 'type4_daily' %}selected{% endif %}>Daily Loan</option>
                         <option value="monthly_loan" {% if loan_type == 'monthly_loan' %}selected{% endif %}>Monthly Loan</option>
@@ -92,6 +93,8 @@
                             9 Week Loan
                             {% elif loan.loan_type == '54_daily' %}
                             54 Daily Loan
+                            {% elif loan.loan_type == '54_daily_monday_friday' %}
+                            54 Daily Loan (Monday-Friday)
                             {% elif loan.loan_type == 'type4_micro' %}
                             Micro Loan
                             {% elif loan.loan_type == 'type4_daily' %}

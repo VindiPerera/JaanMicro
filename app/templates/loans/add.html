@@ -496,7 +496,7 @@ $(document).ready(function() {
             
             // Update interest rate help text
             $('#interestRateHelp').text('Enter base interest rate (will be multiplied by 2 for calculation)');
-        } else if (loanType === '54_daily') {
+        } else if (loanType === '54_daily' || loanType === '54_daily_monday_friday') {
             // Show days field, hide weeks and months
             $('#durationDaysField').show();
             $('#durationWeeksField').hide();
@@ -851,7 +851,7 @@ $(document).ready(function() {
                 isValid = false;
                 message = 'Please enter duration in weeks.';
             }
-        } else if (loanType === '54_daily') {
+        } else if (loanType === '54_daily' || loanType === '54_daily_monday_friday') {
             if (!$('#duration_days').val()) {
                 isValid = false;
                 message = 'Please enter duration in days.';
@@ -926,7 +926,7 @@ $(document).ready(function() {
                     );
                 }
             }
-        } else if (loanType === '54_daily') {
+        } else if (loanType === '54_daily' || loanType === '54_daily_monday_friday') {
             var days = parseInt($('#duration_days').val()) || 54;
             
             if (principal > 0 && rate > 0 && days > 0) {

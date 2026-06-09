@@ -40,7 +40,7 @@ def _calculate_loan_totals_for_principal(
         interest = rate * Decimal('2')
         total_payable = (principal * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         emi = (total_payable / Decimal(str(weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
-    elif loan_type == '54_daily':
+    elif loan_type in ['54_daily', '54_daily_monday_friday']:
         days = days or 54
         full_interest = rate * Decimal('2')
         total_payable = (principal * (Decimal('100') + full_interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -398,7 +398,7 @@ def add_loan():
             if not form.duration_weeks.data:
                 flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
                 return render_template('loans/add.html', title='Add Loan', form=form, final_approvers=final_approvers)
-        elif form.loan_type.data == '54_daily':
+        elif form.loan_type.data in ['54_daily', '54_daily_monday_friday']:
             # For 54 Daily loans, validate days instead of months
             if not form.duration_days.data:
                 flash('Duration (Days) is required for 54 Daily Loan!', 'error')
@@ -502,7 +502,7 @@ def add_loan():
             interest = interest_rate * Decimal('2')
             total_payable = (loan_amount * (Decimal('100') + interest) / Decimal('100')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             emi = (total_payable / Decimal(str(duration_weeks))).quantize(Decimal('1'), rounding=ROUND_UP)
-        elif form.loan_type.data == '54_daily':
+        elif form.loan_type.data in ['54_daily', '54_daily_monday_friday']:
             duration_days = form.duration_days.data or 54
             duration_months = 0  # Not used for daily loans
             # 54 Daily Loan: Full Interest = Interest Rate * 2
@@ -809,7 +809,7 @@ def edit_loan(id):
             if not form.duration_weeks.data:
                 flash('Duration (Weeks) is required for Type 1 - 9 Week Loan!', 'error')
                 return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
-        elif form.loan_type.data == '54_daily':
+        elif form.loan_type.data in ['54_daily', '54_daily_monday_friday']:
             if not form.duration_days.data:
                 flash('Duration (Days) is required for 54 Daily Loan!', 'error')
                 return render_template('loans/edit.html', title='Edit Loan', form=form, loan=loan)
@@ -866,7 +866,7 @@ def edit_loan(id):
         if form.loan_type.data == 'type1_9weeks':
             duration_weeks = form.duration_weeks.data or 9
             duration_months = 0
-        elif form.loan_type.data == '54_daily':
+        elif form.loan_type.data in ['54_daily', '54_daily_monday_friday']:
             duration_days = form.duration_days.data or 54
             duration_months = 0
         elif form.loan_type.data == 'type4_micro':
@@ -2141,9 +2141,9 @@ def receipt_entry():
         Loan.status == 'active'
     )
     
-    # Get daily loans (54_daily and type4_daily)
+    # Get daily loans (54_daily, 54_daily_monday_friday, and type4_daily)
     daily_loans_query = Loan.query.filter(
-        Loan.loan_type.in_(['54_daily', 'type4_daily']),
+        Loan.loan_type.in_(['54_daily', '54_daily_monday_friday', 'type4_daily']),
         Loan.status == 'active'
     )
     
@@ -2336,7 +2336,7 @@ def receipt_entry_export(loan_frequency):
 
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
-        'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
+        'daily': (['54_daily', '54_daily_monday_friday', 'type4_daily'], 'Daily Loans'),
         'monthly': (['monthly_loan'], 'Monthly Loans'),
         'staff': (['staff_loan'], 'Staff Loans'),
         'special': (['special_loan'], 'Special Loans'),
@@ -2526,7 +2526,7 @@ def receipt_entry_pdf(loan_frequency):
 
     frequency_map = {
         'weekly': (['type1_9weeks', 'type4_micro'], 'Weekly Loans'),
-        'daily': (['54_daily', 'type4_daily'], 'Daily Loans'),
+        'daily': (['54_daily', '54_daily_monday_friday', 'type4_daily'], 'Daily Loans'),
         'monthly': (['monthly_loan'], 'Monthly Loans'),
         'staff': (['staff_loan'], 'Staff Loans'),
         'special': (['special_loan'], 'Special Loans'),
@@ -2919,9 +2919,9 @@ def skip_all_daily_loans():
         if skip_date.weekday() == 6:
             return jsonify({'success': False, 'message': 'Cannot skip a Sunday — daily loans already skip Sundays'}), 400
 
-        # Get all active daily loans (54_daily = DLS, type4_daily = DL)
+        # Get all active daily loans (54_daily = DLS, 54_daily_monday_friday = DLMF, type4_daily = DL)
         daily_loans_query = Loan.query.filter(
-            Loan.loan_type.in_(['54_daily', 'type4_daily']),
+            Loan.loan_type.in_(['54_daily', '54_daily_monday_friday', 'type4_daily']),
             Loan.status == 'active'
         )
 

@@ -452,6 +452,12 @@ class Loan(db.Model):
     final_approver = db.relationship('User', foreign_keys=[final_approver_id], backref='final_approval_loans')
     referrer = db.relationship('User', foreign_keys=[referred_by], backref='referred_loans')
     deactivator = db.relationship('User', foreign_keys=[deactivated_by], backref='deactivated_loans')
+
+    def _should_skip_daily_due_date(self, due_date):
+        """Return True when this daily loan should not schedule an installment on the date."""
+        if due_date.weekday() == 6:
+            return True
+        return self.loan_type == '54_daily_monday_friday' and due_date.weekday() == 5
     
     def calculate_emi(self):
         """Calculate EMI based on loan parameters and loan type"""
@@ -807,7 +813,7 @@ class Loan(db.Model):
                 if frequency_delta:
                     orig_due = current_due_date + frequency_delta
                     if frequency_name == 'Daily':
-                        while orig_due.weekday() == 6:
+                        while self._should_skip_daily_due_date(orig_due):
                             orig_due = orig_due + timedelta(days=1)
                     original_due_date = orig_due
                 else:
@@ -867,9 +873,9 @@ class Loan(db.Model):
             elif frequency_delta:
                 current_due_date = current_due_date + frequency_delta
                 
-                # For daily loans (54 Daily and Type 4 Daily), skip Sundays
+                # For daily loans, skip Sundays. The Monday-Friday 54 loan also skips Saturdays.
                 if frequency_name == 'Daily':
-                    while current_due_date.weekday() == 6:  # 6 = Sunday
+                    while self._should_skip_daily_due_date(current_due_date):
                         current_due_date = current_due_date + timedelta(days=1)
                 
                 due_date = current_due_date

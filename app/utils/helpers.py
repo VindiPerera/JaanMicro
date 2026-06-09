@@ -150,6 +150,7 @@ def get_loan_type_code(loan_type):
     loan_type_mapping = {
         'type1_9weeks': 'WS',      # 9 Week Loan - Weekly Short
         '54_daily': 'DLS',         # 54 Daily Loan - Daily Long Short
+        '54_daily_monday_friday': 'DLMF',  # 54 Daily Loan - Monday to Friday
         'type4_micro': 'MF',       # Micro Loan - Micro Finance
         'type4_daily': 'DL',       # Daily Loan - Daily
         'monthly_loan': 'ML',      # Monthly Loan - Monthly
