@@ -35,6 +35,9 @@ class Config:
 
     # Internal messaging system toggle (keeps code in place but disables runtime use)
     MESSAGING_ENABLED = os.environ.get('MESSAGING_ENABLED', 'false').lower() == 'true'
+
+    # Borrowing/investment module toggle (keeps code in place but disables runtime use)
+    BORROWING_ENABLED = os.environ.get('BORROWING_ENABLED', 'false').lower() == 'true'
     
 class DevelopmentConfig(Config):
     """Development configuration"""

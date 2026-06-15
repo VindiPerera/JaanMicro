@@ -685,7 +685,7 @@
             </li>
             {% endif %}
             
-            {% if current_user.has_permission('manage_investments') %}
+            {% if borrowing_enabled and current_user.has_permission('manage_investments') %}
             <li>
                 <a href="{{ url_for('investments.list_investments') }}" class="{% if 'investments' in request.endpoint %}active{% endif %}">
                     <i class="bi bi-piggy-bank"></i>

@@ -603,6 +603,10 @@ def customer_report():
 @permission_required('view_borrowings_report')
 def investment_report():
     """Borrower reports"""
+    from flask import redirect, url_for, flash
+    if not current_app.config.get('BORROWING_ENABLED', False):
+        flash('The borrowings module is currently disabled.', 'warning')
+        return redirect(url_for('reports.index'))
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     investment_type = request.args.get('investment_type', '')

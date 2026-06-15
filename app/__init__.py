@@ -29,6 +29,7 @@ def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     messaging_enabled = app.config.get('MESSAGING_ENABLED', False)
+    borrowing_enabled = app.config.get('BORROWING_ENABLED', False)
     
     # Create upload folders if they don't exist
     upload_folder = app.config.get('UPLOAD_FOLDER')
@@ -146,13 +147,14 @@ def create_app(config_name='default'):
             ).count()
 
         return dict(
-            system_settings=settings, 
-            now=get_current_time, 
-            today=get_current_date(), 
+            system_settings=settings,
+            now=get_current_time,
+            today=get_current_date(),
             current_branch=current_branch,
             branches=branches,
             csrf_token=generate_csrf,
             messaging_enabled=messaging_enabled,
+            borrowing_enabled=borrowing_enabled,
             unread_count=unread_count,
             format_datetime_local=format_datetime_local
         )
